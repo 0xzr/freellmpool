@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/0xzr-freellmpool-badge.png)](https://mseep.ai/app/0xzr-freellmpool)
+
 # freellmpool
 
 <!-- mcp-name: io.github.0xzr/freellmpool -->
