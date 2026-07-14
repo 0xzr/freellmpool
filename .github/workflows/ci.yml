@@ -49,7 +49,7 @@ jobs:
       - name: Import smoke
         run: python -c "import freellmpool; from freellmpool import Pool, AsyncPool; print(freellmpool.__version__, Pool, AsyncPool)"
       - name: Test
-        run: pytest --cov=freellmpool --cov-report=term-missing --cov-fail-under=75
+        run: pytest --cov=freellmpool --cov-report=term-missing --cov-fail-under=80
       - name: Wheel smoke
         run: |
           python -m build

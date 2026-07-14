@@ -59,8 +59,8 @@ Then choose:
 - `freellmpool/quality` for stronger free-tier routes when available;
 - `freellmpool/fair` to spread quota.
 
-The current packaged catalog has 19 cataloged providers, 237 enabled chat
-routes, and 358 cataloged chat models. It can start keyless when default
+The current packaged catalog has 19 cataloged providers, 240 enabled chat
+routes, and 380 cataloged chat models. It can start keyless when default
 keyless/key-optional routes are available, and you can add your own provider
 free-tier keys for more capacity.
 

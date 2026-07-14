@@ -9,6 +9,20 @@ All notable changes to this project are documented here. The format is based on
 ### Added
 - Experimental metaswarm review adapter integration, with setup docs and no-key
   smoke coverage for fail-closed `auth_missing` behavior.
+- A dated [live model-activity audit](docs/MODEL_ACTIVITY_AUDIT_2026-07-14.md)
+  covering discovery and completion probes across 18 configured providers.
+
+### Changed
+- Refreshed the provider catalog to 240 enabled chat routes and 380 cataloged
+  chat models, adding live-verified current models and disabling stale, retired,
+  empty, degraded, or repeatedly timing-out routes.
+- Added six completion-verified CohereLabs routes exposed by the Hugging Face
+  router after an exhaustive second-pass catalog-gap probe.
+
+### Fixed
+- The catalog vetter now filters paid Kilo/OpenRouter/OpenCode discovery rows,
+  requires non-empty completion text, gives reasoning models enough output
+  budget to answer, and classifies 410/retirement responses correctly.
 
 ## [0.11.4] — 2026-06-17
 

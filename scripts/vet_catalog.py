@@ -8,7 +8,7 @@ environment) this:
    catalog, surfacing models the provider added (candidates to add) and models
    the catalog lists that the provider no longer offers (candidates to remove).
 2. **Pings** every catalog model — both ``enabled`` and ``enabled = false`` — with
-   a one-token completion through the *real* :func:`freellmpool.client.call`
+   a small completion through the *real* :func:`freellmpool.client.call`
    path, retrying transient failures, so the report reflects what auto-routing
    would actually experience.
 
@@ -54,6 +54,7 @@ _NON_CHAT_HINTS = (
     "tts",
     "text-to-speech",
     "speech",
+    "transcribe",
     "audio",
     "voxtral",
     "orpheus",
@@ -64,7 +65,17 @@ _NON_CHAT_HINTS = (
     "reranker",
     "moderation",
     "guard",
+    "safety",
+    "detector",
+    "reward",
+    "-pii",
+    "deplot",
+    "kosmos",
+    "nemotron-parse",
+    "riva-translate",
+    "ising-calibration",
     "stable-diffusion",
+    "diffusion",
     "sdxl",
     "sd-",
     "flux",
@@ -92,7 +103,7 @@ _RETRYABLE_STATUS = {408, 409, 429, 500, 502, 503, 504, 520, 522, 524}
 
 def _looks_chat(model_id: str) -> bool:
     low = model_id.lower()
-    return not any(h in low for h in _NON_CHAT_HINTS)
+    return low != "ppl" and not any(h in low for h in _NON_CHAT_HINTS)
 
 
 # --------------------------------------------------------------------------- #
@@ -112,8 +123,9 @@ def _http_get_obj(url: str, headers: dict, timeout: float = 20.0) -> dict:
 def list_live_models(provider: Provider, env: dict) -> list[str]:
     """Return the provider's live model ids, or [] if listing is unsupported.
 
-    Filters OpenRouter to its free tier (the only tier the catalog tracks) and
-    Cloudflare to text-generation models via the native model-search route.
+    Filters aggregator listings to free routes (the only tier the catalog
+    tracks) and Cloudflare to text-generation models via the native model-search
+    route.
     """
     key = provider.api_key(env)
     auth = {"Authorization": f"Bearer {key}"} if key else {}
@@ -149,8 +161,11 @@ def list_live_models(provider: Provider, env: dict) -> list[str]:
         mid = m.get("id") if isinstance(m, dict) else (m if isinstance(m, str) else None)
         if mid:
             ids.append(mid)
-    if provider.id == "openrouter":
-        ids = [i for i in ids if i.endswith(":free") or i.startswith("openrouter/")]
+    if provider.id in {"kilo", "openrouter"}:
+        free_aliases = {"openrouter/free", "kilo-auto/free"}
+        ids = [i for i in ids if i.endswith(":free") or i in free_aliases]
+    elif provider.id == "opencode":
+        ids = [i for i in ids if i.endswith("-free")]
     return ids
 
 
@@ -189,20 +204,24 @@ def ping_model(provider: Provider, model_name: str, env: dict, timeout: float) -
                 _PING_MESSAGES,
                 api_key=key,
                 env=env,
-                max_tokens=16,
+                max_tokens=256,
                 temperature=0.0,
                 timeout=timeout,
             )
             dt = round(time.monotonic() - t0, 2)
-            return {
-                "ok": True,
-                "status": 200,
-                "latency_s": dt,
-                "empty": not reply.text.strip(),
-                "snippet": reply.text.strip()[:60],
-                "attempts": attempts,
-                "error": "",
-            }
+            text = reply.text.strip()
+            if text:
+                return {
+                    "ok": True,
+                    "status": 200,
+                    "latency_s": dt,
+                    "empty": False,
+                    "snippet": text[:60],
+                    "attempts": attempts,
+                    "error": "",
+                }
+            last_status = 200
+            last_err = "empty completion"
         except ProviderHTTPError as exc:
             last_status = exc.status
             last_err = str(exc)[:200]
@@ -216,7 +235,7 @@ def ping_model(provider: Provider, model_name: str, env: dict, timeout: float) -
         "ok": False,
         "status": last_status,
         "latency_s": None,
-        "empty": None,
+        "empty": last_status == 200 and last_err == "empty completion",
         "snippet": "",
         "attempts": attempts,
         "error": last_err,
@@ -232,18 +251,28 @@ def _classify(status: int | None, err: str) -> str:
     if status == 429:
         return "rate_limited"  # transient — do NOT disable
     if (
-        status in (404,)
+        status in (404, 410)
         or "not found" in low
         or "does not exist" in low
         or "decommission" in low
+        or "end of life" in low
+        or "retired" in low
         or "not a valid model" in low
         or "no longer" in low
     ):
         return "dead"  # model gone — disable
     if status == 400 and (
-        "model" in low and ("not" in low or "invalid" in low or "support" in low)
+        "model" in low
+        and (
+            "not" in low
+            or "invalid" in low
+            or "support" in low
+            or "unavailable" in low
+        )
     ):
         return "dead"
+    if status == 200 and "empty completion" in low:
+        return "empty"
     if status is None:
         return "unreachable"  # network/timeout — transient
     if status and 500 <= status < 600:

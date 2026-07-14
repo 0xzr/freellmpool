@@ -68,9 +68,9 @@ def test_demo_assets_are_well_formed_and_current():
     assert "TOKENMAXXING" in demo
     assert "--animation-duration: 8500ms" in demo
     assert f"freellmpool-{__version__}" in demo
-    assert "19 cataloged providers, 237 enabled routes" in demo
+    assert "19 cataloged providers, 240 enabled routes" in demo
     assert "keyless start when available" in demo
-    assert "237" in results
-    assert "358 cataloged" in results
+    assert "240" in results
+    assert "380 cataloged" in results
     assert "cataloged providers" in results
     assert "$0" in results
