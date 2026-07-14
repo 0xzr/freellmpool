@@ -21,7 +21,7 @@ It can run as:
 - an experimental Anthropic-compatible proxy path for coding agents;
 - an MCP server with tools like `free_llm_ask`, `free_llm_panel`, and `tokenmax`.
 
-The current catalog has 19 cataloged providers, 237 enabled chat routes, and 358 cataloged
+The current catalog has 19 cataloged providers, 240 enabled chat routes, and 380 cataloged
 chat models. Some routes work without any API key, so the quickstart can produce
 a first reply after `pip install freellmpool`; adding your own free-tier keys for
 Groq, Cerebras, Gemini, Mistral, OpenRouter, NVIDIA, Cohere, and others expands

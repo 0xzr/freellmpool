@@ -36,6 +36,77 @@ def test_packaged_catalog_loads():
         assert p.base_url.startswith("https://")
 
 
+def test_packaged_catalog_reflects_july_live_model_audit():
+    providers = {provider.id: provider for provider in load_catalog()}
+    expected_enabled = {
+        "cerebras": {"gemma-4-31b"},
+        "cloudflare": {"@cf/moonshotai/kimi-k2.7-code"},
+        "cohere": {"command-a-translate-08-2025"},
+        "huggingface": {
+            "CohereLabs/aya-expanse-32b",
+            "CohereLabs/aya-vision-32b",
+            "CohereLabs/c4ai-command-a-03-2025",
+            "CohereLabs/c4ai-command-r-08-2024",
+            "CohereLabs/command-a-reasoning-08-2025",
+            "CohereLabs/command-a-vision-07-2025",
+            "MiniMaxAI/MiniMax-M2.7",
+            "MiniMaxAI/MiniMax-M3",
+            "Qwen/Qwen3.6-27B",
+            "Qwen/Qwen3.6-35B-A3B",
+            "XiaomiMiMo/MiMo-V2.5-Pro",
+            "google/gemma-4-31B-it",
+            "moonshotai/Kimi-K2.7-Code",
+            "zai-org/GLM-5.2",
+        },
+        "kilo": {
+            "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "poolside/laguna-xs-2.1:free",
+            "tencent/hy3:free",
+        },
+        "llm7": {"gemma3:27b"},
+        "nvidia": {"microsoft/phi-4-mini-instruct", "z-ai/glm-5.2"},
+        "openrouter": {"poolside/laguna-xs-2.1:free", "tencent/hy3:free"},
+    }
+    expected_disabled = {
+        "cloudflare": {"@cf/meta-llama/llama-2-7b-chat-hf-lora"},
+        "llm7": {"qwen3-235b", "mistral-small-3.2", "devstral-small-2:24b"},
+        "longcat": {"LongCat-2.0-Preview"},
+        "nvidia": {
+            "deepseek-ai/deepseek-v4-pro",
+            "meta/llama-3.3-70b-instruct",
+            "meta/llama-4-maverick-17b-128e-instruct",
+            "microsoft/phi-4-multimodal-instruct",
+            "minimaxai/minimax-m2.7",
+            "moonshotai/kimi-k2.6",
+            "openai/gpt-oss-120b",
+            "qwen/qwen3-next-80b-a3b-instruct",
+        },
+        "ollama": {"rnj-1:8b"},
+        "openrouter": {
+            "liquid/lfm-2.5-1.2b-instruct:free",
+            "liquid/lfm-2.5-1.2b-thinking:free",
+            "openai/gpt-oss-120b:free",
+            "openrouter/owl-alpha",
+        },
+        "ovh": {"Llama-3.1-8B-Instruct"},
+    }
+
+    for provider_id, names in expected_enabled.items():
+        models = {model.name: model for model in providers[provider_id].models}
+        assert all(models[name].enabled for name in names)
+    for provider_id, names in expected_disabled.items():
+        models = {model.name: model for model in providers[provider_id].models}
+        assert all(not models[name].enabled for name in names)
+
+    for provider_id in ("kilo", "openrouter"):
+        assert providers[provider_id].model("poolside/laguna-xs.2:free") is None
+    assert providers["nvidia"].model("z-ai/glm-5.1") is None
+    for name in ("hy3-free", "mimo-v2.5-free"):
+        model = providers["opencode"].model(name)
+        assert model is not None
+        assert not model.enabled
+
+
 def test_keyless_providers_always_configured():
     # OVH (auth=none) and LLM7 (key_optional) are usable with an empty env.
     catalog = load_catalog()

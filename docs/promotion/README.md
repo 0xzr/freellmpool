@@ -9,7 +9,7 @@ registry polish. Use this pack when posting externally.
 - Docs: <https://0xzr.github.io/freellmpool/>
 - PyPI: <https://pypi.org/project/freellmpool/>
 - Version: `0.11.4`
-- Catalog: 19 cataloged providers, 237 enabled chat routes, 358 cataloged chat models
+- Catalog: 19 cataloged providers, 240 enabled chat routes, 380 cataloged chat models
 - First-run hook: installs with `pip install freellmpool` and can answer with no
   API keys through default keyless/key-optional routes.
 - Interfaces: CLI, Python library, OpenAI-compatible proxy, experimental

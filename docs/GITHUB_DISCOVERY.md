@@ -13,7 +13,7 @@ gh repo view 0xzr/freellmpool --json description,repositoryTopics,openGraphImage
 
 Current About description (115 chars):
 
-> Free LLM API pool: 19 LLM providers cataloged, 237 routes, 358 cataloged chat models, keyless start when available.
+> Free LLM API pool: 19 LLM providers cataloged, 240 routes, 380 cataloged chat models, keyless start when available.
 
 Current 20-topic set:
 
@@ -31,7 +31,7 @@ The topic and description refreshes have been applied. Description command used:
 
 ```bash
 gh repo edit 0xzr/freellmpool \
-  --description "Free LLM API pool: 19 LLM providers cataloged, 237 routes, 358 cataloged chat models, keyless start when available."
+  --description "Free LLM API pool: 19 LLM providers cataloged, 240 routes, 380 cataloged chat models, keyless start when available."
 ```
 
 ## Social preview
