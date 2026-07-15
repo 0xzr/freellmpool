@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from freellmpool.agents import AGENTS, list_agents, render
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_list_agents():
@@ -31,3 +36,23 @@ def test_agents_legacy_shape_is_preserved():
     assert "steps" in rec
     assert "note" in rec
     assert any("freellmpool proxy" in step for step in rec["steps"])
+
+
+def test_all_agent_keys_appear_in_supported_agent_list():
+    out = list_agents()
+    for name in AGENTS:
+        assert name in out
+
+
+def test_all_agent_keys_appear_in_integrations_guide():
+    integrations = (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8")
+    match = re.search(
+        r"^##\s+coding agents(?:\s*&\s*editors)?\s*$\n(?P<body>.*?)(?=^##\s+|\Z)",
+        integrations,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    assert match is not None
+    coding_agents_section = match.group("body").casefold()
+
+    for name in AGENTS:
+        assert name.casefold() in coding_agents_section

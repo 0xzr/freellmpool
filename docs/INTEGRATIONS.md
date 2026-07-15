@@ -147,6 +147,22 @@ API key `anything`, Model `auto`.
 Settings → Models → enable **Override OpenAI Base URL** → `http://localhost:8080/v1`,
 API key `anything`. (Free-tier models are slower than paid frontier models.)
 
+### Claude Code
+Claude Code can use the experimental Anthropic bridge at `/v1/messages`:
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:8080
+export ANTHROPIC_AUTH_TOKEN=dummy
+export ANTHROPIC_API_KEY=dummy
+export ANTHROPIC_MODEL=auto
+export ANTHROPIC_SMALL_FAST_MODEL=auto
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
+claude
+```
+
+Pin a concrete backend with `ANTHROPIC_MODEL=provider/model`, for example
+`alibaba_cloud_model_studio/qwen3-plus`.
+
 ### OpenAI Codex CLI
 Codex speaks the Responses API, which freellmpool shims at `/v1/responses` — see
 [AGENTS.md](AGENTS.md#openai-codex-cli).
