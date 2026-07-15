@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from freellmpool.agents import AGENTS, list_agents, render
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_list_agents():
@@ -42,10 +45,14 @@ def test_all_agent_keys_appear_in_supported_agent_list():
 
 
 def test_all_agent_keys_appear_in_integrations_guide():
-    integrations = Path("docs/INTEGRATIONS.md").read_text(encoding="utf-8").lower()
-    coding_agents_section = integrations.split("## coding agents & editors", 1)[1].split(
-        "## chat uis", 1
-    )[0]
+    integrations = (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8")
+    match = re.search(
+        r"^##\s+coding agents(?:\s*&\s*editors)?\s*$\n(?P<body>.*?)(?=^##\s+|\Z)",
+        integrations,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    assert match is not None
+    coding_agents_section = match.group("body").casefold()
 
     for name in AGENTS:
-        assert name in coding_agents_section
+        assert name.casefold() in coding_agents_section
