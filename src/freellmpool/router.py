@@ -366,6 +366,8 @@ class Pool:
                 self.quota.record(emb.id, m.name)
                 self._bump_stats(requests=1, prompt_tokens=reply.prompt_tokens or 0)
                 return reply
+        if not attempts:  # provider/model pins matched no configured embedder
+            raise NoProvidersConfigured("no candidate embedder/model matched the given filters")
         raise AllProvidersExhausted(attempts)
 
     def transcribe(

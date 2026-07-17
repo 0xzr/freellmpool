@@ -191,6 +191,7 @@ def test_sync_external_catalog_does_not_follow_redirects(tmp_path, monkeypatch):
 
     def safe_open(request, timeout=None):
         seen["url"] = request.full_url
+        seen["accept"] = request.headers.get("Accept")
         seen["timeout"] = timeout
         return Response()
 
@@ -208,7 +209,11 @@ def test_sync_external_catalog_does_not_follow_redirects(tmp_path, monkeypatch):
 
     assert path.exists()
     assert providers == []
-    assert seen == {"url": "https://catalog.example.test/data.json", "timeout": 3}
+    assert seen == {
+        "url": "https://catalog.example.test/data.json",
+        "accept": "application/json",
+        "timeout": 3,
+    }
 
 
 def _write_cache(tmp_path, monkeypatch, base_url, model_id="m"):

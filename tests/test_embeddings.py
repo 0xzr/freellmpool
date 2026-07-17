@@ -99,6 +99,14 @@ def test_pool_embed_no_embedders_raises():
         pool.embed("hi")
 
 
+def test_pool_embed_all_models_disabled_raises_no_providers():
+    emb = _embedder("alpha", "A_KEY")
+    emb = Provider(**{**emb.__dict__, "models": (Model("retired", enabled=False),)})
+    pool = Pool([], env={"A_KEY": "a"}, embedders=[emb])
+    with pytest.raises(NoProvidersConfigured):
+        pool.embed("hi")
+
+
 def test_pool_embed_all_fail_raises():
     def post(url, headers, body, timeout):
         return C.HTTPResult(500, {}, "")

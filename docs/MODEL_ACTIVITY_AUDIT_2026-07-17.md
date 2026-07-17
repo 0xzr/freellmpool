@@ -7,7 +7,7 @@ route with real payloads. No repository content or user prompt was sent.
 
 ## Coverage and method
 
-- **381 of 397 chat routes received live completions probes.** This covers every
+- **381 of 397 chat routes received live completion probes.** This covers every
   chat route on the 18 locally configured providers, plus three newly discovered
   routes tested separately three times each.
 - The remaining 16 chat routes belong to Gemini, Aion Labs, ModelScope, and

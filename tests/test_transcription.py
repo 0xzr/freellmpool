@@ -163,6 +163,14 @@ def test_pool_transcribe_no_transcribers_raises():
         pool.transcribe(b"AUDIO", "a.wav")
 
 
+def test_pool_transcribe_all_models_disabled_raises_no_providers():
+    tr = _transcriber("alpha", "A_KEY")
+    tr = Provider(**{**tr.__dict__, "models": (Model("retired", enabled=False),)})
+    pool = Pool([], env={"A_KEY": "a"}, transcribers=[tr])
+    with pytest.raises(NoProvidersConfigured):
+        pool.transcribe(b"AUDIO", "a.wav")
+
+
 def test_pool_transcribe_unknown_pin_raises_no_providers():
     # pinning a provider/model that matches nothing must be NoProvidersConfigured (→ 503),
     # not AllProvidersExhausted([]) (→ 502).
