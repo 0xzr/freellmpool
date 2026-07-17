@@ -11,18 +11,39 @@ All notable changes to this project are documented here. The format is based on
   smoke coverage for fail-closed `auth_missing` behavior.
 - A dated [live model-activity audit](docs/MODEL_ACTIVITY_AUDIT_2026-07-14.md)
   covering discovery and completion probes across 18 configured providers.
+- A dated [provider refresh](docs/MODEL_ACTIVITY_AUDIT_2026-07-16.md) with
+  primary sources and explicit live-test caveats.
+- An [exhaustive live catalog audit](docs/MODEL_ACTIVITY_AUDIT_2026-07-17.md)
+  covering 381 chat routes and every embedding/transcription route that ships.
+- Aion Labs, ModelScope API Inference, and SiliconFlow free-tier routes, plus
+  OVHcloud's Qwen3 embedding route and LLM7's `gpt-oss:20b` chat route.
+- Weekly Dependabot coverage for Python, GitHub Actions, and container images.
 
 ### Changed
-- Refreshed the provider catalog to 240 enabled chat routes and 380 cataloged
+- Refreshed the provider catalog to 239 enabled chat routes and 397 cataloged
   chat models, adding live-verified current models and disabling stale, retired,
   empty, degraded, or repeatedly timing-out routes.
 - Added six completion-verified CohereLabs routes exposed by the Hugging Face
   router after an exhaustive second-pass catalog-gap probe.
+- Updated CI action majors and made the Docker image non-root and health-checked.
+  Docker Compose now binds to localhost, enables Open WebUI authentication by
+  default, and pins Open WebUI to a released version.
+- Reconciled live catalog state after repeat probes: added Kilo Kat Coder and two
+  NVIDIA routes, re-enabled six recovered routes, and disabled retired,
+  degraded, or repeat-timeout Ollama, GitHub, and NVIDIA routes.
 
 ### Fixed
 - The catalog vetter now filters paid Kilo/OpenRouter/OpenCode discovery rows,
   requires non-empty completion text, gives reasoning models enough output
   budget to answer, and classifies 410/retirement responses correctly.
+- External catalog sync no longer follows redirects, closing a server-side
+  redirect-to-private-network path.
+- The published container command now passes the proxy's explicit LAN and
+  no-auth acknowledgements, so its documented keyless local startup works.
+- NVIDIA embeddings now send the required `input_type`, and embedding and
+  transcription routing now skips catalog models marked disabled.
+- Catalog-vetter classification recognizes GitHub's `Unknown model` response as
+  a definitive dead-model result.
 
 ## [0.11.4] — 2026-06-17
 

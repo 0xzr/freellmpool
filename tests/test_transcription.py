@@ -128,6 +128,22 @@ def test_pool_transcribe_failover():
     assert reply.text == "ok"
 
 
+def test_pool_transcribe_skips_disabled_models():
+    seen = []
+
+    def post(url, headers, files, data, timeout):
+        seen.append(data["model"])
+        return C.HTTPResult(200, {"text": "ok"}, "")
+
+    tr = _transcriber("alpha", "A_KEY")
+    tr = Provider(**{**tr.__dict__, "models": (Model("retired", enabled=False), Model("working"))})
+    reply = Pool(
+        [], env={"A_KEY": "a"}, transcribers=[tr], transcribe_post=post
+    ).transcribe(b"AUDIO", "a.wav")
+    assert reply.model == "working"
+    assert seen == ["working"]
+
+
 def test_pool_transcribe_provider_pin():
     def post(url, headers, files, data, timeout):
         return C.HTTPResult(200, {"text": url}, "")
@@ -143,6 +159,14 @@ def test_pool_transcribe_provider_pin():
 
 def test_pool_transcribe_no_transcribers_raises():
     pool = Pool([], env={}, transcribers=[])
+    with pytest.raises(NoProvidersConfigured):
+        pool.transcribe(b"AUDIO", "a.wav")
+
+
+def test_pool_transcribe_all_models_disabled_raises_no_providers():
+    tr = _transcriber("alpha", "A_KEY")
+    tr = Provider(**{**tr.__dict__, "models": (Model("retired", enabled=False),)})
+    pool = Pool([], env={"A_KEY": "a"}, transcribers=[tr])
     with pytest.raises(NoProvidersConfigured):
         pool.transcribe(b"AUDIO", "a.wav")
 

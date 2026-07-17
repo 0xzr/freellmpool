@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from freellmpool.config import configured_providers, known_aliases, load_catalog, resolve_alias
+from freellmpool.config import (
+    configured_providers,
+    known_aliases,
+    load_catalog,
+    load_embedders,
+    resolve_alias,
+)
 
 
 def test_alias_default_maps_to_auto():
@@ -63,23 +69,25 @@ def test_packaged_catalog_reflects_july_live_model_audit():
             "poolside/laguna-xs-2.1:free",
             "tencent/hy3:free",
         },
-        "llm7": {"gemma3:27b"},
-        "nvidia": {"microsoft/phi-4-mini-instruct", "z-ai/glm-5.2"},
+        "nvidia": {"z-ai/glm-5.2"},
         "openrouter": {"poolside/laguna-xs-2.1:free", "tencent/hy3:free"},
     }
     expected_disabled = {
         "cloudflare": {"@cf/meta-llama/llama-2-7b-chat-hf-lora"},
-        "llm7": {"qwen3-235b", "mistral-small-3.2", "devstral-small-2:24b"},
+        "llm7": {
+            "qwen3-235b",
+            "mistral-small-3.2",
+            "devstral-small-2:24b",
+            "gemma3:27b",
+        },
         "longcat": {"LongCat-2.0-Preview"},
         "nvidia": {
             "deepseek-ai/deepseek-v4-pro",
             "meta/llama-3.3-70b-instruct",
             "meta/llama-4-maverick-17b-128e-instruct",
             "microsoft/phi-4-multimodal-instruct",
-            "minimaxai/minimax-m2.7",
             "moonshotai/kimi-k2.6",
             "openai/gpt-oss-120b",
-            "qwen/qwen3-next-80b-a3b-instruct",
         },
         "ollama": {"rnj-1:8b"},
         "openrouter": {
@@ -105,6 +113,106 @@ def test_packaged_catalog_reflects_july_live_model_audit():
         model = providers["opencode"].model(name)
         assert model is not None
         assert not model.enabled
+
+
+def test_packaged_catalog_reflects_july_16_provider_refresh():
+    providers = {provider.id: provider for provider in load_catalog()}
+
+    expected_models = {
+        "aion": {
+            "aion-labs/aion-2.0",
+            "aion-labs/aion-2.5",
+            "aion-labs/aion-3.0",
+            "aion-labs/aion-3.0-mini",
+            "aion-labs/aion-rp-llama-3.1-8b",
+        },
+        "modelscope": {
+            "deepseek-ai/DeepSeek-V4-Flash",
+            "MiniMax/MiniMax-M3",
+            "Qwen/Qwen3.5-27B",
+            "Qwen/Qwen3.5-35B-A3B",
+            "stepfun-ai/Step-3.7-Flash",
+            "Tencent-Hunyuan/Hy3",
+            "ZhipuAI/GLM-5.2",
+        },
+        "siliconflow": {"Qwen/Qwen3-8B"},
+    }
+    for provider_id, names in expected_models.items():
+        assert provider_id in providers
+        assert names <= {model.name for model in providers[provider_id].models if model.enabled}
+
+    llm7 = providers["llm7"]
+    assert llm7.model("gpt-oss:20b") is not None
+    assert llm7.model("gpt-oss:20b").enabled
+    assert llm7.model("gemma3:27b") is not None
+    assert not llm7.model("gemma3:27b").enabled
+
+    ovh = {provider.id: provider for provider in load_embedders()}["ovh"]
+    assert ovh.model("Qwen3-Embedding-8B") is not None
+    assert ovh.model("Qwen3-Embedding-8B").enabled
+
+
+def test_packaged_catalog_reflects_july_17_exhaustive_live_audit():
+    providers = {provider.id: provider for provider in load_catalog()}
+
+    assert providers["llm7"].model("minimax-m2.7").enabled
+    assert providers["kilo"].model("kwaipilot/kat-coder-pro-v2.5:free").enabled
+    assert providers["github"].model("openai/gpt-4.1-mini").enabled
+
+    revived_nvidia = {
+        "bytedance/seed-oss-36b-instruct",
+        "minimaxai/minimax-m2.7",
+        "qwen/qwen3-next-80b-a3b-instruct",
+        "qwen/qwen3.5-122b-a10b",
+        "poolside/laguna-xs-2.1",
+        "thinkingmachines/inkling",
+    }
+    assert all(providers["nvidia"].model(name).enabled for name in revived_nvidia)
+
+    unavailable_nvidia = {
+        "google/gemma-3n-e2b-it",
+        "google/gemma-3n-e4b-it",
+        "microsoft/phi-4-mini-instruct",
+        "mistralai/ministral-14b-instruct-2512",
+        "mistralai/mixtral-8x7b-instruct-v0.1",
+        "qwen/qwen3.5-397b-a17b",
+        "stockmark/stockmark-2-100b-instruct",
+    }
+    assert all(not providers["nvidia"].model(name).enabled for name in unavailable_nvidia)
+
+    retired_ollama = {
+        "qwen3-coder:480b",
+        "ministral-3:3b",
+        "gemma3:4b",
+        "gemma3:27b",
+        "qwen3-coder-next",
+        "minimax-m2.1",
+        "devstral-2:123b",
+        "devstral-small-2:24b",
+        "gemma3:12b",
+        "glm-4.7",
+        "ministral-3:8b",
+        "ministral-3:14b",
+    }
+    assert all(not providers["ollama"].model(name).enabled for name in retired_ollama)
+
+    removed_github = {
+        "meta/llama-3.2-11b-vision-instruct",
+        "meta/llama-3.2-90b-vision-instruct",
+        "meta/meta-llama-3.1-405b-instruct",
+        "meta/meta-llama-3.1-8b-instruct",
+    }
+    assert all(not providers["github"].model(name).enabled for name in removed_github)
+
+    nvidia_embedders = {provider.id: provider for provider in load_embedders()}["nvidia"]
+    removed_nvidia_embedders = {
+        "nvidia/embed-qa-4",
+        "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+        "nvidia/llama-3.2-nv-embedqa-1b-v1",
+        "nvidia/nv-embedqa-mistral-7b-v2",
+        "snowflake/arctic-embed-l",
+    }
+    assert all(not nvidia_embedders.model(name).enabled for name in removed_nvidia_embedders)
 
 
 def test_keyless_providers_always_configured():

@@ -268,6 +268,7 @@ def _classify(status: int | None, err: str) -> str:
             or "invalid" in low
             or "support" in low
             or "unavailable" in low
+            or "unknown" in low
         )
     ):
         return "dead"

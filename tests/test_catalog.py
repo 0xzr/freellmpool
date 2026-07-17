@@ -12,6 +12,7 @@ from freellmpool.catalog import (
     match_local_provider,
     parse_external_catalog,
     suggest_external_provider,
+    sync_external_catalog,
 )
 
 
@@ -169,6 +170,48 @@ def test_discover_openai_models(monkeypatch):
     assert seen == {
         "url": "https://api.example.test/v1/models",
         "auth": "Bearer secret",
+        "timeout": 3,
+    }
+
+
+def test_sync_external_catalog_does_not_follow_redirects(tmp_path, monkeypatch):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, *args):
+            return b'{"providers": []}'
+
+    from freellmpool import catalog
+
+    seen = {}
+
+    def safe_open(request, timeout=None):
+        seen["url"] = request.full_url
+        seen["accept"] = request.headers.get("Accept")
+        seen["timeout"] = timeout
+        return Response()
+
+    def unsafe_open(*args, **kwargs):
+        raise AssertionError("catalog sync bypassed the no-redirect opener")
+
+    monkeypatch.setattr(catalog._NO_REDIRECT_OPENER, "open", safe_open)
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", unsafe_open)
+
+    path, providers = sync_external_catalog(
+        source_url="https://catalog.example.test/data.json",
+        path=tmp_path / "catalog.json",
+        timeout=3,
+    )
+
+    assert path.exists()
+    assert providers == []
+    assert seen == {
+        "url": "https://catalog.example.test/data.json",
+        "accept": "application/json",
         "timeout": 3,
     }
 

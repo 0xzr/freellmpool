@@ -9,7 +9,7 @@ jobs:
   hotpaths:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -19,7 +19,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
       - name: Restore previous benchmark
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: .benchmarks/latest.json
           key: hotpath-benchmark-${{ runner.os }}-${{ github.run_id }}
@@ -43,7 +43,7 @@ jobs:
           name: hotpath-benchmarks
           path: .benchmarks/current.json
       - name: Save benchmark baseline
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: .benchmarks/latest.json
           key: hotpath-benchmark-${{ runner.os }}-${{ github.run_id }}
