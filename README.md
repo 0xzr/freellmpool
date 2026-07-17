@@ -4,9 +4,9 @@
 
 ![freellmpool tokenmax terminal demo](assets/demo.svg)
 
-![240 enabled routes, 19 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
+![239 enabled routes, 22 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
 
-Pool the free tiers of 19 LLM providers cataloged in freellmpool (240 enabled chat routes, 380 cataloged chat models)
+Pool the free tiers of 22 LLM providers cataloged in freellmpool (239 enabled chat routes, 397 cataloged chat models)
 behind one OpenAI-compatible endpoint — as a CLI, a Python library, or a local
 proxy. Can start without API keys when a keyless provider is up.
 
@@ -441,6 +441,9 @@ required. Step-by-step signup links for each (all free, no card) are in
 | Cloudflare | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | |
 | Hugging Face router | `HF_TOKEN` | router free tier |
 | OpenCode Zen | — | cataloged, disabled by default pending opt-in |
+| Aion Labs | `AION_API_KEY` | 20K free tokens/day, no card |
+| ModelScope API Inference | `MODELSCOPE_API_KEY` | 2,000 free calls/day |
+| SiliconFlow | `SILICONFLOW_API_KEY` | free models; identity verification required |
 | Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud, LongCat | see `.env.example` | |
 
 A `config.toml` (see [config.toml.example](config.toml.example)) can hold keys,
@@ -535,7 +538,7 @@ Architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Tool | Keyless start | # providers | Failover | MCP server | CLI | Transcription | Local/self-hosted | License |
 |---|---|---:|---|---|---|---|---|---|
-| **freellmpool** | Yes: Pollinations, OVHcloud, Kilo Gateway; LLM7 is key-optional | 19 cataloged chat providers | Yes: tries the next provider on rate limits, timeouts, 5xx, empty replies, and transport errors | Yes: `freellmpool mcp` | Yes: `freellmpool ask`, `tokenmax`, `providers`, `proxy`, and more | Yes: OpenAI-compatible `/v1/audio/transcriptions` with provider failover | Yes: local Python package and local proxy | MIT |
+| **freellmpool** | Yes: Pollinations, OVHcloud, Kilo Gateway; LLM7 is key-optional | 22 cataloged chat providers | Yes: tries the next provider on rate limits, timeouts, 5xx, empty replies, and transport errors | Yes: `freellmpool mcp` | Yes: `freellmpool ask`, `tokenmax`, `providers`, `proxy`, and more | Yes: OpenAI-compatible `/v1/audio/transcriptions` with provider failover | Yes: local Python package and local proxy | MIT |
 | OpenRouter free models | No: OpenRouter account/API key required | One hosted OpenRouter account routing across many upstreams; the free-model router currently lists free variants | Yes: OpenRouter handles provider routing/fallbacks | Not a native MCP server; OpenRouter docs show MCP-client/tool patterns | No first-party local CLI in the docs checked | Yes: OpenRouter now documents audio transcription APIs | No: hosted service | Proprietary service |
 | LiteLLM | No: bring provider keys or hosted LiteLLM credentials | 100+ LLM providers | Yes: router/fallbacks, including transcription fallbacks | Yes: LiteLLM Proxy includes an MCP Gateway | Yes: SDK/proxy command surface, not a one-shot free-model CLI | Yes: `/audio/transcriptions` support | Yes: self-host the proxy or use hosted LiteLLM | MIT for core repo; commercial license for enterprise-only pieces |
 | FreeLLMAPI | No: add your own free-tier provider keys; keyless providers can be configured after setup | 16 free-tier providers plus custom OpenAI-compatible endpoints | Yes: fallback chain on 429, 5xx, and timeouts | No native MCP server in the README checked | Dashboard/server, desktop app, and Docker; no first-class one-shot CLI in the README checked | No: `/v1/audio/*` is listed as not yet supported | Yes: self-hosted Node/Docker proxy | MIT |
@@ -555,7 +558,7 @@ audio transcription docs; FreeLLMAPI's README.
 
 **Is there a free, OpenAI-compatible LLM API gateway?** Yes — freellmpool is a free,
 MIT-licensed gateway that exposes one OpenAI-compatible endpoint backed by the free
-tiers of 19 cataloged providers. `pip install freellmpool` and point any OpenAI client at the
+tiers of 22 cataloged providers. `pip install freellmpool` and point any OpenAI client at the
 local proxy.
 
 **How do I use multiple free LLM APIs at once?** freellmpool pools them: each request
@@ -581,7 +584,7 @@ more models and higher limits.
 
 ## Featured in
 
-- Community videos (Spanish, by lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) and ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (from an earlier catalog; freellmpool now catalogs 19 providers).
+- Community videos (Spanish, by lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) and ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (from an earlier catalog; freellmpool now catalogs 22 providers).
 - Directory: [FreeLLM Pool on MCP Market](https://mcpmarket.com/server/freellm-pool).
 
 ## Contributing

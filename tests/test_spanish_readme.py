@@ -26,9 +26,9 @@ def test_spanish_readme_tracks_current_launch_surface():
 
     assert "Puede quedar por detrás" in spanish
     assert "![demostración de freellmpool tokenmax en terminal](assets/demo.svg)" in spanish
-    assert "18 proveedores" in spanish
-    assert "200+ modelos validados" in spanish
-    assert "300+ catalogados" in spanish
+    assert "22 proveedores" in spanish
+    assert "239 rutas de chat" in spanish
+    assert "397 modelos de chat" in spanish
 
     for heading in (
         "## Inicio rápido en 30 segundos",

@@ -43,7 +43,7 @@ def test_server_json_is_registry_ready_for_stdio_package():
         "url": "https://github.com/0xzr/freellmpool",
         "source": "github",
     }
-    assert "19 LLM providers" in server["description"]
+    assert "22 LLM providers" in server["description"]
     assert "tokenmax" in server["description"]
     # WU-011: registry description surfaces the new UX tools too.
     for new_tool in (

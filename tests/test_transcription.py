@@ -128,6 +128,22 @@ def test_pool_transcribe_failover():
     assert reply.text == "ok"
 
 
+def test_pool_transcribe_skips_disabled_models():
+    seen = []
+
+    def post(url, headers, files, data, timeout):
+        seen.append(data["model"])
+        return C.HTTPResult(200, {"text": "ok"}, "")
+
+    tr = _transcriber("alpha", "A_KEY")
+    tr = Provider(**{**tr.__dict__, "models": (Model("retired", enabled=False), Model("working"))})
+    reply = Pool(
+        [], env={"A_KEY": "a"}, transcribers=[tr], transcribe_post=post
+    ).transcribe(b"AUDIO", "a.wav")
+    assert reply.model == "working"
+    assert seen == ["working"]
+
+
 def test_pool_transcribe_provider_pin():
     def post(url, headers, files, data, timeout):
         return C.HTTPResult(200, {"text": url}, "")

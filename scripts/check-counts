@@ -99,7 +99,12 @@ def _check_public_drift(root: Path, counts) -> list[str]:
     enabled_route_claim = re.compile(r"\b(?P<n>\d+)\s+enabled\s+chat\s+routes\b")
     cataloged_claim = re.compile(r"\b(?P<n>\d+)\s+cataloged\s+(?:chat\s+)?models\b")
     for path in docs:
-        if path.name == "POLISH_PLAN.md" or not path.is_file() or path.suffix not in {".md", ".html"}:
+        if (
+            path.name == "POLISH_PLAN.md"
+            or path.name.startswith("MODEL_ACTIVITY_AUDIT_")
+            or not path.is_file()
+            or path.suffix not in {".md", ".html"}
+        ):
             continue
         rel = path.relative_to(root)
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):

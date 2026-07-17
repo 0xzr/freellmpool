@@ -613,6 +613,11 @@ def embed(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     body = {"model": model, "input": inputs, "encoding_format": "float"}
+    if provider.id == "nvidia":
+        # NVIDIA's asymmetric embedding NIMs require the caller to declare
+        # whether inputs are queries or passages. Pool.embed is a general
+        # lookup surface, so use the query form; symmetric NIMs accept it too.
+        body["input_type"] = "query"
     result = post(url, headers, body, timeout)
     if result.status != 200:
         raise ProviderHTTPError(

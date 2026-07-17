@@ -6,11 +6,12 @@
 
 ![demostración de freellmpool tokenmax en terminal](assets/demo.svg)
 
-![200+ modelos, 18 proveedores, $0 para empezar](assets/tokenmax-results.svg)
+![239 rutas habilitadas, 22 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
 
-Agrupa los niveles gratuitos de 18 proveedores de LLM (200+ modelos validados
-en vivo, 300+ catalogados) detrás de un endpoint compatible con OpenAI: como
-CLI, biblioteca de Python o proxy local. Funciona sin claves de API.
+Agrupa los niveles gratuitos de 22 proveedores de LLM (239 rutas de chat
+habilitadas, 397 modelos de chat catalogados) detrás de un endpoint compatible
+con OpenAI: como CLI, biblioteca de Python o proxy local. Puede empezar sin
+claves de API cuando hay un proveedor sin clave disponible.
 
 [![PyPI](https://img.shields.io/pypi/v/freellmpool.svg)](https://pypi.org/project/freellmpool/)
 [![CI](https://github.com/0xzr/freellmpool/actions/workflows/ci.yml/badge.svg)](https://github.com/0xzr/freellmpool/actions/workflows/ci.yml)
@@ -44,7 +45,8 @@ siguiente cuando hay rate limit o caída, y registra el uso diario para aprovech
 mejor cada nivel.
 
 Varios proveedores (Pollinations, OVHcloud y Kilo Gateway) no necesitan clave de
-API, así que el inicio rápido anterior responde de inmediato.
+API, y LLM7 permite una clave opcional, así que el inicio rápido anterior puede
+responder sin registro cuando una ruta sin clave está disponible.
 
 Agrega claves para los demás proveedores para desbloquear más modelos y límites
 más altos.
@@ -280,6 +282,9 @@ sin tarjeta) están en [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
 | Google Gemini | `GEMINI_API_KEY` | |
 | GitHub Models | `GITHUB_TOKEN` | cualquier PAT |
 | Cloudflare | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | |
+| Aion Labs | `AION_API_KEY` | 20K tokens gratis/día, sin tarjeta |
+| ModelScope API Inference | `MODELSCOPE_API_KEY` | 2.000 llamadas gratis/día |
+| SiliconFlow | `SILICONFLOW_API_KEY` | modelos gratis; requiere verificación de identidad |
 | Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud, LongCat | ver `.env.example` | |
 
 Un `config.toml` (ver [config.toml.example](config.toml.example)) puede guardar
@@ -370,7 +375,7 @@ Notas de arquitectura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Herramienta | Inicio sin clave | # proveedores | Failover | Servidor MCP | CLI | Transcripción | Local/self-hosted | Licencia |
 |---|---|---:|---|---|---|---|---|---|
-| **freellmpool** | Sí: Pollinations, OVHcloud, Kilo Gateway; LLM7 permite clave opcional | 18 proveedores chat incorporados | Sí: prueba el siguiente proveedor ante rate limits, timeouts, 5xx, respuestas vacías y errores de transporte | Sí: `freellmpool mcp` | Sí: `freellmpool ask`, `tokenmax`, `providers`, `proxy` y más | Sí: `/v1/audio/transcriptions` compatible con OpenAI y failover de proveedor | Sí: paquete Python local y proxy local | MIT |
+| **freellmpool** | Sí: Pollinations, OVHcloud, Kilo Gateway; LLM7 permite clave opcional | 22 proveedores chat catalogados | Sí: prueba el siguiente proveedor ante rate limits, timeouts, 5xx, respuestas vacías y errores de transporte | Sí: `freellmpool mcp` | Sí: `freellmpool ask`, `tokenmax`, `providers`, `proxy` y más | Sí: `/v1/audio/transcriptions` compatible con OpenAI y failover de proveedor | Sí: paquete Python local y proxy local | MIT |
 | OpenRouter free models | No: requiere cuenta/API key de OpenRouter | Una cuenta hospedada de OpenRouter que enruta a muchos upstreams; el router de modelos gratuitos lista variantes free | Sí: OpenRouter maneja routing/fallbacks | No es servidor MCP nativo; sus docs muestran patrones para clientes/herramientas MCP | Sin CLI local first-party en las docs revisadas | Sí: OpenRouter documenta APIs de transcripción de audio | No: servicio hospedado | Servicio propietario |
 | LiteLLM | No: trae claves de proveedores o credenciales de LiteLLM hospedado | 100+ proveedores LLM | Sí: router/fallbacks, incluidos fallbacks de transcripción | Sí: LiteLLM Proxy incluye MCP Gateway | Sí: SDK/proxy, no un CLI one-shot de modelos gratuitos | Sí: soporte `/audio/transcriptions` | Sí: self-host del proxy o LiteLLM hospedado | MIT para el core; licencia comercial para piezas enterprise |
 | FreeLLMAPI | No: agrega tus claves de proveedores gratuitos; proveedores keyless pueden configurarse después | 16 proveedores free-tier más endpoints OpenAI-compatible personalizados | Sí: cadena de fallback ante 429, 5xx y timeouts | Sin servidor MCP nativo en el README revisado | Dashboard/servidor, app desktop y Docker; sin CLI one-shot first-class en el README revisado | No: `/v1/audio/*` figura como no soportado aún | Sí: proxy Node/Docker self-hosted | MIT |
@@ -390,7 +395,7 @@ docs MCP y docs de transcripción de LiteLLM; README de FreeLLMAPI.
 
 **¿Hay un gateway LLM API gratis y compatible con OpenAI?** Sí. freellmpool es
 un gateway gratuito con licencia MIT que expone un endpoint compatible con
-OpenAI respaldado por los niveles gratuitos de 18 proveedores. `pip install
+OpenAI respaldado por los niveles gratuitos de 22 proveedores. `pip install
 freellmpool` y apunta cualquier cliente OpenAI al proxy local.
 
 **¿Cómo uso varias APIs LLM gratuitas a la vez?** freellmpool las agrupa: cada
@@ -407,7 +412,8 @@ para que `/v1/models` se descubra a través del puente Anthropic. Consulta
 herramientas, sin visión.)
 
 **¿Necesito una clave de API?** No. Pollinations, OVHcloud y Kilo Gateway
-funcionan sin clave, así que una instalación nueva responde de inmediato. Agrega
+funcionan sin clave, y LLM7 permite una clave opcional, así que una instalación
+nueva puede responder cuando hay una ruta sin clave disponible. Agrega
 claves gratuitas de otros proveedores para más modelos y límites mayores.
 
 **¿Es gratis y open source?** Sí, licencia MIT. Más en la

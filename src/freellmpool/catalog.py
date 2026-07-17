@@ -97,8 +97,10 @@ def sync_external_catalog(
     path = path or default_external_catalog_path()
     # Validate the source: https-only, no file:// / SSRF even from a caller override.
     source_url = _validated_base_url(source_url, https_only=True, what="external catalog")
-    # source_url is the fixed https default (or a validated caller-provided override).
-    with urllib.request.urlopen(source_url, timeout=timeout) as response:
+    # Do not follow redirects: a caller-provided public URL must not be able to
+    # bounce this server-side fetch to a private network target.
+    request = urllib.request.Request(source_url, headers={"Accept": "application/json"})
+    with _NO_REDIRECT_OPENER.open(request, timeout=timeout) as response:
         raw_bytes = response.read(_MAX_CATALOG_BYTES + 1)
     if len(raw_bytes) > _MAX_CATALOG_BYTES:
         raise ValueError(f"external catalog exceeds {_MAX_CATALOG_BYTES} bytes; refusing to load")

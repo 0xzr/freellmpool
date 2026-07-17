@@ -80,6 +80,7 @@ def test_failure_classification_recognizes_retired_models() -> None:
     assert vetter._classify(410, "model reached end of life") == "dead"
     assert vetter._classify(400, "Model 'old' is currently unavailable") == "dead"
     assert vetter._classify(400, "Unsupported model (model=old)") == "dead"
+    assert vetter._classify(400, "Unknown model: old") == "dead"
     assert vetter._classify(402, "payment method required") == "other"
 
 

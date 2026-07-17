@@ -344,6 +344,8 @@ class Pool:
             if include is not None and emb.id not in include:
                 continue
             for m in emb.models:
+                if not m.enabled:
+                    continue
                 if model is not None and m.name != model:
                     continue
                 try:
@@ -388,6 +390,8 @@ class Pool:
             if include is not None and tr.id not in include:
                 continue
             for m in tr.models:
+                if not m.enabled:
+                    continue
                 if model is not None and m.name != model:
                     continue
                 try:

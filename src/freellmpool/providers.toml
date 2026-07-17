@@ -27,13 +27,14 @@ models = [
     { name = "codestral-latest", rpd = 0 },
     { name = "qwen3-235b", rpd = 0, enabled = false },
     { name = "kimi-k2.6", rpd = 0, enabled = false },
-    { name = "minimax-m2.7", rpd = 0, enabled = false },
+    { name = "minimax-m2.7", rpd = 0 },
     { name = "mistral-small-3.2", rpd = 0, enabled = false },
     { name = "GLM-4.6V-Flash", rpd = 0, enabled = false },
     { name = "devstral-small-2:24b", rpd = 0, enabled = false },
     { name = "deepseek-v4-flash", rpd = 0, enabled = false },
     { name = "deepseek-v3.1:671b-terminus", rpd = 0, enabled = false },
-    { name = "gemma3:27b", rpd = 0 },
+    { name = "gemma3:27b", rpd = 0, enabled = false },
+    { name = "gpt-oss:20b", rpd = 0 },
 ]
 
 [[provider]]
@@ -81,6 +82,7 @@ models = [
     { name = "nvidia/nemotron-3-ultra-550b-a55b:free", rpd = 0 },
     { name = "cohere/north-mini-code:free", rpd = 0 },
     { name = "tencent/hy3:free", rpd = 0 },
+    { name = "kwaipilot/kat-coder-pro-v2.5:free", rpd = 0 },
 ]
 
 # OpenCode Zen: keyless OpenAI-compatible gateway. Free promotional routes expire
@@ -155,6 +157,55 @@ models = [
     { name = "groq/compound-mini", rpd = 1000 },
 ]
 
+# Aion Labs: OpenAI-compatible API with a recurring no-card free tier (15 RPM,
+# 20K tokens/day). Model ids and limits checked against the public /models endpoint
+# and official rate-limit docs on 2026-07-16; completions require a user API key.
+[[provider]]
+id = "aion"
+label = "Aion Labs"
+adapter = "openai"
+base_url = "https://api.aionlabs.ai/v1"
+key_env = "AION_API_KEY"
+models = [
+    { name = "aion-labs/aion-2.0", rpd = 0, context = 131072 },
+    { name = "aion-labs/aion-2.5", rpd = 0, context = 131072 },
+    { name = "aion-labs/aion-3.0", rpd = 0, context = 131072 },
+    { name = "aion-labs/aion-3.0-mini", rpd = 0, context = 131072 },
+    { name = "aion-labs/aion-rp-llama-3.1-8b", rpd = 0, context = 32768 },
+]
+
+# ModelScope API Inference: OpenAI-compatible selected open-model inference with
+# 2,000 free calls/day total and a dynamic cap of up to 500 calls/model/day.
+# Public model-list endpoint and official free-tier docs checked 2026-07-16.
+[[provider]]
+id = "modelscope"
+label = "ModelScope API Inference"
+adapter = "openai"
+base_url = "https://api-inference.modelscope.cn/v1"
+key_env = "MODELSCOPE_API_KEY"
+models = [
+    { name = "deepseek-ai/DeepSeek-V4-Flash", rpd = 500 },
+    { name = "MiniMax/MiniMax-M3", rpd = 500 },
+    { name = "Qwen/Qwen3.5-27B", rpd = 500 },
+    { name = "Qwen/Qwen3.5-35B-A3B", rpd = 500 },
+    { name = "stepfun-ai/Step-3.7-Flash", rpd = 500 },
+    { name = "Tencent-Hunyuan/Hy3", rpd = 500 },
+    { name = "ZhipuAI/GLM-5.2", rpd = 500 },
+]
+
+# SiliconFlow: OpenAI-compatible API with fixed-rate free models. Free access
+# requires account identity verification, but no payment card. The unprefixed
+# Qwen3-8B id is documented as free; checked 2026-07-16.
+[[provider]]
+id = "siliconflow"
+label = "SiliconFlow"
+adapter = "openai"
+base_url = "https://api.siliconflow.cn/v1"
+key_env = "SILICONFLOW_API_KEY"
+models = [
+    { name = "Qwen/Qwen3-8B", rpd = 0 },
+]
+
 [[provider]]
 id = "cerebras"
 label = "Cerebras"
@@ -187,7 +238,7 @@ models = [
     { name = "ai21labs/jamba-1.5-large-instruct", rpd = 0, enabled = false },
     { name = "aisingapore/sea-lion-7b-instruct", rpd = 0, enabled = false },
     { name = "bigcode/starcoder2-15b", rpd = 0, enabled = false },
-    { name = "bytedance/seed-oss-36b-instruct", rpd = 0, enabled = false },
+    { name = "bytedance/seed-oss-36b-instruct", rpd = 0 },
     { name = "databricks/dbrx-instruct", rpd = 0, enabled = false },
     { name = "deepseek-ai/deepseek-coder-6.7b-instruct", rpd = 0, enabled = false },
     { name = "deepseek-ai/deepseek-v4-flash", rpd = 0 },
@@ -198,8 +249,8 @@ models = [
     { name = "google/gemma-2b", rpd = 0, enabled = false },
     { name = "google/gemma-3-12b-it", rpd = 0, enabled = false },
     { name = "google/gemma-3-4b-it", rpd = 0, enabled = false },
-    { name = "google/gemma-3n-e2b-it", rpd = 0 },
-    { name = "google/gemma-3n-e4b-it", rpd = 0 },
+    { name = "google/gemma-3n-e2b-it", rpd = 0, enabled = false },
+    { name = "google/gemma-3n-e4b-it", rpd = 0, enabled = false },
     { name = "google/gemma-4-31b-it", rpd = 0, enabled = false },
     { name = "google/recurrentgemma-2b", rpd = 0, enabled = false },
     { name = "ibm/granite-3.0-3b-a800m-instruct", rpd = 0, enabled = false },
@@ -217,12 +268,12 @@ models = [
     { name = "meta/llama2-70b", rpd = 0, enabled = false },
     { name = "microsoft/phi-3-vision-128k-instruct", rpd = 0, enabled = false },
     { name = "microsoft/phi-3.5-moe-instruct", rpd = 0, enabled = false },
-    { name = "microsoft/phi-4-mini-instruct", rpd = 0 },
+    { name = "microsoft/phi-4-mini-instruct", rpd = 0, enabled = false },
     { name = "microsoft/phi-4-multimodal-instruct", rpd = 0, enabled = false },
-    { name = "minimaxai/minimax-m2.7", rpd = 0, enabled = false },
+    { name = "minimaxai/minimax-m2.7", rpd = 0 },
     { name = "minimaxai/minimax-m3", rpd = 0 },
     { name = "mistralai/codestral-22b-instruct-v0.1", rpd = 0, enabled = false },
-    { name = "mistralai/ministral-14b-instruct-2512", rpd = 0 },
+    { name = "mistralai/ministral-14b-instruct-2512", rpd = 0, enabled = false },
     { name = "mistralai/mistral-7b-instruct-v0.3", rpd = 0, enabled = false },
     { name = "mistralai/mistral-large", rpd = 0, enabled = false },
     { name = "mistralai/mistral-large-2-instruct", rpd = 0, enabled = false },
@@ -230,7 +281,7 @@ models = [
     { name = "mistralai/mistral-medium-3.5-128b", rpd = 0 },
     { name = "mistralai/mistral-nemotron", rpd = 0 },
     { name = "mistralai/mixtral-8x22b-v0.1", rpd = 0, enabled = false },
-    { name = "mistralai/mixtral-8x7b-instruct-v0.1", rpd = 0 },
+    { name = "mistralai/mixtral-8x7b-instruct-v0.1", rpd = 0, enabled = false },
     { name = "nv-mistralai/mistral-nemo-12b-instruct", rpd = 0, enabled = false },
     { name = "nvidia/cosmos-reason2-8b", rpd = 0, enabled = false },
     { name = "nvidia/llama-3.1-nemotron-51b-instruct", rpd = 0, enabled = false },
@@ -255,13 +306,13 @@ models = [
     { name = "openai/gpt-oss-120b", rpd = 0, enabled = false },
     { name = "openai/gpt-oss-20b", rpd = 0 },
     { name = "qwen/qwen3-coder-480b-a35b-instruct", rpd = 0, enabled = false },
-    { name = "qwen/qwen3-next-80b-a3b-instruct", rpd = 0, enabled = false },
-    { name = "qwen/qwen3.5-122b-a10b", rpd = 0, enabled = false },
-    { name = "qwen/qwen3.5-397b-a17b", rpd = 0 },
+    { name = "qwen/qwen3-next-80b-a3b-instruct", rpd = 0 },
+    { name = "qwen/qwen3.5-122b-a10b", rpd = 0 },
+    { name = "qwen/qwen3.5-397b-a17b", rpd = 0, enabled = false },
     { name = "sarvamai/sarvam-m", rpd = 0 },
     { name = "stepfun-ai/step-3.5-flash", rpd = 0 },
     { name = "stepfun-ai/step-3.7-flash", rpd = 0 },
-    { name = "stockmark/stockmark-2-100b-instruct", rpd = 0 },
+    { name = "stockmark/stockmark-2-100b-instruct", rpd = 0, enabled = false },
     { name = "upstage/solar-10.7b-instruct", rpd = 0 },
     { name = "writer/palmyra-creative-122b", rpd = 0, enabled = false },
     { name = "writer/palmyra-fin-70b-32k", rpd = 0, enabled = false },
@@ -270,6 +321,8 @@ models = [
     { name = "z-ai/glm-5.2", rpd = 0 },
     { name = "zyphra/zamba2-7b-instruct", rpd = 0, enabled = false },
     { name = "nvidia/nemotron-3-ultra-550b-a55b", rpd = 0 },
+    { name = "poolside/laguna-xs-2.1", rpd = 0 },
+    { name = "thinkingmachines/inkling", rpd = 0 },
 ]
 
 [[provider]]
@@ -330,7 +383,7 @@ adapter = "openai"
 base_url = "https://models.github.ai/inference"
 key_env = "GITHUB_TOKEN"
 models = [
-    { name = "openai/gpt-4.1-mini", rpd = 150, enabled = false },
+    { name = "openai/gpt-4.1-mini", rpd = 150 },
     { name = "openai/gpt-4.1-nano", rpd = 150 },
     { name = "openai/gpt-4o-mini", rpd = 150 },
     { name = "mistral-ai/mistral-small-2503", rpd = 150 },
@@ -354,13 +407,13 @@ models = [
     { name = "deepseek/deepseek-r1", rpd = 150 },
     { name = "deepseek/deepseek-r1-0528", rpd = 150 },
     { name = "deepseek/deepseek-v3-0324", rpd = 150 },
-    { name = "meta/llama-3.2-11b-vision-instruct", rpd = 150 },
-    { name = "meta/llama-3.2-90b-vision-instruct", rpd = 150 },
+    { name = "meta/llama-3.2-11b-vision-instruct", rpd = 150, enabled = false },
+    { name = "meta/llama-3.2-90b-vision-instruct", rpd = 150, enabled = false },
     { name = "meta/llama-3.3-70b-instruct", rpd = 150 },
     { name = "meta/llama-4-maverick-17b-128e-instruct-fp8", rpd = 150 },
     { name = "meta/llama-4-scout-17b-16e-instruct", rpd = 150 },
-    { name = "meta/meta-llama-3.1-405b-instruct", rpd = 150 },
-    { name = "meta/meta-llama-3.1-8b-instruct", rpd = 150 },
+    { name = "meta/meta-llama-3.1-405b-instruct", rpd = 150, enabled = false },
+    { name = "meta/meta-llama-3.1-8b-instruct", rpd = 150, enabled = false },
     { name = "mistral-ai/codestral-2501", rpd = 150 },
     { name = "mistral-ai/ministral-3b", rpd = 150 },
     { name = "mistral-ai/mistral-medium-2505", rpd = 150 },
@@ -519,12 +572,12 @@ base_url = "https://ollama.com/v1"
 key_env = "OLLAMA_API_KEY"
 models = [
     { name = "gpt-oss:120b", rpd = 0 },
-    { name = "qwen3-coder:480b", rpd = 0 },
+    { name = "qwen3-coder:480b", rpd = 0, enabled = false },
     { name = "kimi-k2.6", rpd = 0, enabled = false },
     { name = "minimax-m2.7", rpd = 0, enabled = false },
-    { name = "ministral-3:3b", rpd = 0 },
+    { name = "ministral-3:3b", rpd = 0, enabled = false },
     { name = "gemini-3-flash-preview", rpd = 0, enabled = false },
-    { name = "gemma3:4b", rpd = 0 },
+    { name = "gemma3:4b", rpd = 0, enabled = false },
     { name = "gemma4:31b", rpd = 0 },
     { name = "rnj-1:8b", rpd = 0, enabled = false },
     { name = "nemotron-3-super", rpd = 0 },
@@ -533,22 +586,22 @@ models = [
     { name = "qwen3-vl:235b", rpd = 0, enabled = false },
     { name = "deepseek-v3.2", rpd = 0, enabled = false },
     { name = "nemotron-3-nano:30b", rpd = 0 },
-    { name = "gemma3:27b", rpd = 0 },
+    { name = "gemma3:27b", rpd = 0, enabled = false },
     { name = "kimi-k2:1t", rpd = 0, enabled = false },
-    { name = "qwen3-coder-next", rpd = 0 },
+    { name = "qwen3-coder-next", rpd = 0, enabled = false },
     { name = "deepseek-v4-flash", rpd = 0, enabled = false },
     { name = "gpt-oss:20b", rpd = 0 },
-    { name = "minimax-m2.1", rpd = 0 },
+    { name = "minimax-m2.1", rpd = 0, enabled = false },
     { name = "minimax-m3", rpd = 0 },
-    { name = "devstral-2:123b", rpd = 0 },
+    { name = "devstral-2:123b", rpd = 0, enabled = false },
     { name = "glm-5", rpd = 0, enabled = false },
     { name = "minimax-m2", rpd = 0, enabled = false },
     { name = "mistral-large-3:675b", rpd = 0, enabled = false },
-    { name = "devstral-small-2:24b", rpd = 0 },
-    { name = "gemma3:12b", rpd = 0 },
+    { name = "devstral-small-2:24b", rpd = 0, enabled = false },
+    { name = "gemma3:12b", rpd = 0, enabled = false },
     { name = "cogito-2.1:671b", rpd = 0, enabled = false },
     { name = "glm-4.6", rpd = 0, enabled = false },
-    { name = "glm-4.7", rpd = 0 },
+    { name = "glm-4.7", rpd = 0, enabled = false },
     { name = "kimi-k2-thinking", rpd = 0, enabled = false },
     { name = "deepseek-v4-pro", rpd = 0, enabled = false },
     { name = "deepseek-v3.1:671b", rpd = 0, enabled = false },
@@ -556,8 +609,8 @@ models = [
     { name = "glm-5.1", rpd = 0, enabled = false },
     { name = "kimi-k2.5", rpd = 0, enabled = false },
     { name = "qwen3-next:80b", rpd = 0, enabled = false },
-    { name = "ministral-3:8b", rpd = 0 },
-    { name = "ministral-3:14b", rpd = 0 },
+    { name = "ministral-3:8b", rpd = 0, enabled = false },
+    { name = "ministral-3:14b", rpd = 0, enabled = false },
     { name = "minimax-m2.5", rpd = 0 },
 ]
 
@@ -629,16 +682,16 @@ base_url = "https://integrate.api.nvidia.com/v1"
 key_env = "NVIDIA_API_KEY"
 models = [
     { name = "baai/bge-m3", rpd = 0 },
-    { name = "nvidia/embed-qa-4", rpd = 0 },
-    { name = "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1", rpd = 0 },
-    { name = "nvidia/llama-3.2-nv-embedqa-1b-v1", rpd = 0 },
+    { name = "nvidia/embed-qa-4", rpd = 0, enabled = false },
+    { name = "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1", rpd = 0, enabled = false },
+    { name = "nvidia/llama-3.2-nv-embedqa-1b-v1", rpd = 0, enabled = false },
     { name = "nvidia/llama-nemotron-embed-1b-v2", rpd = 0 },
     { name = "nvidia/llama-nemotron-embed-vl-1b-v2", rpd = 0 },
     { name = "nvidia/nv-embed-v1", rpd = 0 },
     { name = "nvidia/nv-embedcode-7b-v1", rpd = 0 },
     { name = "nvidia/nv-embedqa-e5-v5", rpd = 0 },
-    { name = "nvidia/nv-embedqa-mistral-7b-v2", rpd = 0 },
-    { name = "snowflake/arctic-embed-l", rpd = 0 },
+    { name = "nvidia/nv-embedqa-mistral-7b-v2", rpd = 0, enabled = false },
+    { name = "snowflake/arctic-embed-l", rpd = 0, enabled = false },
 ]
 
 # OVHcloud — KEYLESS embeddings (BGE), no key/signup. Our only keyless embedder → works on a
@@ -652,6 +705,7 @@ auth = "none"
 models = [
     { name = "bge-multilingual-gemma2", rpd = 0 },
     { name = "bge-m3", rpd = 0 },
+    { name = "Qwen3-Embedding-8B", rpd = 0 },
 ]
 
 # ── transcribers: audio→text (OpenAI /audio/transcriptions shape). Failover order. ──

@@ -83,6 +83,30 @@ That's enough to start. Run `freellmpool ask "hello"`.
 1. <https://longcat.chat> → developer/API keys.
 2. `export LONGCAT_API_KEY=...`
 
+### Aion Labs — *20K free tokens/day, no card*
+1. <https://api.aionlabs.ai> → create an account and API key.
+2. `export AION_API_KEY=...`
+
+   The free account tier is 15 requests/minute and 20,000 tokens/day. The
+   allowance is shared across Aion's priced models and renews daily.
+
+### ModelScope API Inference — *2,000 free calls/day*
+1. <https://modelscope.cn/my/myaccesstoken> → create a long-lived access token.
+2. `export MODELSCOPE_API_KEY=...`
+
+   API-Inference-enabled models receive dynamic free quotas: currently 2,000
+   calls/day in total and up to 500 calls/day for one model. Availability and
+   per-model caps can change with platform capacity.
+
+### SiliconFlow — *free models, identity verification required*
+1. <https://cloud.siliconflow.cn/account/ak> → sign in and create an API key.
+2. Complete identity verification to unlock the platform's free models.
+3. `export SILICONFLOW_API_KEY=...`
+
+   Free models have fixed rate limits and zero usage cost. They do not require
+   a payment card, but the identity-verification requirement may make this
+   provider unsuitable for some users or regions.
+
 ### Pollinations, OVHcloud, Kilo Gateway & LLM7 — *no signup needed*
 Nothing to do — Pollinations, OVHcloud, and Kilo Gateway are anonymous, and LLM7
 works without a key. For higher LLM7 limits you can optionally grab a token at

@@ -57,6 +57,15 @@ def test_client_embed_shape():
     assert reply.provider_id == "x"
 
 
+def test_client_embed_supplies_nvidia_input_type():
+    def post(url, headers, body, timeout):
+        assert body["input_type"] == "query"
+        return C.HTTPResult(200, _embed_body(), "")
+
+    e = _embedder("nvidia", "NVIDIA_API_KEY")
+    C.embed(e, "nvidia/llama-nemotron-embed-1b-v2", ["a"], api_key="k", env={}, post=post)
+
+
 def test_pool_embed_failover():
     def post(url, headers, body, timeout):
         if "alpha.test" in url:
@@ -68,6 +77,20 @@ def test_pool_embed_failover():
     reply = pool.embed("hello")
     assert reply.provider_id == "beta"  # alpha 429 → failover
     assert len(reply.vectors) == 1
+
+
+def test_pool_embed_skips_disabled_models():
+    seen = []
+
+    def post(url, headers, body, timeout):
+        seen.append(body["model"])
+        return C.HTTPResult(200, _embed_body(), "")
+
+    emb = _embedder("alpha", "A_KEY")
+    emb = Provider(**{**emb.__dict__, "models": (Model("retired", enabled=False), Model("working"))})
+    reply = Pool([], env={"A_KEY": "a"}, post=post, embedders=[emb]).embed("hello")
+    assert reply.model == "working"
+    assert seen == ["working"]
 
 
 def test_pool_embed_no_embedders_raises():
