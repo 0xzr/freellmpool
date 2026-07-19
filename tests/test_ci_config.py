@@ -16,22 +16,55 @@ def _ci_python_versions() -> list[str]:
     return re.findall(r'["\'](3\.\d+)["\']', match.group(1))
 
 
-def _coverage_floor() -> int:
+def _coverage_policy() -> dict[str, int]:
     config = json.loads((ROOT / ".coverage-thresholds.json").read_text(encoding="utf-8"))
-    floor = int(config["thresholds"]["lines"])
+    thresholds = config["thresholds"]
+    command = config["enforcement"]["command"]
 
-    assert f"--cov-fail-under={floor}" in config["enforcement"]["command"]
+    assert thresholds == {"lines": 80, "branches": 70}
+    assert command == (
+        "pytest --cov=freellmpool --cov-branch --cov-report=term-missing "
+        "--cov-report=json:.coverage.json && "
+        "python scripts/check_coverage.py .coverage.json"
+    )
     assert config["enforcement"]["blockPRCreation"] is True
     assert config["enforcement"]["blockTaskCompletion"] is True
-    return floor
+    return thresholds
 
 
 def test_ci_enforces_repository_coverage_floor() -> None:
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    match = re.search(r"--cov-fail-under=(\d+)", workflow)
+    policy = _coverage_policy()
 
-    assert match is not None, "CI must enforce an explicit coverage floor"
-    assert int(match.group(1)) == _coverage_floor()
+    assert policy == {"lines": 80, "branches": 70}
+    assert "pytest --cov=freellmpool --cov-branch" in workflow
+    assert "--cov-report=json:.coverage.json" in workflow
+    assert "python scripts/check_coverage.py .coverage.json" in workflow
+    assert "--cov-fail-under" not in workflow
+    assert ".coverage.json" in (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_ci_builds_and_smoke_tests_container() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert workflow.count("\n  docker-smoke:\n") == 1
+    docker_job = workflow.split("\n  docker-smoke:\n", maxsplit=1)[1]
+    for required in (
+        "permissions:\n      contents: read",
+        "docker build",
+        "--entrypoint python",
+        "sys.version_info[:2] == (3, 14)",
+        "freellmpool.__version__",
+        '"$image" --version',
+        "os.getuid() != 0",
+        "trap cleanup EXIT",
+        "docker logs",
+        "http://127.0.0.1:18080/healthz",
+        'payload["status"] == "ok"',
+    ):
+        assert required in docker_job
+    assert "docker/login-action" not in docker_job
+    assert "push: true" not in docker_job
 
 
 def test_dependabot_covers_project_supply_chains() -> None:
