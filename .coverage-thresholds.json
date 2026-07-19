@@ -1,16 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "Coverage thresholds for orchestrator agents and CI. Portable across projects — adjust values per-repo.",
+  "$comment": "Package-only line and branch coverage floors enforced independently by scripts/check_coverage.py.",
   "thresholds": {
     "lines": 80,
-    "branches": 80,
-    "functions": 80,
-    "statements": 80
+    "branches": 70
   },
   "enforcement": {
-    "command": "pytest --cov --cov-fail-under=80",
+    "command": "pytest --cov=freellmpool --cov-branch --cov-report=term-missing --cov-report=json:.coverage.json && python scripts/check_coverage.py .coverage.json",
     "blockPRCreation": true,
     "blockTaskCompletion": true,
-    "description": "Orchestrator agents MUST check coverage against these thresholds before marking any task complete or creating a PR. If coverage drops below any threshold, the task fails."
+    "description": "Orchestrator agents MUST generate package-only branch coverage and run the checker before marking any task complete or creating a PR. Lines and branches are evaluated separately."
   }
 }

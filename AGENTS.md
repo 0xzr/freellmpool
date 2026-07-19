@@ -45,9 +45,9 @@ Codex discovers skills by their SKILL.md `name` field. Invoke with `$name` synta
 ## Testing
 
 - **TDD is mandatory** -- Write tests first, watch them fail, then implement
-- **80% test coverage required** -- Lines, branches, functions, and statements. Enforced via `.coverage-thresholds.json` as a blocking gate before PR creation and task completion
+- **Coverage floors required** -- 80% package line coverage and 70% package branch coverage, evaluated separately. Enforced via `.coverage-thresholds.json` as a blocking gate before PR creation and task completion
 - Test command: `pytest`
-- Coverage command: `pytest --cov --cov-fail-under=80`
+- Coverage command: `pytest --cov=freellmpool --cov-branch --cov-report=term-missing --cov-report=json:.coverage.json && python scripts/check_coverage.py .coverage.json`
 
 ## Coverage
 

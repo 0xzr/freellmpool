@@ -49,7 +49,9 @@ jobs:
       - name: Import smoke
         run: python -c "import freellmpool; from freellmpool import Pool, AsyncPool; print(freellmpool.__version__, Pool, AsyncPool)"
       - name: Test
-        run: pytest --cov=freellmpool --cov-report=term-missing --cov-fail-under=80
+        run: |
+          pytest --cov=freellmpool --cov-branch --cov-report=term-missing --cov-report=json:.coverage.json
+          python scripts/check_coverage.py .coverage.json
       - name: Wheel smoke
         run: |
           python -m build
@@ -63,3 +65,44 @@ jobs:
           FREELLMPOOL_CACHE_PATH=/tmp/flp-smoke-cache.db \
           FREELLMPOOL_EXTERNAL_CATALOG_PATH=/tmp/flp-smoke-external.json \
             /tmp/freellmpool-wheel-smoke/bin/freellmpool doctor
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and smoke-test the container
+        run: |
+          set -euo pipefail
+          image="freellmpool:ci-${{ github.sha }}"
+          container="freellmpool-ci-${{ github.run_id }}-${{ github.run_attempt }}"
+
+          cleanup() {
+            exit_code=$?
+            set +e
+            if test "$exit_code" -ne 0; then
+              docker logs "$container"
+            fi
+            docker rm --force "$container" >/dev/null 2>&1
+            docker image rm "$image" >/dev/null 2>&1
+            exit "$exit_code"
+          }
+          trap cleanup EXIT
+
+          docker build --tag "$image" .
+          docker run --rm --entrypoint python "$image" -c \
+            'import os, sys, freellmpool; assert sys.version_info[:2] == (3, 14); assert freellmpool.__version__; assert os.getuid() != 0'
+          docker run --rm "$image" --version
+          docker run --detach --name "$container" --publish 127.0.0.1:18080:8080 "$image"
+
+          healthy=false
+          for attempt in $(seq 1 30); do
+            if response=$(curl --fail --silent http://127.0.0.1:18080/healthz) && \
+              python -c 'import json, sys; payload = json.loads(sys.argv[1]); assert payload["status"] == "ok"' "$response"; then
+              healthy=true
+              break
+            fi
+            sleep 1
+          done
+          test "$healthy" = true
