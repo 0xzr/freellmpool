@@ -300,6 +300,34 @@ def test_readyz_503_is_public_and_does_not_call_or_mutate(providers, quota):
     assert pool.cooldown_snapshot(pool._clock()) == before_cooldown
 
 
+def test_status_requires_auth_while_health_stays_public(providers, env, quota):
+    """Monitoring may prove reachability without exposing usage or inventory."""
+    pool = Pool(providers, quota=quota, env=env, post=make_post({}))
+    httpd, base = _serve(pool, api_key="secret")
+    try:
+        with urllib.request.urlopen(base + "/healthz") as resp:  # noqa: S310
+            assert resp.status == 200
+            assert json.load(resp) == {"status": "ok"}
+
+        for path in ("/status", "/v1/status"):
+            with pytest.raises(urllib.error.HTTPError) as exc:
+                urllib.request.urlopen(base + path)  # noqa: S310
+            assert exc.value.code == 401
+
+            req = urllib.request.Request(
+                base + path,
+                headers={"Authorization": "Bearer secret"},
+            )
+            with urllib.request.urlopen(req) as resp:  # noqa: S310
+                assert resp.status == 200
+                body = json.load(resp)
+                assert "providers" in body
+                assert "lifetime" in body
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_tokenmax_route(server):
     status, body = _post_json(server + "/tokenmax", {"prompt": "hi", "max_models": 3})
     assert status == 200

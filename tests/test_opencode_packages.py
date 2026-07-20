@@ -78,6 +78,16 @@ def test_opencode_packages_use_the_proxy_default_and_current_command() -> None:
     assert "freellmpool proxy" in combined
 
 
+def test_opencode_tui_distinguishes_proxy_failures() -> None:
+    source = (ROOT / "integrations" / "opencode-tui" / "index.tsx").read_text(encoding="utf-8")
+    assert 'AUTH_REQUIRED: "auth_required"' in source
+    assert 'ERROR: "error"' in source
+    assert "fetch(`${PROXY}/healthz`" in source
+    assert "res.status === 401 || res.status === 403" in source
+    assert "proxy needs auth" in source
+    assert source.count("proxy error") >= 3  # panel, home screen, and status command
+
+
 def test_package_smoke_script_checks_tarballs_clean_installs_and_loads() -> None:
     script = (ROOT / "scripts" / "check_opencode_packages.mjs").read_text(
         encoding="utf-8"
