@@ -215,6 +215,35 @@ def test_packaged_catalog_reflects_july_17_exhaustive_live_audit():
     assert all(not nvidia_embedders.model(name).enabled for name in removed_nvidia_embedders)
 
 
+def test_packaged_catalog_includes_frontier_free_providers():
+    providers = {provider.id: provider for provider in load_catalog()}
+
+    morph = providers["morph"]
+    assert morph.base_url == "https://api.morphllm.com/v1"
+    assert morph.key_env == "MORPH_API_KEY"
+    assert {model.name for model in morph.models if model.enabled} == {
+        "morph-glm52-744b",
+        "morph-minimax3-428b",
+        "morph-dsv4flash",
+    }
+    assert sum(model.rpd for model in morph.models if model.enabled) <= 6
+
+    vercel = providers["vercel"]
+    assert vercel.base_url == "https://ai-gateway.vercel.sh/v1"
+    assert vercel.key_env == "AI_GATEWAY_API_KEY"
+    assert {model.name for model in vercel.models if model.enabled} == {
+        "zai/glm-5.2",
+        "minimax/minimax-m3",
+        "deepseek/deepseek-v4-pro",
+        "moonshotai/kimi-k2.6",
+        "xiaomi/mimo-v2.5-pro",
+    }
+    assert sum(model.rpd for model in vercel.models if model.enabled) <= 5
+
+    modelscope = providers["modelscope"]
+    assert all(model.rpd == 200 for model in modelscope.models if model.enabled)
+
+
 def test_keyless_providers_always_configured():
     # OVH (auth=none) and LLM7 (key_optional) are usable with an empty env.
     catalog = load_catalog()

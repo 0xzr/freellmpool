@@ -35,6 +35,8 @@ not encode data residency, this table says so instead of guessing.
 | `longcat` | `https://api.longcat.chat/openai/v1` | `LONGCAT_API_KEY` | LongCat.AI/Meituan policy applies; catalog does not pin a region. | Direct LongCat API using your key; check the platform privacy policy before sensitive data. |
 | `aion` | `https://api.aionlabs.ai/v1` | `AION_API_KEY` | Aion Labs is operated by Deep Forge sp. z o.o. in Poland and routes to upstream model infrastructure. | Direct Aion API using your key; its terms permit forwarding prompts to upstream providers to deliver the service. |
 | `modelscope` | `https://api-inference.modelscope.cn/v1` | `MODELSCOPE_API_KEY` | ModelScope is an Alibaba open-model platform; the catalog does not pin an inference region. | Hosted API Inference using your token; do not assume local execution or a specific data-residency region. |
+| `morph` | `https://api.morphllm.com/v1` | `MORPH_API_KEY` | Morph's privacy policy applies; the catalog does not pin a serving region. | Hosted OpenAI-compatible inference using your key; prompts leave your machine. |
+| `vercel` | `https://ai-gateway.vercel.sh/v1` | `AI_GATEWAY_API_KEY` | Vercel AI Gateway routes requests to upstream model providers, whose jurisdictions may vary. | Extra gateway hop; Vercel and the selected upstream provider process each request. |
 | `siliconflow` | `https://api.siliconflow.cn/v1` | `SILICONFLOW_API_KEY` | SiliconFlow is operated by Beijing SiliconFlow Technology Co., Ltd.; identity verification is required for free models. | Direct SiliconFlow API; its English privacy policy says it does not store interaction data with open-source models, but verify the current policy for your account and region. |
 
 Two local storage details matter:
@@ -159,5 +161,7 @@ Provider policy links checked for this FAQ:
 - Aion Labs: <https://www.aionlabs.ai/terms/>,
   <https://www.aionlabs.ai/docs/rate-limits/>
 - ModelScope API Inference: <https://modelscope.cn/docs/model-service/API-Inference>
+- Morph pricing and fast models: <https://www.morphllm.com/pricing>, <https://docs.morphllm.com/sdk/components/fast-models>
+- Vercel AI Gateway pricing: <https://vercel.com/docs/ai-gateway/pricing>
 - SiliconFlow: <https://docs.siliconflow.cn/en/legals/privacy-policy>,
   <https://docs.siliconflow.cn/en/userguide/rate-limits/rate-limit-and-upgradation>

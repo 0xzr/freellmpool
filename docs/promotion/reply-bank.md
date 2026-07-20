@@ -140,7 +140,7 @@ stops the review call rather than silently substituting a different provider.
   providers, and keyless start."
 - `assets/social-preview.png`: "Project preview card for freellmpool: free LLM
   API pool for agents and local proxies." Alt text: "Dark social preview image
-  for freellmpool with feature labels for keyless start, 22 providers, OpenAI
+  for freellmpool with feature labels for keyless start, 24 providers, OpenAI
   proxy, MCP, transcription, and tokenmax."
 
 ## Can I use it with Cline or Cursor's OpenAI-compatible settings?

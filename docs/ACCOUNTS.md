@@ -95,8 +95,24 @@ That's enough to start. Run `freellmpool ask "hello"`.
 2. `export MODELSCOPE_API_KEY=...`
 
    API-Inference-enabled models receive dynamic free quotas: currently 2,000
-   calls/day in total and up to 500 calls/day for one model. Availability and
+   calls/day in total and up to 200 calls/day for one model. Availability and
    per-model caps can change with platform capacity.
+
+### Morph — *200 free requests/month*
+1. <https://www.morphllm.com/dashboard/api-keys> → create an account and API key.
+2. `export MORPH_API_KEY=...`
+
+   The recurring allowance is shared across Morph's fast models, including
+   GLM-5.2, MiniMax M3, and DeepSeek V4 Flash.
+
+### Vercel AI Gateway — *$5 recurring monthly Hobby credit*
+1. <https://vercel.com/ai-gateway> → create or select a free Hobby team.
+2. Create an AI Gateway API key.
+3. `export AI_GATEWAY_API_KEY=...`
+
+   The Hobby team receives $5 of gateway credit each month. Do not purchase
+   credits or enable automatic top-ups if you want to remain on the free tier;
+   purchasing credits upgrades the team to a paid tier.
 
 ### SiliconFlow — *free models, identity verification required*
 1. <https://cloud.siliconflow.cn/account/ak> → sign in and create an API key.

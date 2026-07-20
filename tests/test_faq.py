@@ -15,7 +15,7 @@ def test_faq_lists_every_builtin_chat_provider():
 
     faq = (ROOT / "FAQ.md").read_text(encoding="utf-8")
 
-    assert len(providers) == 22
+    assert len(providers) == 24
     for provider in providers:
         assert f"`{provider['id']}`" in faq
 
@@ -68,9 +68,9 @@ def test_demo_assets_are_well_formed_and_current():
     assert "TOKENMAXXING" in demo
     assert "--animation-duration: 8500ms" in demo
     assert f"freellmpool-{__version__}" in demo
-    assert "22 cataloged providers, 239 enabled routes" in demo
+    assert "24 cataloged providers, 247 enabled routes" in demo
     assert "keyless start when available" in demo
-    assert "239" in results
-    assert "397 cataloged" in results
+    assert "247" in results
+    assert "405 cataloged" in results
     assert "cataloged providers" in results
     assert "$0" in results

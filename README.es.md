@@ -6,10 +6,10 @@
 
 ![demostración de freellmpool tokenmax en terminal](assets/demo.svg)
 
-![239 rutas habilitadas, 22 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
+![247 rutas habilitadas, 24 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
 
-Agrupa los niveles gratuitos de 22 proveedores de LLM (239 rutas de chat
-habilitadas, 397 modelos de chat catalogados) detrás de un endpoint compatible
+Agrupa los niveles gratuitos de 24 proveedores de LLM (247 rutas de chat
+habilitadas, 405 modelos de chat catalogados) detrás de un endpoint compatible
 con OpenAI: como CLI, biblioteca de Python o proxy local. Puede empezar sin
 claves de API cuando hay un proveedor sin clave disponible.
 
@@ -394,7 +394,7 @@ Notas de arquitectura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Herramienta | Inicio sin clave | # proveedores | Failover | Servidor MCP | CLI | Transcripción | Local/self-hosted | Licencia |
 |---|---|---:|---|---|---|---|---|---|
-| **freellmpool** | Sí: Pollinations, OVHcloud, Kilo Gateway; LLM7 permite clave opcional | 22 proveedores chat catalogados | Sí: prueba el siguiente proveedor ante rate limits, timeouts, 5xx, respuestas vacías y errores de transporte | Sí: `freellmpool mcp` | Sí: `freellmpool ask`, `tokenmax`, `providers`, `proxy` y más | Sí: `/v1/audio/transcriptions` compatible con OpenAI y failover de proveedor | Sí: paquete Python local y proxy local | MIT |
+| **freellmpool** | Sí: Pollinations, OVHcloud, Kilo Gateway; LLM7 permite clave opcional | 24 proveedores chat catalogados | Sí: prueba el siguiente proveedor ante rate limits, timeouts, 5xx, respuestas vacías y errores de transporte | Sí: `freellmpool mcp` | Sí: `freellmpool ask`, `tokenmax`, `providers`, `proxy` y más | Sí: `/v1/audio/transcriptions` compatible con OpenAI y failover de proveedor | Sí: paquete Python local y proxy local | MIT |
 | OpenRouter free models | No: requiere cuenta/API key de OpenRouter | Una cuenta hospedada de OpenRouter que enruta a muchos upstreams; el router de modelos gratuitos lista variantes free | Sí: OpenRouter maneja routing/fallbacks | No es servidor MCP nativo; sus docs muestran patrones para clientes/herramientas MCP | Sin CLI local first-party en las docs revisadas | Sí: OpenRouter documenta APIs de transcripción de audio | No: servicio hospedado | Servicio propietario |
 | LiteLLM | No: trae claves de proveedores o credenciales de LiteLLM hospedado | 100+ proveedores LLM | Sí: router/fallbacks, incluidos fallbacks de transcripción | Sí: LiteLLM Proxy incluye MCP Gateway | Sí: SDK/proxy, no un CLI one-shot de modelos gratuitos | Sí: soporte `/audio/transcriptions` | Sí: self-host del proxy o LiteLLM hospedado | MIT para el core; licencia comercial para piezas enterprise |
 | FreeLLMAPI | No: agrega tus claves de proveedores gratuitos; proveedores keyless pueden configurarse después | 16 proveedores free-tier más endpoints OpenAI-compatible personalizados | Sí: cadena de fallback ante 429, 5xx y timeouts | Sin servidor MCP nativo en el README revisado | Dashboard/servidor, app desktop y Docker; sin CLI one-shot first-class en el README revisado | No: `/v1/audio/*` figura como no soportado aún | Sí: proxy Node/Docker self-hosted | MIT |
@@ -414,7 +414,7 @@ docs MCP y docs de transcripción de LiteLLM; README de FreeLLMAPI.
 
 **¿Hay un gateway LLM API gratis y compatible con OpenAI?** Sí. freellmpool es
 un gateway gratuito con licencia MIT que expone un endpoint compatible con
-OpenAI respaldado por los niveles gratuitos de 22 proveedores. `pip install
+OpenAI respaldado por los niveles gratuitos de 24 proveedores. `pip install
 freellmpool` y apunta cualquier cliente OpenAI al proxy local.
 
 **¿Cómo uso varias APIs LLM gratuitas a la vez?** freellmpool las agrupa: cada

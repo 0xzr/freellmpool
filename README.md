@@ -4,9 +4,9 @@
 
 ![freellmpool tokenmax terminal demo](assets/demo.svg)
 
-![239 enabled routes, 22 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
+![247 enabled routes, 24 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
 
-Pool the free tiers of 22 LLM providers cataloged in freellmpool (239 enabled chat routes, 397 cataloged chat models)
+Pool the free tiers of 24 LLM providers cataloged in freellmpool (247 enabled chat routes, 405 cataloged chat models)
 behind one OpenAI-compatible endpoint — as a CLI, a Python library, or a local
 proxy. Can start without API keys when a keyless provider is up.
 
@@ -490,6 +490,8 @@ required. Step-by-step signup links for each (all free, no card) are in
 | OpenCode Zen | — | cataloged, disabled by default pending opt-in |
 | Aion Labs | `AION_API_KEY` | 20K free tokens/day, no card |
 | ModelScope API Inference | `MODELSCOPE_API_KEY` | 2,000 free calls/day |
+| Morph | `MORPH_API_KEY` | 200 requests/month; frontier models |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | recurring $5/month Hobby credit; frontier models |
 | SiliconFlow | `SILICONFLOW_API_KEY` | free models; identity verification required |
 | Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud, LongCat | see `.env.example` | |
 
@@ -589,7 +591,7 @@ than a permanent ranking.
 
 | Tool | Keyless start | # providers | Failover | MCP server | CLI | Transcription | Local/self-hosted | License |
 |---|---|---:|---|---|---|---|---|---|
-| **freellmpool** | Yes, when a configured keyless provider is available | 22 chat providers cataloged locally | Yes: retryable provider failures, empty replies, and transport errors | Yes: `freellmpool mcp` | One-shot CLI plus profiles, library, and proxy commands | Yes: `/v1/audio/transcriptions` with failover | Yes: small Python package and local proxy | MIT |
+| **freellmpool** | Yes, when a configured keyless provider is available | 24 chat providers cataloged locally | Yes: retryable provider failures, empty replies, and transport errors | Yes: `freellmpool mcp` | One-shot CLI plus profiles, library, and proxy commands | Yes: `/v1/audio/transcriptions` with failover | Yes: small Python package and local proxy | MIT |
 | [OpenRouter free models](https://openrouter.ai/openrouter/free/providers) | No: hosted API use requires an account/key | Hosted router; the linked free router listed 22 models at snapshot | [Yes](https://openrouter.ai/docs/guides/routing/model-fallbacks): hosted provider/model fallbacks | [Yes](https://openrouter.ai/blog/announcements/openrouter-mcp-server/): hosted remote MCP server | Hosted API/SDK and agent SDK, not a local gateway CLI | [Audio input/transcription](https://openrouter.ai/docs/guides/overview/multimodal/audio) through multimodal chat | No: hosted service | Proprietary service |
 | [LiteLLM](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/README.md) | No: bring provider or hosted-gateway credentials | README claims 100+ LLMs/providers | Yes: router retries/fallbacks | Yes: AI Gateway includes an MCP Gateway | Python SDK and proxy/gateway CLI surface | Yes: `/audio/transcriptions` | Yes: self-hosted proxy or hosted offering | MIT core; commercial enterprise features |
 | [OmniRoute](https://github.com/diegosouzapw/OmniRoute/blob/d8ff51874c8add566d43225988b9bc67e0542d65/README.md) | Yes: its setup documents a no-auth OpenCode option | README claims 268 integrations/providers and 90+ free options | Yes: layered fallback/circuit-breaker routing | Yes: MCP and A2A control planes | Broad management CLI and one-command agent setup | Audio translation is documented; other media capabilities vary by provider | Yes: Node application with dashboard, Docker, desktop/PWA paths | MIT |
@@ -607,7 +609,7 @@ deployment.
 
 **Is there a free, OpenAI-compatible LLM API gateway?** Yes — freellmpool is a free,
 MIT-licensed gateway that exposes one OpenAI-compatible endpoint backed by the free
-tiers of 22 cataloged providers. `pip install freellmpool` and point any OpenAI client at the
+tiers of 24 cataloged providers. `pip install freellmpool` and point any OpenAI client at the
 local proxy.
 
 **How do I use multiple free LLM APIs at once?** freellmpool pools them: each request
@@ -633,7 +635,7 @@ more models and higher limits.
 
 ## Featured in
 
-- Community videos (Spanish, by lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) and ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (from an earlier catalog; freellmpool now catalogs 22 providers).
+- Community videos (Spanish, by lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) and ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (from an earlier catalog; freellmpool now catalogs 24 providers).
 - Directory: [FreeLLM Pool on MCP Market](https://mcpmarket.com/server/freellm-pool).
 
 ## Contributing
