@@ -9,13 +9,21 @@
 > Capacity tools (`freellmpool capacity status`, `providers health`, `keys add`) show which
 > free tiers are usable right now and help configure more.
 
+## Release status
+- Latest GitHub and PyPI release: 0.11.4. Released 0.11.4 includes `spread` routing.
+- Current main includes unreleased changes: the Hermes profile, `/livez`, `/readyz`,
+  `/v1/providers`, `/v1/models?ready=true`, refreshed catalog data, and registry-readiness hardening for the existing repository-local OpenCode plugins. Persistent source install:
+  `python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'`.
+- OpenCode npm registry publication is pending; `opencode-freellmpool` and
+  `opencode-freellmpool-tui` were not published as of 2026-07-19.
+
 ## Docs
 - [README](https://github.com/0xzr/freellmpool/blob/main/README.md): install, CLI, library, proxy, MCP, provider keys, routing.
 - [Landing page / FAQ](https://0xzr.github.io/freellmpool/): what it is, how it compares, frequently asked questions.
 - [Capacity & provider health](https://github.com/0xzr/freellmpool/blob/main/docs/CAPACITY.md): capacity status, health checks, key inventory, external catalog. Guide: https://0xzr.github.io/freellmpool/capacity-management.html
 - [CHANGELOG](https://github.com/0xzr/freellmpool/blob/main/CHANGELOG.md): release history.
-- [Integrations](https://github.com/0xzr/freellmpool/blob/main/docs/INTEGRATIONS.md): opencode, metaswarm review adapter, aider, Continue, Cline, Cursor, Open WebUI, LangChain, LlamaIndex, and more.
-- [Run OpenCode on free models](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html): OpenCode setup with an embedded TUI dashboard, quality routing (auto/fast/quality/fair), and usage tools.
+- [Integrations](https://github.com/0xzr/freellmpool/blob/main/docs/INTEGRATIONS.md): OpenCode, Hermes, metaswarm review adapter, aider, Continue, Cline, Cursor, Open WebUI, LangChain, LlamaIndex, and more.
+- [Run OpenCode on free models](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html): OpenCode setup with an embedded TUI dashboard, quality routing (spread/auto/fast/quality/fair), and usage tools.
 - [MCP server](https://github.com/0xzr/freellmpool/blob/main/docs/MCP.md): use free models from Claude Desktop/Code/Cursor.
 
 ## Install

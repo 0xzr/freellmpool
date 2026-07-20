@@ -68,10 +68,12 @@ def test_opencode_packages_use_the_proxy_default_and_current_command() -> None:
         ROOT / "integrations" / "opencode" / "README.md",
         ROOT / "integrations" / "opencode-tui" / "index.tsx",
         ROOT / "integrations" / "opencode-tui" / "README.md",
+        ROOT / "integrations" / "opencode-jail" / "opencode-freellmpool-jailed.sh",
+        ROOT / "integrations" / "opencode-jail" / "README.md",
     ]
     combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
     assert "http://localhost:8080" in combined
-    assert "localhost:8765" not in combined
+    assert ":8765" not in combined
     assert "freellmpool-proxy" not in combined
     assert "freellmpool proxy" in combined
 
@@ -94,6 +96,8 @@ def test_package_smoke_script_checks_tarballs_clean_installs_and_loads() -> None
 
 def test_unpublished_registry_install_is_labelled_pending_everywhere() -> None:
     paths = [
+        ROOT / "README.md",
+        ROOT / "docs" / "index.html",
         ROOT / "docs" / "INTEGRATIONS.md",
         ROOT / "docs" / "run-opencode-on-free-models.html",
         ROOT / "integrations" / "opencode" / "README.md",
@@ -104,3 +108,16 @@ def test_unpublished_registry_install_is_labelled_pending_everywhere() -> None:
         assert "Registry publication status: pending" in text
         assert "opencode-freellmpool" in text
         assert "opencode-freellmpool-tui" in text
+
+
+def test_opencode_docs_distinguish_released_sources_from_registry_hardening() -> None:
+    paths = [
+        ROOT / "docs" / "run-opencode-on-free-models.html",
+        ROOT / "integrations" / "opencode" / "README.md",
+        ROOT / "integrations" / "opencode-tui" / "README.md",
+    ]
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert "plugin sources are included in 0.11.4" in text
+        assert "registry-readiness hardening" in text
+        assert "unreleased repository additions" not in text

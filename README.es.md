@@ -21,6 +21,24 @@ claves de API cuando hay un proveedor sin clave disponible.
 [FAQ](FAQ.md): a dónde van los prompts, postura de ToS, failover, bloqueos y
 comparaciones.
 
+## Estado de versión y distribución
+
+- **Última versión: 0.11.4.** La versión de GitHub y el paquete de PyPI son
+  0.11.4; incluyen el enrutamiento `spread`.
+- **main contiene cambios aún no publicados**, entre ellos el perfil de
+  Hermes, las APIs operativas `/livez`, `/readyz`, `/v1/providers` y
+  `/v1/models?ready=true`, el catálogo actualizado y la preparación para
+  publicar los plugins de OpenCode que ya existen en 0.11.4. Para probar esos
+  cambios antes de la próxima versión, reemplaza el paquete en tu entorno:
+
+  ```bash
+  python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
+  ```
+
+- **Estado de publicación en npm: pendiente.** `opencode-freellmpool` y
+  `opencode-freellmpool-tui` están probados, pero no publicados en npm al
+  2026-07-19. Por ahora usa las instrucciones de instalación local del repo.
+
 ## Inicio rápido en 30 segundos
 
 Una instalación nueva hasta la primera respuesta de un modelo gratuito toma unos
@@ -60,7 +78,8 @@ código: basta con apuntarlos al proxy.
 ```bash
 freellmpool proxy                       # starts http://localhost:8080
 freellmpool code claude                 # prints the one-line setup for Claude Code
-# (also: codex, aider, cline, continue, cursor, opencode)
+freellmpool profile install hermes       # solo en main; imprime la configuración
+# (also: codex, aider, cline, continue, cursor, hermes, opencode)
 ```
 
 El modo gateway de Claude Code también puede lanzarse directamente:
@@ -80,7 +99,7 @@ Tus aplicaciones OpenAI/Anthropic existentes funcionan igual: define
 **OpenCode** tiene una integración más profunda: un **dashboard** en vivo dentro
 del editor (modo de enrutamiento, $ ahorrados, tokens servidos gratis, carrera
 de proveedores, latencia), **enrutamiento por calidad** por solicitud desde el
-selector de modelos (`freellmpool/auto|fast|quality|fair`) y herramientas
+selector de modelos (`freellmpool/spread|auto|fast|quality|fair`) y herramientas
 `freellmpool_status` / `freellmpool_models`. Consulta
 [integrations/opencode-tui](integrations/opencode-tui) y la
 [guía](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html).

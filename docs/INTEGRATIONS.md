@@ -15,6 +15,20 @@ Because freellmpool **aliases common model names** (`gpt-4o-mini`, `gpt-4o`,
 `claude-3-5-sonnet`, …) to free models, most tools work with their *default*
 model setting untouched — just set the base URL and any API key.
 
+## Release status
+
+The latest GitHub and PyPI release is 0.11.4. Current `main` includes unreleased
+changes documented below: the Hermes profile, the readiness/provider operations
+APIs, and registry-readiness hardening for the existing repository-local
+OpenCode plugins. To test those additions before the next release, replace the
+released package in your integration environment with `main`:
+
+```bash
+python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
+```
+
+Released 0.11.4 already includes `spread` routing.
+
 ---
 
 ## Coding agents & editors
@@ -63,7 +77,7 @@ Anthropic bridge, `/v1/models` for concrete `provider/model` ids, `/dashboard`
 for operations, `/playground` for browser-side battle runs, and
 `/freellmpool/battle` for JSON/Markdown comparison results.
 
-For automation, `/healthz` and `/livez` are public liveness aliases;
+On current `main`, automation can use `/healthz` and `/livez` as public liveness aliases;
 `/readyz` is a public advisory local-capacity probe (200 or 503), and
 `/v1/providers` is the authenticated secret-free inventory. Use
 `/v1/models?ready=true` to keep the normal OpenAI/Anthropic model-list shape
@@ -80,14 +94,16 @@ snapshots and never live-probe an upstream provider.
     "freellmpool": {
       "npm": "@ai-sdk/openai-compatible",
       "options": { "baseURL": "http://localhost:8080/v1" },
-      "models": { "auto": {}, "fast": {}, "quality": {}, "fair": {} }
+      "models": { "spread": {}, "auto": {}, "fast": {}, "quality": {}, "fair": {} }
     }
   }
 }
 ```
-Pick `freellmpool/auto|fast|quality|fair` in the model picker to control routing
-(`quality` = capability-matched + latency-aware; `fast` = lowest latency; `fair` =
-spread quota). Full guide: <https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html>.
+Pick `freellmpool/spread|auto|fast|quality|fair` in the model picker to control
+routing (`spread` = least-used tier first with a latency/health tie-break;
+`quality` = capability-matched + latency-aware; `fast` = lowest latency; `fair`
+= spread quota without the latency tie-break). Full guide:
+<https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html>.
 
 **Embedded dashboard + tools (optional).** Two OpenCode plugins live in the repo:
 - [`integrations/opencode-tui`](../integrations/opencode-tui) — a live in-editor TUI
@@ -98,8 +114,9 @@ spread quota). Full guide: <https://0xzr.github.io/freellmpool/run-opencode-on-f
 
 **Registry publication status: pending.** The intended package names are
 `opencode-freellmpool` and `opencode-freellmpool-tui`; CI packs, clean-installs,
-and loads both, but do not use an npm install command until the registry versions
-are verified. The local-file commands above are the current working path.
+and loads both, but neither name is published on npm as of 2026-07-19. Do not use
+an npm install command until the registry versions are verified. The local-file
+commands above are the current working path.
 
 ### metaswarm
 [`integrations/metaswarm`](../integrations/metaswarm) contains an experimental
@@ -135,6 +152,7 @@ escalation/final-review tools.
 
 ### Hermes Agent
 
+The Hermes profile is on current `main` and is not part of released 0.11.4.
 Hermes supports OpenAI-compatible custom endpoints. Start the proxy, then either
 run `hermes model` and choose **Custom endpoint**, or inspect the print-only
 profile:
