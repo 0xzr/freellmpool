@@ -29,6 +29,14 @@ def test_spanish_readme_tracks_current_launch_surface():
     assert "22 proveedores" in spanish
     assert "239 rutas de chat" in spanish
     assert "397 modelos de chat" in spanish
+    assert "Última versión: 0.11.4" in spanish
+    assert "main contiene cambios aún no publicados" in spanish
+    assert "git+https://github.com/0xzr/freellmpool.git@main" in spanish
+    assert "Estado de publicación en npm: pendiente" in spanish
+    assert "opencode-freellmpool" in spanish
+    assert "opencode-freellmpool-tui" in spanish
+    assert "freellmpool/spread" in spanish
+    assert "hermes" in spanish
 
     for heading in (
         "## Inicio rápido en 30 segundos",

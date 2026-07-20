@@ -86,6 +86,87 @@ def test_readme_has_current_adoption_paths_and_pinned_comparison_sources() -> No
         assert "/v1/models?ready=true" in text
 
 
+def test_public_docs_separate_release_from_current_main() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    version = pyproject["project"]["version"]
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    index = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+
+    source_docs = (
+        readme,
+        (ROOT / "README.es.md").read_text(encoding="utf-8"),
+        (ROOT / "docs" / "AGENTS.md").read_text(encoding="utf-8"),
+        (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8"),
+        index,
+        (ROOT / "docs" / "llms.txt").read_text(encoding="utf-8"),
+        (ROOT / "docs" / "run-coding-agents-on-free-models.html").read_text(
+            encoding="utf-8"
+        ),
+        (ROOT / "docs" / "run-opencode-on-free-models.html").read_text(
+            encoding="utf-8"
+        ),
+    )
+
+    for text in (readme, index):
+        assert f"Latest release: {version}" in text
+        assert "Current main includes unreleased changes" in text
+
+    for text in source_docs:
+        assert "python -m pip install" in text
+        assert "git+https://github.com/0xzr/freellmpool.git@main" in text
+        assert (
+            "uvx --from git+https://github.com/0xzr/freellmpool.git@main "
+            "freellmpool --version"
+        ) not in text
+
+    assert f'"softwareVersion": "{version}"' in index
+
+    for text in (
+        readme,
+        (ROOT / "docs" / "AGENTS.md").read_text(encoding="utf-8"),
+        (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8"),
+        index,
+        (ROOT / "docs" / "llms.txt").read_text(encoding="utf-8"),
+        (ROOT / "docs" / "run-opencode-on-free-models.html").read_text(
+            encoding="utf-8"
+        ),
+    ):
+        assert "registry-readiness hardening" in text
+
+
+def test_pages_describe_current_main_agent_and_operations_surfaces() -> None:
+    index = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+    agents = (ROOT / "docs" / "run-coding-agents-on-free-models.html").read_text(
+        encoding="utf-8"
+    )
+    opencode = (ROOT / "docs" / "run-opencode-on-free-models.html").read_text(
+        encoding="utf-8"
+    )
+    llms = (ROOT / "docs" / "llms.txt").read_text(encoding="utf-8")
+
+    for marker in ("Hermes", "/livez", "/readyz", "/v1/providers", "/v1/models?ready=true"):
+        assert marker in index
+        assert marker in agents
+
+    for text in (index, opencode, llms):
+        assert "spread" in text
+
+    for text in (index, opencode):
+        assert "Registry publication status: pending" in text
+        assert "opencode-freellmpool" in text
+        assert "opencode-freellmpool-tui" in text
+
+
+def test_pages_dates_match_current_documentation_pass() -> None:
+    sitemap = (ROOT / "docs" / "sitemap.xml").read_text(encoding="utf-8")
+    for page in (
+        "https://0xzr.github.io/freellmpool/",
+        "https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html",
+        "https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html",
+    ):
+        assert f"<loc>{page}</loc><lastmod>2026-07-19</lastmod>" in sitemap
+
+
 def test_roadmap_reflects_kimi_m3_addendum() -> None:
     roadmap = (ROOT / "docs/ROADMAP.md").read_text(encoding="utf-8")
     assert "Top 10 feature map" in roadmap

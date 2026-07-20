@@ -29,6 +29,7 @@
  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--bd)}
  th{color:var(--mut);font-weight:600}
  .badges a{margin-right:6px}
+ .note{background:var(--card);border:1px solid var(--bd);border-left:3px solid var(--ac);border-radius:6px;padding:10px 14px;font-size:14px;margin:14px 0}
  .faq h3{color:#cdd6e4}
  .meta{color:var(--mut);font-size:13px;margin-top:34px;border-top:1px solid var(--bd);padding-top:14px}
  ul{padding-left:20px}
@@ -62,6 +63,16 @@ freellmpool ask "Explain the CAP theorem in one sentence."   # keyless when rout
 MIT license
 </p>
 
+<div class="note"><strong>Release status.</strong> Latest release: 0.11.4, available from both
+GitHub and PyPI. <strong>Current main includes unreleased changes</strong>, including the Hermes profile,
+the readiness/provider operations APIs, refreshed catalog data, and registry-readiness hardening for
+the existing repository-local OpenCode plugins.
+Released 0.11.4 already includes <code>spread</code> routing. To test the main-only additions explicitly:
+<pre><code>python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'</code></pre>
+<strong>Registry publication status: pending.</strong> <code>opencode-freellmpool</code> and
+<code>opencode-freellmpool-tui</code> are CI-tested but were not published on npm as of 2026-07-19;
+use their repository-local installation paths.</div>
+
 <h2>How it compares</h2>
 <table>
 <tr><th>Tool</th><th>What it is</th><th>Install</th><th>Keyless start</th><th>CLI / library / proxy / MCP</th></tr>
@@ -77,7 +88,9 @@ tiers — not a server you deploy and not a paid aggregator.</p>
 <ul>
 <li><strong>Use free LLMs from the command line:</strong> <code>freellmpool ask "..."</code>, pipe stdin, pin a provider/model.</li>
 <li><strong>OpenAI-compatible proxy:</strong> point <code>OPENAI_BASE_URL</code> at <code>freellmpool proxy</code> for most text, embedding, and transcription calls.</li>
-<li><strong>Run coding agents for free:</strong> <code>freellmpool code claude</code> (also codex, aider, cline, continue, cursor, opencode) routes them to pooled free models — see the <a href="run-coding-agents-on-free-models.html">step-by-step guide</a>.</li>
+<li><strong>Run coding agents for free:</strong> <code>freellmpool code claude</code> (also codex, aider, cline, continue, cursor, Hermes, and OpenCode) routes them to pooled free models — see the <a href="run-coding-agents-on-free-models.html">step-by-step guide</a>. The Hermes profile is currently main-only.</li>
+<li><strong>Automate proxy operations:</strong> current <code>main</code> adds public <code>/livez</code> and <code>/readyz</code> probes, authenticated <code>/v1/providers</code>, and <code>/v1/models?ready=true</code> for locally ready targets.</li>
+<li><strong>Use OpenCode deeply:</strong> choose <code>freellmpool/spread</code> for quota-aware agent loops and add the repository-local dashboard/tools plugins while npm publication is pending.</li>
 <li><strong>Add model-pool review to metaswarm:</strong> use the experimental <a href="https://github.com/0xzr/freellmpool/tree/main/integrations/metaswarm">metaswarm adapter</a> as a review-only external tool.</li>
 <li><strong>Async + library:</strong> <code>from freellmpool import Pool, AsyncPool</code>.</li>
 <li><strong>MCP server:</strong> <code>freellmpool mcp</code> lets Claude Desktop/Code/Cursor offload subtasks to free models.</li>
@@ -168,7 +181,7 @@ for provider routing, ToS, and privacy notes.</p>
 
 </div>
 
-<p class="meta">Free and open source (MIT). Latest release: 0.11.4. Page updated 2026-07-17.
+<p class="meta">Free and open source (MIT). Latest release: 0.11.4. Page updated 2026-07-19.
 Project: <a href="https://github.com/0xzr/freellmpool">github.com/0xzr/freellmpool</a></p>
 
 </div>

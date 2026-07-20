@@ -17,6 +17,25 @@ proxy. Can start without API keys when a keyless provider is up.
 
 [FAQ](FAQ.md): where prompts go, ToS posture, failover, bans, and comparisons.
 
+## Release and distribution status
+
+- **Latest release: 0.11.4.** The GitHub release and PyPI package are both
+  0.11.4; `pip install freellmpool` and `uvx freellmpool` install that released
+  artifact. It includes `spread` routing.
+- **Current main includes unreleased changes**, including the Hermes profile,
+  proxy readiness/provider APIs, refreshed provider catalog, and
+  registry-readiness hardening for the existing repository-local OpenCode
+  plugins. To exercise those before the next release, replace the released
+  package in your environment with current `main`:
+
+  ```bash
+  python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
+  ```
+
+- **Registry publication status: pending.** `opencode-freellmpool` and
+  `opencode-freellmpool-tui` are tested but not published on npm as of
+  2026-07-19. Use their repository-local installation instructions for now.
+
 ## 30-second quickstart
 
 Fresh install to first free-model reply is measured at about 19 seconds under
@@ -118,7 +137,7 @@ freellmpool proxy                       # starts http://localhost:8080
 freellmpool code claude                 # prints the one-line setup for Claude Code
 freellmpool profile list                # richer installable profiles
 freellmpool profile show metaswarm      # Tailnet-aware Metaswarm profile
-freellmpool profile install hermes       # Hermes custom-endpoint config
+freellmpool profile install hermes       # Hermes config (current main; unreleased)
 # (also: codex, aider, cline, continue, cursor, hermes, opencode, metaswarm)
 ```
 
@@ -150,14 +169,13 @@ Existing OpenAI-compatible apps work the same way: set
 Anthropic-compatible tools can use the experimental bridge with
 `ANTHROPIC_BASE_URL=http://localhost:8080`.
 
-**OpenCode** gets a deeper integration: a live in-editor **dashboard** (routing mode,
+**OpenCode** gets a deeper integration on current `main`: a live in-editor **dashboard** (routing mode,
 estimated savings, tokens served free, provider race, latency), per-request
-**quality routing** via the model picker (`freellmpool/auto|fast|quality|fair`), and `freellmpool_status`
+**quality routing** via the model picker (`freellmpool/spread|auto|fast|quality|fair`), and `freellmpool_status`
 / `freellmpool_models` tools — see [integrations/opencode-tui](integrations/opencode-tui)
 and the [guide](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html).
-The `opencode-freellmpool` and `opencode-freellmpool-tui` npm tarballs are
-validated in CI; registry publication is still pending, so the linked local-file
-instructions remain the working install path.
+The package tarballs are validated in CI, but npm publication remains pending;
+the linked local-file instructions remain the working install path.
 
 **New in 0.11:** capacity tools — `freellmpool capacity status` shows which free
 tiers are usable right now, `freellmpool providers health` live-probes them, and
@@ -267,7 +285,7 @@ freellmpool profile show opencode
 freellmpool profile doctor opencode --dry-run
 ```
 
-Main proxy surfaces:
+Current `main` proxy surfaces (the readiness/provider additions are unreleased):
 
 - `/v1/chat/completions` — OpenAI-compatible chat, token streaming, tool calling.
 - `/v1/responses` — minimal Responses API shim for Codex-style agents.

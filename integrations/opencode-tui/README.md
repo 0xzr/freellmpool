@@ -48,8 +48,9 @@ your editor and lives alongside OpenCode's own Context / MCP / LSP panels.
 
 > **Registry publication status: pending.** `opencode-freellmpool-tui` and the
 > companion `opencode-freellmpool` server plugin are pack/install/load-tested
-> in CI, but are not yet verified on npm. Use the local-file command below until
-> that status changes.
+> in CI, but neither package was published on npm as of 2026-07-19.
+> Repository-local plugin sources are included in 0.11.4; current `main` adds registry-readiness hardening and corrected defaults. Use the local-file command
+> below until verified registry versions exist.
 
 OpenCode TUI plugins are installed with the built-in installer (which wires the OpenTUI
 runtime for you — there are no `node_modules` to manage):
@@ -78,7 +79,7 @@ To remove it, delete the entry from `~/.config/opencode/tui.json`.
 
 ## Controlling routing
 
-Switch OpenCode's model to `freellmpool/fast`, `/quality`, or `/fair` to change routing;
+Switch OpenCode's model to `freellmpool/spread`, `/fast`, `/quality`, or `/fair` to change routing;
 the dashboard's `routing` line reflects the active mode. See the proxy README for what each
 mode does.
 

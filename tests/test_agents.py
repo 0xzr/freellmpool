@@ -64,3 +64,23 @@ def test_all_agent_keys_appear_in_integrations_guide():
 
     for name in AGENTS:
         assert name.casefold() in coding_agents_section
+
+
+def test_agents_guide_tracks_current_release_and_main_surfaces():
+    guide = (ROOT / "docs" / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert "Latest release: 0.11.4" in guide
+    assert "Current main includes unreleased changes" in guide
+    assert "git+https://github.com/0xzr/freellmpool.git@main" in guide
+    assert "Registry publication status: pending" in guide
+    for marker in (
+        "Hermes",
+        "freellmpool/spread",
+        "/livez",
+        "/readyz",
+        "/v1/providers",
+        "/v1/models?ready=true",
+        "opencode-freellmpool",
+        "opencode-freellmpool-tui",
+    ):
+        assert marker in guide

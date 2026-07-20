@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How to run Claude Code, Codex, or Aider on free LLM models (no API bill)</title>
-<meta name="description" content="A step-by-step guide to running Claude Code, OpenAI Codex, Aider, Cline, and Cursor on free LLM tiers using freellmpool — a local OpenAI-compatible proxy with an experimental Anthropic-compatible path that pools 22 free providers. Keyless start when routes are available.">
+<title>How to run Claude Code, Codex, Hermes, or Aider on free LLM models</title>
+<meta name="description" content="A step-by-step guide to running Claude Code, OpenAI Codex, Hermes, Aider, Cline, and Cursor on free LLM tiers using freellmpool — a local OpenAI-compatible proxy with an experimental Anthropic-compatible path that pools 22 free providers. Keyless start when routes are available.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html">
 <meta property="og:title" content="Run Claude Code, Codex, or Aider on free LLM models">
 <meta property="og:description" content="Point your coding agent at one local proxy and run it on pooled free LLM tiers — keyless start when routes are available.">
@@ -36,17 +36,27 @@
 <div class="wrap">
 
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › guide</p>
-<h1>How to run Claude Code, Codex, or Aider on free LLM models</h1>
+<h1>How to run Claude Code, Codex, Hermes, or Aider on free LLM models</h1>
 
-<p class="lead"><strong>You can run Claude Code, OpenAI Codex, Aider, Cline, Continue, or Cursor on
+<p class="lead"><strong>You can run Claude Code, OpenAI Codex, Hermes, Aider, Cline, Continue, or Cursor on
 free LLM tiers by pointing them at a local proxy that speaks the OpenAI API and has an experimental Anthropic-compatible path. The
 open-source tool <a href="https://github.com/0xzr/freellmpool">freellmpool</a> is that proxy: it pools
 the free tiers of 22 providers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Mistral, Cohere
 and more) behind one endpoint, with automatic failover. Several providers need no API key, so you can
 start for free in under a minute and change no code in the agent.</strong></p>
 
-<h2>1. Install and start the proxy</h2>
-<pre><code>pip install freellmpool
+<div class="note"><strong>Release status:</strong> GitHub and PyPI both provide 0.11.4.
+Released 0.11.4 includes <code>spread</code> routing. The Hermes profile and the operational endpoints
+below are newer, unreleased additions on current <code>main</code>. Replace the released package in
+your agent environment to use them:
+<pre><code>python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'</code></pre></div>
+
+<h2>1. Choose a release or current-main install, then start the proxy</h2>
+<pre><code># Released 0.11.4:
+python -m pip install freellmpool
+# Or replace it with current main for Hermes and the operational endpoints:
+python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
+
 freellmpool proxy            # serves http://localhost:8080</code></pre>
 <p>That's all the setup. The proxy now accepts both OpenAI (<code>/v1/chat/completions</code>) and
 Anthropic (<code>/v1/messages</code>) requests and routes each to a free provider, failing over when one
@@ -71,6 +81,13 @@ codex</code></pre>
 export OPENAI_API_KEY=anything
 aider --model gpt-4o-mini      # alias resolves to a free model</code></pre>
 
+<h3>Hermes Agent (current main; unreleased)</h3>
+<p>Hermes supports a custom OpenAI-compatible endpoint. The print-only profile
+shows the supported config without editing <code>~/.hermes/config.yaml</code>:</p>
+<pre><code>freellmpool profile install hermes
+freellmpool profile doctor hermes --dry-run
+# Or run: hermes model → Custom endpoint → http://localhost:8080/v1</code></pre>
+
 <p class="tag">Cline, Continue, and Cursor work the same way — set the OpenAI base URL to the proxy.
 Run <code>freellmpool code &lt;agent&gt;</code> for the exact per-agent setup.</p>
 
@@ -78,7 +95,14 @@ Run <code>freellmpool code &lt;agent&gt;</code> for the exact per-agent setup.</
 refactors, tests, commit messages, and everyday edits — not a substitute for a frontier model on the
 hardest reasoning. Limits reset at UTC midnight.</div>
 
-<h2>3. (Optional) add free keys for more capacity</h2>
+<h2>3. Operational checks for agents and orchestrators (current main)</h2>
+<p>The current-main proxy exposes public <code>/livez</code> liveness and advisory
+<code>/readyz</code> readiness. Authenticated automation can inspect the secret-free
+<code>/v1/providers</code> inventory or request only locally ready models with
+<code>/v1/models?ready=true</code>. Readiness is a local quota/cooldown snapshot; it does not
+probe upstream providers.</p>
+
+<h2>4. (Optional) add free keys for more capacity</h2>
 <p>The keyless providers get you started; adding free API keys for Groq, Cerebras, Gemini and others
 unlocks more models and higher daily limits. Each provider's free signup is listed in the
 <a href="https://github.com/0xzr/freellmpool/blob/main/docs/ACCOUNTS.md">accounts guide</a>. freellmpool
@@ -94,13 +118,14 @@ bounded by the free-tier models, and there's no vision support yet.</p>
 those tools officially support for custom base URLs and local models. You're using the LLM providers'
 own free tiers; don't abuse them.</p>
 <h3>Which coding agents are supported?</h3>
-<p>Any tool that lets you set an OpenAI or Anthropic base URL: Claude Code, OpenAI Codex CLI, Aider,
-Cline, Continue, Cursor, OpenCode, and more.</p>
+<p>Any tool that lets you set an OpenAI or Anthropic base URL: Claude Code, OpenAI Codex CLI, Hermes,
+Aider, Cline, Continue, Cursor, OpenCode, and more. Hermes' first-class profile is currently on
+<code>main</code> rather than in released 0.11.4.</p>
 
 <p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open
-source). Updated 2026-07-16.</p>
+source). Updated 2026-07-19.</p>
 
 </div>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "How to run Claude Code, Codex, or Aider on free LLM models (no API bill)", "item": "https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html"}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "How to run Claude Code, Codex, Hermes, or Aider on free LLM models", "item": "https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html"}]}</script>
 </body>
 </html>

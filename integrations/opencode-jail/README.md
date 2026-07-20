@@ -6,7 +6,7 @@ can let a model do **long agentic coding hands-off** without it touching anythin
 throwaway project — while it *believes* it's on a normal full Linux box.
 
 ```sh
-freellmpool-proxy                         # start the proxy first (or `freellmpool proxy --port 8765`)
+freellmpool proxy                         # starts the proxy on http://127.0.0.1:8080
 integrations/opencode-jail/opencode-freellmpool-jailed.sh            # interactive TUI in ~/project
 integrations/opencode-jail/opencode-freellmpool-jailed.sh --run "…"  # headless single turn
 integrations/opencode-jail/opencode-freellmpool-jailed.sh --serve     # opencode serve (basic-auth)

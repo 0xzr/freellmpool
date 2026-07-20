@@ -45,7 +45,7 @@ case "${1:-}" in
 esac
 
 # ── tunables ────────────────────────────────────────────────────────────────────────
-PROXY_URL="${OPENCODE_FP_PROXY_URL:-http://127.0.0.1:8765}"
+PROXY_URL="${OPENCODE_FP_PROXY_URL:-http://127.0.0.1:8080}"
 MODEL="${OPENCODE_FP_MODEL:-freellmpool/spread}"  # spread = full-pool breadth (least-used tier first,
                                                   # anti-429) WITH a latency/health tie-break — the best
                                                   # mode for sustained agentic loops on free tiers
@@ -217,7 +217,7 @@ printf '{\n  "plugin": [ %s ]\n}\n' "$TUI_PLUGIN_LIST" > "$IMG_CFG/tui.json"
 # ── preflight: host proxy reachable (shared net) ──────────────────────────────────────
 if [ "$MODE" != "selftest" ] && ! curl -fsS --max-time 3 "$PROXY_URL/healthz" >/dev/null 2>&1; then
   echo "ERROR: freellmpool proxy not reachable at $PROXY_URL — start it on the host:" >&2
-  echo "         freellmpool proxy --port 8765   (or set OPENCODE_FP_PROXY_URL)" >&2
+  echo "         freellmpool proxy --port 8080   (or set OPENCODE_FP_PROXY_URL)" >&2
   exit 3
 fi
 

@@ -45,8 +45,10 @@ across all of them while still preferring the quick/healthy ones.
 
 > **Registry publication status: pending.** `opencode-freellmpool` and its
 > companion `opencode-freellmpool-tui` are pack/install/load-tested in CI, but
-> are not yet verified on npm. Use the local-file path below until that status
-> changes.
+> neither package was published on npm as of 2026-07-19.
+> Repository-local plugin sources are included in 0.11.4; current `main` adds registry-readiness hardening
+> and corrected defaults. Use the local-file path below until verified registry
+> versions exist.
 
 **Option A — drop-in (no build):**
 

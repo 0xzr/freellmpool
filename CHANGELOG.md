@@ -41,6 +41,9 @@ All notable changes to this project are documented here. The format is based on
   degraded, or repeat-timeout Ollama, GitHub, and NVIDIA routes.
 
 ### Fixed
+- Public README, integration, agent, and Pages documentation now distinguishes
+  released 0.11.4 from post-tag changes on `main`; the jailed OpenCode launcher
+  also uses the proxy's actual port 8080 default.
 - The catalog vetter now filters paid Kilo/OpenRouter/OpenCode discovery rows,
   requires non-empty completion text, gives reasoning models enough output
   budget to answer, and classifies 410/retirement responses correctly.
