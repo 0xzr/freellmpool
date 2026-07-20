@@ -45,7 +45,7 @@ GitHub free-API lists, coding-credit lists, and related gateway projects.
 | Morph | `morph-glm52-744b` | 200 requests/month | Cataloged; token missing | Small but recurring |
 | Vercel AI Gateway | `zai/glm-5.2` | $5/month Hobby credit | Cataloged; token missing | Credit is shared with other gateway use |
 | Sail Research | `zai-org/GLM-5.2-FP8` | $5 credit/month | Not integrated; token missing | Official OpenAI-compatible API. Terms say the service is for business/enterprise internal use and responses may be stored; review fit before enabling |
-| AnyAPI.ai | Model ID unknown until authenticated discovery | 100K AnyTokens/day on free plan | Not integrated; token missing | Official inventory labels GLM-5.2 “Basic,” which the $0 plan includes. Still require a live free-account request before enabling |
+| AnyAPI.ai | Model ID unknown until authenticated discovery | 100K AnyTokens/day on free plan | Not integrated; token missing | Official inventory labels GLM-5.2 “Basic,” which the $0 plan includes. A live free-account request is still required before enabling it |
 
 Official references:
 
