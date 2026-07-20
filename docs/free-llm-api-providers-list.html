@@ -7,7 +7,7 @@
 <meta name="description" content="A 2026 list of LLM providers with a free API tier — Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Mistral, Cohere and more — with whether they need an API key, how many models, and free-tier signals. Plus how to pool them all with freellmpool.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/free-llm-api-providers-list.html">
 <meta property="og:title" content="Free LLM API providers list (2026)">
-<meta property="og:description" content="22 providers with free LLM API tiers, compared — and how to pool them all.">
+<meta property="og:description" content="24 providers with free LLM API tiers, compared — and how to pool them all.">
 <meta property="og:type" content="article">
 <style>
  :root{--bg:#0b0e14;--fg:#e6e6e6;--mut:#8a93a2;--card:#141925;--bd:#232a39;--ac:#6ea8ff}
@@ -29,7 +29,7 @@
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › reference</p>
 <h1>Free LLM API providers (2026)</h1>
 
-<p class="lead"><strong>These 22 providers offer a free LLM API tier you can call today. Three need no API
+<p class="lead"><strong>These 24 providers offer a free LLM API tier you can call today. Three need no API
 key at all, and LLM7 is key-optional. The table shows whether a key is required, roughly how many models the free tier exposes, and
 a free-tier signal where known. The catch with using several is that each has its own SDK and limits — the
 open-source <a href="https://github.com/0xzr/freellmpool">freellmpool</a> pools all of them behind one
@@ -58,6 +58,8 @@ OpenAI-compatible endpoint with failover, so you get their combined free capacit
 <tr data-provider="huggingface"><td>Hugging Face (router)</td><td>Yes (free)</td><td class=num>22</td><td>Monthly included Inference credits</td></tr>
 <tr data-provider="aion"><td>Aion Labs</td><td>Yes (free)</td><td class=num>5</td><td>20K tokens/day; no card</td></tr>
 <tr data-provider="modelscope"><td>ModelScope API Inference</td><td>Yes (free)</td><td class=num>7</td><td>2,000 calls/day total; dynamic per-model caps</td></tr>
+<tr data-provider="morph"><td>Morph</td><td>Yes (free)</td><td class=num>3</td><td>200 requests/month</td></tr>
+<tr data-provider="vercel"><td>Vercel AI Gateway</td><td>Yes (free)</td><td class=num>5</td><td>$5 recurring monthly Hobby credit</td></tr>
 <tr data-provider="siliconflow"><td>SiliconFlow</td><td>Yes (free)</td><td class=num>1</td><td>Fixed free-model limits; identity verification required</td></tr>
 </table>
 <p class="tag">* Enabled chat, embedding, and transcription routes in freellmpool's catalog; varies as tiers change.

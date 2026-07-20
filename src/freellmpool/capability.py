@@ -66,6 +66,15 @@ _VARIANT_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Morph exposes provider-specific aliases for the underlying frontier models.
+# Collapse those aliases onto the benchmark identity so quality routing compares
+# them with the same model served by other providers.
+_MODEL_NAME_ALIASES = {
+    "morph-glm52-744b": "glm-5.2",
+    "morph-minimax3-428b": "minimax-m3",
+    "morph-dsv4flash": "deepseek-v4-flash",
+}
+
 
 @lru_cache(maxsize=8192)
 def normalize_model_name(name: str) -> str:
@@ -88,7 +97,8 @@ def normalize_model_name(name: str) -> str:
         if peeled == s:
             break
         s = peeled
-    return s.strip("-")
+    s = s.strip("-")
+    return _MODEL_NAME_ALIASES.get(s, s)
 
 
 def _core(name: str) -> str:

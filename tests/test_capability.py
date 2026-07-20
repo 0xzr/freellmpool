@@ -27,10 +27,20 @@ def test_normalize_collapses_variants_and_strips_vendor():
         ("nvidia/minimaxai/minimax-m3", "minimax-m3"),
         ("huggingface/XiaomiMiMo/MiMo-V2.5-Pro", "mimo-v2.5-pro"),
         ("nvidia/z-ai/glm-5.2", "glm-5.2"),
+        ("morph/morph-glm52-744b", "glm-5.2"),
+        ("morph/morph-minimax3-428b", "minimax-m3"),
+        ("morph/morph-dsv4flash", "deepseek-v4-flash"),
     ],
 )
 def test_normalize_current_provider_vendor_aliases(catalog_name, benchmark_name):
     assert c.normalize_model_name(catalog_name) == c.normalize_model_name(benchmark_name)
+
+
+def test_bundled_scores_include_current_artificial_analysis_frontier_models():
+    scores = c._read_scores(c._BUNDLED_SCORES)
+    assert scores["glm-5.2"] > scores["mimo-v2.5-pro"]
+    assert scores["minimax-m3"] == scores["deepseek-v4-pro"]
+    assert scores["kimi-k2.6"] == scores["minimax-m3"]
 
 
 def test_heuristic_orders_by_size_and_keywords():

@@ -1,6 +1,6 @@
 # freellmpool
 
-> Free, open-source, OpenAI-compatible gateway that pools the free tiers of 22 LLM
+> Free, open-source, OpenAI-compatible gateway that pools the free tiers of 24 LLM
 > providers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Mistral, Cohere
 > and more) behind one endpoint, with automatic failover and per-day quota tracking.
 > Works as a CLI, a Python library, a local proxy, and an MCP server. Keyless to
