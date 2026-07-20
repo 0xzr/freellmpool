@@ -19,6 +19,20 @@ def test_normalize_collapses_variants_and_strips_vendor():
     assert c.normalize_model_name("Meta-Llama-3.3-70B-Instruct").startswith("llama-3.3-70b")
 
 
+@pytest.mark.parametrize(
+    ("catalog_name", "benchmark_name"),
+    [
+        ("cloudflare/@cf/moonshotai/kimi-k2.6", "kimi-k2.6"),
+        ("huggingface/MiniMaxAI/MiniMax-M3", "minimax-m3"),
+        ("nvidia/minimaxai/minimax-m3", "minimax-m3"),
+        ("huggingface/XiaomiMiMo/MiMo-V2.5-Pro", "mimo-v2.5-pro"),
+        ("nvidia/z-ai/glm-5.2", "glm-5.2"),
+    ],
+)
+def test_normalize_current_provider_vendor_aliases(catalog_name, benchmark_name):
+    assert c.normalize_model_name(catalog_name) == c.normalize_model_name(benchmark_name)
+
+
 def test_heuristic_orders_by_size_and_keywords():
     assert c._heuristic_score("llama-3.1-405b") > c._heuristic_score("llama-3.1-8b-instant")
     assert c._heuristic_score("foo-flash") <= 0.40  # downweight keyword
