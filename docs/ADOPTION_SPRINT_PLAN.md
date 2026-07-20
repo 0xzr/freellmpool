@@ -1,6 +1,7 @@
 # Adoption Sprint Plan
 
-Status: implementation complete; merge and npm distribution rollout pending
+Status: implementation merged; npm distribution rollout blocked on registry authentication
+Implementation merge: PR #74 (`3ef19305450b02b7277e9a605d8c89352b5ec445`)
 Owner: freellmpool maintainers
 Planned execution: 2026-07-19
 Branch: `codex/adoption-sprint-20260719`
