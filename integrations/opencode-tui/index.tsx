@@ -15,6 +15,7 @@ import { createEffect, createSignal, onCleanup, For, Show } from "solid-js"
 const PROXY = (process.env.FREELLMPOOL_PROXY_URL || "http://localhost:8080").replace(/\/+$/, "")
 const PROXY_KEY = process.env.FREELLMPOOL_PROXY_KEY || ""
 const AUTH = PROXY_KEY ? { Authorization: `Bearer ${PROXY_KEY}` } : {}
+const AUTH_GUIDANCE = `${PROXY_KEY ? "check" : "set"} FREELLMPOOL_PROXY_KEY`
 const POLL_MS = 1500
 const POLL_MS_TOKENMAX = 300 // poll fast while a swarm is in flight, so the bar moves
 const RAINBOW = ["#ff0040", "#ff8800", "#ffdd00", "#22cc44", "#00ccff", "#3366ff", "#cc44ff"]
@@ -37,7 +38,9 @@ function sparkline(values: number[], width = 12): string {
   const max = Math.max(...recent, 1)
   const min = Math.min(...recent, 0)
   const span = max - min || 1
-  return recent.map((v) => SPARK[Math.min(SPARK.length - 1, Math.floor(((v - min) / span) * (SPARK.length - 1)))]).join("")
+  return recent
+    .map((v) => SPARK[Math.min(SPARK.length - 1, Math.floor(((v - min) / span) * (SPARK.length - 1)))])
+    .join("")
 }
 
 function money(usd: number): string {
@@ -57,22 +60,66 @@ function truncate(s: string, max = 28): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s
 }
 
+// ── proxy connectivity states ────────────────────────────────────────────────
+const STATE = {
+  ONLINE: "online",
+  OFFLINE: "offline", // connection refused / network error
+  AUTH_REQUIRED: "auth_required", // 401/403 – proxy is running but auth failed
+  ERROR: "error", // other HTTP error from the proxy itself
+} as const
+type ProxyState = (typeof STATE)[keyof typeof STATE]
+
 // ── plugin ───────────────────────────────────────────────────────────────────
 const plugin = async (api) => {
   const [status, setStatus] = createSignal<any>(null)
-  const [down, setDown] = createSignal(false)
+  const [proxyState, setProxyState] = createSignal<ProxyState>(STATE.OFFLINE)
+  const [proxyError, setProxyError] = createSignal<string>("")
   const [tps, setTps] = createSignal(0)
   const [latHist, setLatHist] = createSignal<number[]>([])
 
   let prev: { tokens: number; t: number } | null = null
 
+  // Lightweight health check to confirm the proxy is reachable (even if /status
+  // returns 401). Returns true when the proxy responds, false on network error.
+  async function checkReachable(): Promise<boolean> {
+    try {
+      const res = await fetch(`${PROXY}/healthz`, {
+        signal: AbortSignal.timeout(3000),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
+
   const poll = async () => {
     try {
-      const res = await fetch(`${PROXY}/status`, { headers: AUTH })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const res = await fetch(`${PROXY}/status`, {
+        headers: AUTH,
+        signal: AbortSignal.timeout(5000),
+      })
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          // Proxy is running but auth failed — quick health check to confirm
+          const reachable = await checkReachable()
+          if (reachable) {
+            setProxyState(STATE.AUTH_REQUIRED)
+            setProxyError(`auth failed (HTTP ${res.status}) — ${AUTH_GUIDANCE}`)
+          } else {
+            setProxyState(STATE.OFFLINE)
+            setProxyError("")
+          }
+        } else {
+          // Proxy returned an HTTP error but is reachable
+          setProxyState(STATE.ERROR)
+          setProxyError(`HTTP ${res.status}`)
+        }
+        return
+      }
       const s = await res.json()
       setStatus(s)
-      setDown(false)
+      setProxyState(STATE.ONLINE)
+      setProxyError("")
 
       // throughput: completion-token delta / elapsed since last sample. Use the LIFETIME
       // counter (persisted, shared across the proxy + CLI + MCP) so tok/s reflects ALL
@@ -98,8 +145,18 @@ const plugin = async (api) => {
         const best = Math.min(...mss)
         setLatHist((h) => [...h.slice(-23), best])
       }
-    } catch {
-      setDown(true)
+    } catch (err: unknown) {
+      // Network-level failure: unreachable, timeout, DNS, etc.
+      const isTimeout = err instanceof Error && (err.name === "TimeoutError" || err.message.includes("timed out"))
+      if (isTimeout) {
+        setProxyState(STATE.OFFLINE)
+        setProxyError("timed out")
+      } else {
+        // Try a quick fallback health check to rule out transient blips
+        const reachable = await checkReachable()
+        setProxyState(reachable ? STATE.ERROR : STATE.OFFLINE)
+        setProxyError(reachable ? "status endpoint failed" : "")
+      }
     }
   }
   // Self-scheduling poll: tick fast while a tokenmax swarm is active so the rainbow
@@ -112,7 +169,7 @@ const plugin = async (api) => {
   const loop = async () => {
     await poll()
     if (disposed) return
-    const delay = status()?.tokenmax?.active ? POLL_MS_TOKENMAX : POLL_MS
+    const delay = status()?.tokenmax?.active && proxyState() === STATE.ONLINE ? POLL_MS_TOKENMAX : POLL_MS
     pollTimer = setTimeout(loop, delay)
   }
   loop()
@@ -155,7 +212,12 @@ const plugin = async (api) => {
         const models = p.models || []
         const used = models.reduce((a: number, m: any) => a + (Number(m.used_today) || 0), 0)
         const cap = models.reduce((a: number, m: any) => a + (m.rpd > 0 ? m.rpd : 0), 0)
-        return { id: p.id, used, cap, cooldown: Number(p.cooldown_remaining_s) || 0 }
+        return {
+          id: p.id,
+          used,
+          cap,
+          cooldown: Number(p.cooldown_remaining_s) || 0,
+        }
       })
       .sort((a: any, b: any) => b.used - a.used)
       .slice(0, 5)
@@ -195,65 +257,98 @@ const plugin = async (api) => {
   // ── the panel component (used by both the sidebar and the home screen) ──────
   const Panel = () => {
     const theme = api.theme.current
+    const st = () => proxyState()
+    const isOnline = () => st() === STATE.ONLINE
     return (
       <Show
-        when={!down()}
+        when={isOnline() || st() === STATE.ERROR}
         fallback={
-          <box border borderColor={theme.error} paddingLeft={1} paddingRight={1} flexDirection="column">
-            <text fg={theme.error}>● freellmpool</text>
-            <text fg={theme.textMuted}>proxy offline — start `freellmpool proxy`</text>
-          </box>
-        }
-      >
-        <box border borderColor={theme.success} title=" freellmpool " paddingLeft={1} paddingRight={1} flexDirection="column">
-          <TokenmaxBanner />
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.textMuted}>routing</text>
-            <text fg={theme.accent}>{status()?.routing ?? "?"}</text>
-          </box>
-
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.success}>💸 {money(status()?.lifetime?.usd_saved ?? 0)}</text>
-            <text fg={theme.textMuted}>saved</text>
-            <text fg={theme.info}>⚡ {tps()} tok/s</text>
-          </box>
-
-          <text fg={theme.textMuted}>
-            {compact(
-              (status()?.lifetime?.prompt_tokens ?? 0) + (status()?.lifetime?.completion_tokens ?? 0),
-            )}{" "}
-            tokens served free · {status()?.lifetime?.requests ?? 0} req
-          </text>
-
-          <text fg={theme.textMuted}>── provider race ──</text>
-          <For each={topProviders()}>
-            {(p: any, i) => (
-              <box flexDirection="row" gap={1}>
-                <text fg={theme.text}>
-                  {MEDALS[i()] ?? "  "} {p.id.padEnd(10)}
-                </text>
-                <text fg={p.cooldown > 0 ? theme.warning : theme.success}>{bar(p.used / maxUsed())}</text>
-                <text fg={theme.textMuted}>
-                  {p.used}
-                  {p.cap > 0 ? `/${p.cap}` : ""}
-                  {p.cooldown > 0 ? ` ⏳${Math.ceil(p.cooldown)}s` : ""}
-                </text>
+          <Show
+            when={st() === STATE.AUTH_REQUIRED}
+            fallback={
+              <box border borderColor={theme.error} paddingLeft={1} paddingRight={1} flexDirection="column">
+                <text fg={theme.error}>● freellmpool</text>
+                <text fg={theme.textMuted}>proxy offline — start `freellmpool proxy`</text>
+                <Show when={proxyError()}>
+                  <text fg={theme.textMuted}>({proxyError()})</text>
+                </Show>
               </box>
-            )}
-          </For>
-
-          <Show when={latHist().length > 1}>
-            <box flexDirection="row" gap={1}>
-              <text fg={theme.textMuted}>latency</text>
-              <text fg={theme.info}>{sparkline(latHist())}</text>
-              <text fg={theme.textMuted}>{Math.round(latHist()[latHist().length - 1] || 0)}ms</text>
+            }
+          >
+            <box border borderColor={theme.warning} paddingLeft={1} paddingRight={1} flexDirection="column">
+              <text fg={theme.warning}>● freellmpool</text>
+              <text fg={theme.textMuted}>proxy needs auth — {AUTH_GUIDANCE}</text>
+              <text fg={theme.textMuted}>({proxyError()})</text>
             </box>
           </Show>
+        }
+      >
+        <Show
+          when={st() === STATE.ERROR}
+          fallback={
+            <box
+              border
+              borderColor={theme.success}
+              title=" freellmpool "
+              paddingLeft={1}
+              paddingRight={1}
+              flexDirection="column"
+            >
+              <TokenmaxBanner />
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.textMuted}>routing</text>
+                <text fg={theme.accent}>{status()?.routing ?? "?"}</text>
+              </box>
 
-          <Show when={status()?.recent?.[0]}>
-            <text fg={theme.textMuted}>last: {truncate(`${status().recent[0].provider}/${status().recent[0].model}`)}</text>
-          </Show>
-        </box>
+              <box flexDirection="row" gap={1}>
+                <text fg={theme.success}>💸 {money(status()?.lifetime?.usd_saved ?? 0)}</text>
+                <text fg={theme.textMuted}>saved</text>
+                <text fg={theme.info}>⚡ {tps()} tok/s</text>
+              </box>
+
+              <text fg={theme.textMuted}>
+                {compact((status()?.lifetime?.prompt_tokens ?? 0) + (status()?.lifetime?.completion_tokens ?? 0))}{" "}
+                tokens served free · {status()?.lifetime?.requests ?? 0} req
+              </text>
+
+              <text fg={theme.textMuted}>── provider race ──</text>
+              <For each={topProviders()}>
+                {(p: any, i) => (
+                  <box flexDirection="row" gap={1}>
+                    <text fg={theme.text}>
+                      {MEDALS[i()] ?? "  "} {p.id.padEnd(10)}
+                    </text>
+                    <text fg={p.cooldown > 0 ? theme.warning : theme.success}>{bar(p.used / maxUsed())}</text>
+                    <text fg={theme.textMuted}>
+                      {p.used}
+                      {p.cap > 0 ? `/${p.cap}` : ""}
+                      {p.cooldown > 0 ? ` ⏳${Math.ceil(p.cooldown)}s` : ""}
+                    </text>
+                  </box>
+                )}
+              </For>
+
+              <Show when={latHist().length > 1}>
+                <box flexDirection="row" gap={1}>
+                  <text fg={theme.textMuted}>latency</text>
+                  <text fg={theme.info}>{sparkline(latHist())}</text>
+                  <text fg={theme.textMuted}>{Math.round(latHist()[latHist().length - 1] || 0)}ms</text>
+                </box>
+              </Show>
+
+              <Show when={status()?.recent?.[0]}>
+                <text fg={theme.textMuted}>
+                  last: {truncate(`${status().recent[0].provider}/${status().recent[0].model}`)}
+                </text>
+              </Show>
+            </box>
+          }
+        >
+          <box border borderColor={theme.warning} paddingLeft={1} paddingRight={1} flexDirection="column">
+            <text fg={theme.warning}>● freellmpool</text>
+            <text fg={theme.textMuted}>proxy error ({proxyError()})</text>
+          </box>
+        </Show>
       </Show>
     )
   }
@@ -267,14 +362,35 @@ const plugin = async (api) => {
       },
       home_bottom() {
         const theme = api.theme.current
+        const st = () => proxyState()
+        const isOnline = () => st() === STATE.ONLINE
         return (
-          <Show when={!down()} fallback={<text fg={theme.error}>● freellmpool proxy offline</text>}>
+          <Show
+            when={isOnline()}
+            fallback={
+              <Show
+                when={st() === STATE.AUTH_REQUIRED}
+                fallback={
+                  <Show
+                    when={st() === STATE.ERROR}
+                    fallback={<text fg={theme.error}>● freellmpool proxy offline</text>}
+                  >
+                    <text fg={theme.warning}>● freellmpool proxy error ({proxyError()})</text>
+                  </Show>
+                }
+              >
+                <text fg={theme.warning}>● freellmpool needs auth — {AUTH_GUIDANCE}</text>
+              </Show>
+            }
+          >
             <box marginTop={1} flexDirection="column">
               <TokenmaxBanner />
               <box border borderColor={theme.success} paddingLeft={1} paddingRight={1} flexDirection="row" gap={1}>
                 <text fg={theme.success}>● freellmpool</text>
                 <text fg={theme.text}>
-                  {money(status()?.lifetime?.usd_saved ?? 0)} saved · {compact((status()?.lifetime?.prompt_tokens ?? 0) + (status()?.lifetime?.completion_tokens ?? 0))} free tokens · {tps()} tok/s · {status()?.routing ?? "?"}
+                  {money(status()?.lifetime?.usd_saved ?? 0)} saved ·{" "}
+                  {compact((status()?.lifetime?.prompt_tokens ?? 0) + (status()?.lifetime?.completion_tokens ?? 0))}{" "}
+                  free tokens · {tps()} tok/s · {status()?.routing ?? "?"}
                 </text>
               </box>
             </box>
@@ -291,9 +407,24 @@ const plugin = async (api) => {
       value: "freellmpool.status",
       category: "freellmpool",
       onSelect() {
+        const st = proxyState()
         const s = status()
-        const msg = down() || !s ? "proxy offline" : `${money(s.pool?.usd_saved ?? 0)} saved · ${s.pool?.requests ?? 0} req · routing ${s.routing}`
-        api.ui.toast({ title: "freellmpool", message: msg, variant: down() ? "warning" : "success" })
+        let msg: string
+        let variant: string
+        if (st === STATE.AUTH_REQUIRED) {
+          msg = `proxy needs auth — ${AUTH_GUIDANCE}`
+          variant = "warning"
+        } else if (st === STATE.ERROR || (st === STATE.OFFLINE && proxyError())) {
+          msg = `proxy error (${proxyError() || st})`
+          variant = "warning"
+        } else if (st === STATE.OFFLINE || !s) {
+          msg = "proxy offline — start `freellmpool proxy`"
+          variant = "warning"
+        } else {
+          msg = `${money(s.pool?.usd_saved ?? 0)} saved · ${s.pool?.requests ?? 0} req · routing ${s.routing}`
+          variant = "success"
+        }
+        api.ui.toast({ title: "freellmpool", message: msg, variant })
       },
     },
   ])
