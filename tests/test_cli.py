@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from freellmpool.cli import _strip_fences
-from freellmpool.models import Reply
+from freellmpool.models import Model, Provider, Reply
 
 
 def test_strip_plain_json():
@@ -351,6 +351,71 @@ def test_cli_capacity_status_smoke(monkeypatch, capsys):
     assert main(["capacity", "status", "--target", "1", "--no-catalog-sync"]) == 0
     out = capsys.readouterr().out
     assert "LLM capacity:" in out
+
+
+def test_cli_capacity_status_all_reports_quota_edges_without_local_state(
+    tmp_path, monkeypatch, capsys
+):
+    from freellmpool.cli import main
+
+    catalog = [
+        Provider(
+            id="keyless",
+            label="Keyless",
+            adapter="openai",
+            base_url="https://keyless.test/v1",
+            auth="none",
+            models=(Model("free-model", rpd=25),),
+        ),
+        Provider(
+            id="low",
+            label="Low Quota",
+            adapter="openai",
+            base_url="https://low.test/v1",
+            key_env="LOW_KEY",
+            models=(Model("low-model", rpd=10),),
+        ),
+        Provider(
+            id="needskey",
+            label="Needs Key",
+            adapter="openai",
+            base_url="https://needs-key.test/v1",
+            key_env="NEEDS_KEY",
+            models=(Model("paid-model", rpd=50),),
+        ),
+    ]
+
+    class FakeQuota:
+        def snapshot(self):
+            return {"low::low-model": 8}
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
+    monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(tmp_path / "config.toml"))
+    monkeypatch.setenv("FREELLMPOOL_KEYS_PATH", str(tmp_path / "keys.toml"))
+    monkeypatch.setenv("FREELLMPOOL_QUOTA_PATH", str(tmp_path / "quota.json"))
+    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(tmp_path / "provider_catalog.json"))
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: catalog)
+    monkeypatch.setattr("freellmpool.catalog.load_external_catalog", lambda: [])
+    monkeypatch.setattr("freellmpool.key_inventory.load_inventory", lambda path=None: [])
+    monkeypatch.setattr("freellmpool.capacity.QuotaStore", lambda: FakeQuota())
+    monkeypatch.setattr("freellmpool.capacity.effective_env", lambda env=None: {"LOW_KEY": "set"})
+
+    assert main(["capacity", "status", "--all", "--target", "3", "--no-catalog-sync"]) == 0
+
+    out = capsys.readouterr().out
+    assert "LLM capacity: 1/3 healthy providers" in out
+    assert "External catalog cache: 0 providers" in out
+    assert "Warning: 1 provider(s) are near quota." in out
+    assert "Action recommended: add 2 provider(s)." in out
+    assert "healthy     keyless" in out
+    assert "low_quota   low" in out
+    assert "missing     needskey" in out
+    assert "used=0/25" in out
+    assert "used=8/10" in out
+    assert "key=keyless" in out
+    assert "key=LOW_KEY" in out
+    assert "key=NEEDS_KEY" in out
 
 
 def test_cli_doctor_smoke(tmp_path, monkeypatch, capsys):

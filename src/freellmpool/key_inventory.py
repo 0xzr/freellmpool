@@ -162,10 +162,12 @@ def upsert_config_key(env_var: str, value: str, path: Path | None = None) -> Pat
         os.close(fd)  # fdopen failed — close the raw fd ourselves
         raise
     with fh:  # closes fd on exit
-        try:
-            os.fchmod(fd, 0o600)  # narrow an already-existing file too
-        except OSError:
-            pass
+        fchmod = getattr(os, "fchmod", None)
+        if fchmod is not None:
+            try:
+                fchmod(fd, 0o600)  # narrow an already-existing file too
+            except OSError:
+                pass
         fh.write(dump_simple_toml(data))
     return path
 
