@@ -3,7 +3,7 @@
     "aider_models": 158,
     "arena_models": 218,
     "mapped": 92,
-    "sources": "LMArena Elo (mathewhe/chatbot-arena-elo, MIT) + Aider leaderboard (Apache-2.0); percentile-rank; ~ = same-family/size approximation"
+    "sources": "LMArena Elo (mathewhe/chatbot-arena-elo, MIT) + Aider leaderboard (Apache-2.0) + Artificial Analysis Intelligence Index v4.1 public rankings (calibrated 2026-07-19); percentile-rank; ~ = same-family/size approximation"
   },
   "scores": {
     "aya-expanse-32b": {
@@ -54,6 +54,10 @@
       "score": 0.9453,
       "source": "arena"
     },
+    "deepseek-v4-pro": {
+      "score": 0.9742,
+      "source": "aa"
+    },
     "dolphin-mistral-24b-venice-edition": {
       "score": 0.6224,
       "source": "arena~"
@@ -73,6 +77,10 @@
     "gemini-2.5-flash": {
       "score": 0.9661,
       "source": "arena"
+    },
+    "glm-5.2": {
+      "score": 0.9948,
+      "source": "aa"
     },
     "gemma-2-2b": {
       "score": 0.3776,
@@ -162,6 +170,10 @@
       "score": 0.5651,
       "source": "arena"
     },
+    "kimi-k2.6": {
+      "score": 0.9742,
+      "source": "aa"
+    },
     "llama-2-7b": {
       "score": 0.1328,
       "source": "arena"
@@ -249,6 +261,14 @@
     "magistral-medium": {
       "score": 0.5755,
       "source": "arena"
+    },
+    "minimax-m3": {
+      "score": 0.9742,
+      "source": "aa"
+    },
+    "mimo-v2.5-pro": {
+      "score": 0.9536,
+      "source": "aa"
     },
     "ministral-3-8b": {
       "score": 0.4505,

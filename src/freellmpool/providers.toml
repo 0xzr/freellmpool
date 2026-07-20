@@ -175,8 +175,8 @@ models = [
 ]
 
 # ModelScope API Inference: OpenAI-compatible selected open-model inference with
-# 2,000 free calls/day total and a dynamic cap of up to 500 calls/model/day.
-# Public model-list endpoint and official free-tier docs checked 2026-07-16.
+# 2,000 free calls/day total and a current cap of 200 calls/model/day.
+# Official free-tier docs checked 2026-07-19.
 [[provider]]
 id = "modelscope"
 label = "ModelScope API Inference"
@@ -184,13 +184,46 @@ adapter = "openai"
 base_url = "https://api-inference.modelscope.cn/v1"
 key_env = "MODELSCOPE_API_KEY"
 models = [
-    { name = "deepseek-ai/DeepSeek-V4-Flash", rpd = 500 },
-    { name = "MiniMax/MiniMax-M3", rpd = 500 },
-    { name = "Qwen/Qwen3.5-27B", rpd = 500 },
-    { name = "Qwen/Qwen3.5-35B-A3B", rpd = 500 },
-    { name = "stepfun-ai/Step-3.7-Flash", rpd = 500 },
-    { name = "Tencent-Hunyuan/Hy3", rpd = 500 },
-    { name = "ZhipuAI/GLM-5.2", rpd = 500 },
+    { name = "deepseek-ai/DeepSeek-V4-Flash", rpd = 200 },
+    { name = "MiniMax/MiniMax-M3", rpd = 200 },
+    { name = "Qwen/Qwen3.5-27B", rpd = 200 },
+    { name = "Qwen/Qwen3.5-35B-A3B", rpd = 200 },
+    { name = "stepfun-ai/Step-3.7-Flash", rpd = 200 },
+    { name = "Tencent-Hunyuan/Hy3", rpd = 200 },
+    { name = "ZhipuAI/GLM-5.2", rpd = 200 },
+]
+
+# Morph: 200 free requests/month shared across its OpenAI-compatible fast-model
+# endpoints. The conservative per-model hints keep the aggregate below that
+# allowance in an average month. Models and pricing checked 2026-07-19.
+[[provider]]
+id = "morph"
+label = "Morph"
+adapter = "openai"
+base_url = "https://api.morphllm.com/v1"
+key_env = "MORPH_API_KEY"
+models = [
+    { name = "morph-glm52-744b", rpd = 2 },
+    { name = "morph-minimax3-428b", rpd = 2 },
+    { name = "morph-dsv4flash", rpd = 2 },
+]
+
+# Vercel AI Gateway: the Hobby team receives $5/month of recurring gateway
+# credit. These are the highest Artificial Analysis-rated models currently in
+# its live catalog. One request/model/day is a conservative spend hint; actual
+# use is metered in tokens. Models and pricing checked 2026-07-19.
+[[provider]]
+id = "vercel"
+label = "Vercel AI Gateway"
+adapter = "openai"
+base_url = "https://ai-gateway.vercel.sh/v1"
+key_env = "AI_GATEWAY_API_KEY"
+models = [
+    { name = "zai/glm-5.2", rpd = 1 },
+    { name = "minimax/minimax-m3", rpd = 1 },
+    { name = "deepseek/deepseek-v4-pro", rpd = 1 },
+    { name = "moonshotai/kimi-k2.6", rpd = 1 },
+    { name = "xiaomi/mimo-v2.5-pro", rpd = 1 },
 ]
 
 # SiliconFlow: OpenAI-compatible API with fixed-rate free models. Free access

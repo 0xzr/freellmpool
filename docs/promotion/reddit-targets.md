@@ -31,7 +31,7 @@ Use these when uploading PNGs:
 | --- | --- | --- |
 | `assets/demo.png` | Terminal demo showing freellmpool routing through its local proxy and reporting catalog/provider status. | Screenshot of a terminal running freellmpool with proxy, provider catalog, and routing output. |
 | `assets/tokenmax-results.png` | tokenmax summary card showing enabled routes, cataloged providers, keyless start, and model fan-out behavior. | Social card for freellmpool tokenmax with stats for enabled routes, cataloged providers, and keyless start. |
-| `assets/social-preview.png` | Project preview card for freellmpool: free LLM API pool for agents and local proxies. | Dark social preview image for freellmpool with feature labels for keyless start, 22 providers, OpenAI proxy, MCP, transcription, and tokenmax. |
+| `assets/social-preview.png` | Project preview card for freellmpool: free LLM API pool for agents and local proxies. | Dark social preview image for freellmpool with feature labels for keyless start, 24 providers, OpenAI proxy, MCP, transcription, and tokenmax. |
 
 ## Already posted
 
