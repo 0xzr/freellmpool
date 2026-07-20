@@ -129,7 +129,7 @@ pricing documentation and live endpoint behavior take precedence.
    only if GLM-5.2 appears in authenticated discovery and a $0-plan call succeeds.
 3. Do not add Ollama's subscription-only frontier model IDs merely because they
    appear in `/v1/models`; the completion smoke test is the admission gate.
-4. Existing high-value keys still worth adding are `MODELSCOPE_API_TOKEN`,
+4. Existing high-value keys still worth adding are `MODELSCOPE_API_KEY`,
    `MORPH_API_KEY`, and `AI_GATEWAY_API_KEY` (Vercel).
 5. If one-time burst capacity is useful, create Tencent TokenHub and Scaleway
    credentials. Keep them labelled `trial`, so routing and documentation do not
