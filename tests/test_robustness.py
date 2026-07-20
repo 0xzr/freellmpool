@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import stat
 
 import pytest
@@ -141,7 +142,8 @@ def test_upsert_config_key_is_0600(tmp_path):
     from freellmpool.key_inventory import upsert_config_key
 
     p = upsert_config_key("GROQ_API_KEY", "secret", tmp_path / "config.toml")
-    assert stat.S_IMODE(p.stat().st_mode) == 0o600
+    if hasattr(os, "fchmod"):
+        assert stat.S_IMODE(p.stat().st_mode) == 0o600
     assert 'GROQ_API_KEY = "secret"' in p.read_text()
 
 

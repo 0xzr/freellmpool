@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from freellmpool.key_inventory import (
     KeyRecord,
     append_inventory_record,
@@ -55,7 +57,8 @@ def test_upsert_config_key_creates_new_file(tmp_path):
     upsert_config_key("GROQ_API_KEY", "secret", path)
 
     assert path.read_text() == '[keys]\nGROQ_API_KEY = "secret"\n'
-    assert oct(path.stat().st_mode & 0o777) == "0o600"
+    if hasattr(os, "fchmod"):
+        assert oct(path.stat().st_mode & 0o777) == "0o600"
 
 
 def test_upsert_config_key_updates_keys_without_touching_other_tables(tmp_path):
