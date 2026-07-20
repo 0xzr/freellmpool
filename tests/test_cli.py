@@ -353,11 +353,7 @@ def test_cli_capacity_status_smoke(monkeypatch, capsys):
     assert "LLM capacity:" in out
 
 
-def test_cli_capacity_status_all_reports_quota_edges_without_local_state(
-    tmp_path, monkeypatch, capsys
-):
-    from freellmpool.cli import main
-
+def _install_capacity_status_edge_fixture(tmp_path, monkeypatch):
     catalog = [
         Provider(
             id="keyless",
@@ -394,12 +390,26 @@ def test_cli_capacity_status_all_reports_quota_edges_without_local_state(
     monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(tmp_path / "config.toml"))
     monkeypatch.setenv("FREELLMPOOL_KEYS_PATH", str(tmp_path / "keys.toml"))
     monkeypatch.setenv("FREELLMPOOL_QUOTA_PATH", str(tmp_path / "quota.json"))
-    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(tmp_path / "provider_catalog.json"))
+    monkeypatch.setenv(
+        "FREELLMPOOL_EXTERNAL_CATALOG_PATH",
+        str(tmp_path / "provider_catalog.json"),
+    )
     monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: catalog)
     monkeypatch.setattr("freellmpool.catalog.load_external_catalog", lambda: [])
     monkeypatch.setattr("freellmpool.key_inventory.load_inventory", lambda path=None: [])
     monkeypatch.setattr("freellmpool.capacity.QuotaStore", lambda: FakeQuota())
-    monkeypatch.setattr("freellmpool.capacity.effective_env", lambda env=None: {"LOW_KEY": "set"})
+    monkeypatch.setattr(
+        "freellmpool.capacity.effective_env",
+        lambda env=None: {"LOW_KEY": "set"},
+    )
+
+
+def test_cli_capacity_status_all_reports_quota_edges_without_local_state(
+    tmp_path, monkeypatch, capsys
+):
+    from freellmpool.cli import main
+
+    _install_capacity_status_edge_fixture(tmp_path, monkeypatch)
 
     assert main(["capacity", "status", "--all", "--target", "3", "--no-catalog-sync"]) == 0
 

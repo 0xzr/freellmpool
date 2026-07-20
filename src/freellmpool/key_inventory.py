@@ -134,6 +134,17 @@ def default_config_path() -> Path:
     return Path.home() / ".config" / "freellmpool" / "config.toml"
 
 
+def _restrict_owner_read_write(fd: int) -> None:
+    """Best-effort 0600 permission narrowing for an open secret file descriptor."""
+    fchmod = getattr(os, "fchmod", None)
+    if not callable(fchmod):
+        return
+    try:
+        fchmod(fd, 0o600)
+    except OSError:
+        pass
+
+
 def upsert_config_key(env_var: str, value: str, path: Path | None = None) -> Path:
     """Write one [keys] value to config.toml and return the path.
 
@@ -162,12 +173,7 @@ def upsert_config_key(env_var: str, value: str, path: Path | None = None) -> Pat
         os.close(fd)  # fdopen failed — close the raw fd ourselves
         raise
     with fh:  # closes fd on exit
-        fchmod = getattr(os, "fchmod", None)
-        if fchmod is not None:
-            try:
-                fchmod(fd, 0o600)  # narrow an already-existing file too
-            except OSError:
-                pass
+        _restrict_owner_read_write(fd)  # narrow an already-existing file too
         fh.write(dump_simple_toml(data))
     return path
 
