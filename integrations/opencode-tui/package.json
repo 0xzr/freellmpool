@@ -1,8 +1,30 @@
 {
   "name": "opencode-freellmpool-tui",
   "version": "0.1.0",
+  "description": "Embedded freellmpool quota, routing, latency, and savings dashboard for the OpenCode TUI.",
+  "private": false,
   "type": "module",
+  "license": "MIT",
+  "keywords": ["opencode", "opencode-plugin", "freellmpool", "tui", "dashboard"],
+  "homepage": "https://github.com/0xzr/freellmpool/tree/main/integrations/opencode-tui#readme",
+  "bugs": {
+    "url": "https://github.com/0xzr/freellmpool/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xzr/freellmpool.git",
+    "directory": "integrations/opencode-tui"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "exports": {
+    ".": "./index.tsx",
     "./tui": "./index.tsx"
-  }
+  },
+  "peerDependencies": {
+    "@opentui/solid": ">=0.4.5",
+    "solid-js": ">=1.9.12"
+  },
+  "files": ["LICENSE", "README.md", "index.tsx"]
 }

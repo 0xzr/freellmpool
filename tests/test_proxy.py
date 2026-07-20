@@ -175,6 +175,129 @@ def test_dashboard(server):
 def test_healthz(server):
     with urllib.request.urlopen(server + "/healthz") as resp:  # noqa: S310
         assert resp.status == 200
+        assert json.load(resp) == {"status": "ok"}
+    with urllib.request.urlopen(server + "/livez/") as resp:  # noqa: S310
+        assert resp.status == 200
+        assert json.load(resp) == {"status": "ok"}
+
+
+def test_readyz_and_provider_inventory(server):
+    with urllib.request.urlopen(server + "/readyz") as resp:  # noqa: S310
+        assert resp.status == 200
+        body = json.load(resp)
+    assert body["schema_version"] == 1
+    assert body["status"] == "ready"
+    assert body["reason"] == "ready_providers_available"
+    assert body["ready_providers"] == 4
+    assert body["total_providers"] == 4
+
+    with urllib.request.urlopen(server + "/v1/providers/") as resp:  # noqa: S310
+        providers = json.load(resp)
+    assert providers["schema_version"] == 1
+    assert providers["object"] == "list"
+    alpha = next(item for item in providers["data"] if item["id"] == "alpha")
+    assert set(alpha) == {
+        "id",
+        "configured",
+        "ready",
+        "status",
+        "enabled_models",
+        "ready_models",
+        "cooldown_remaining_s",
+        "models",
+    }
+    assert set(alpha["models"][0]) == {
+        "id",
+        "name",
+        "ready",
+        "status",
+        "daily_limit",
+        "used_today",
+        "remaining",
+    }
+    assert "ALPHA_KEY" not in json.dumps(providers)
+    assert "https://alpha.test" not in json.dumps(providers)
+
+
+@pytest.mark.parametrize("value", ["wat", "", "true&ready=false"])
+def test_models_ready_query_rejects_invalid_or_repeated_values(server, value):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(server + f"/v1/models?ready={value}")  # noqa: S310
+    assert exc.value.code == 400
+    assert json.load(exc.value)["error"]["type"] == "invalid_request_error"
+
+
+def test_models_ready_filter_preserves_content_negotiation(providers, env, quota):
+    pool = Pool(providers, quota=quota, env=env, post=make_post({}))
+    pool._mark_cooldown("alpha", pool._clock())
+    pool._mark_cooldown("beta", pool._clock())
+    pool._mark_cooldown("gee", pool._clock())
+    httpd, base = _serve(pool)
+    try:
+        with urllib.request.urlopen(base + "/v1/models?ready=1") as resp:  # noqa: S310
+            openai_body = json.load(resp)
+        ids = {item["id"] for item in openai_body["data"]}
+        assert "auto" in ids
+        assert "free/free-1" in ids
+        assert not any(item.startswith("alpha/") for item in ids)
+
+        req = urllib.request.Request(
+            base + "/v1/models/?ready=true",
+            headers={"anthropic-version": "2023-06-01"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            anthropic_body = json.load(resp)
+        assert anthropic_body["data"][0]["type"] == "model"
+        anthropic_ids = {item["id"] for item in anthropic_body["data"]}
+        assert anthropic_ids == ids
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_readyz_503_is_public_and_does_not_call_or_mutate(providers, quota):
+    def fail_post(*_args, **_kwargs):
+        raise AssertionError("readiness must not call upstream")
+
+    pool = Pool(providers[:1], quota=quota, env={}, post=fail_post)
+    before_quota = quota.snapshot()
+    before_cooldown = pool.cooldown_snapshot(pool._clock())
+    httpd, base = _serve(pool, api_key="secret")
+    try:
+        for path in ("/healthz", "/livez", "/readyz"):
+            try:
+                response = urllib.request.urlopen(base + path)  # noqa: S310
+            except urllib.error.HTTPError as exc:
+                response = exc
+            with response:
+                body = json.load(response)
+            if path == "/readyz":
+                assert response.status == 503
+                assert body["status"] == "not_ready"
+                assert body["reason"] == "no_ready_providers"
+            else:
+                assert response.status == 200
+
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(base + "/v1/providers")  # noqa: S310
+        assert exc.value.code == 401
+        req = urllib.request.Request(
+            base + "/v1/providers",
+            headers={"x-api-key": "secret"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            assert json.load(resp)["data"][0]["status"] == "unconfigured"
+        req = urllib.request.Request(
+            base + "/v1/models?ready=true",
+            headers={"Authorization": "Bearer secret"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            assert json.load(resp) == {"object": "list", "data": []}
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+    assert quota.snapshot() == before_quota
+    assert pool.cooldown_snapshot(pool._clock()) == before_cooldown
 
 
 def test_tokenmax_route(server):

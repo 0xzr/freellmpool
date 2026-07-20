@@ -10,8 +10,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_list_agents():
     out = list_agents()
-    for a in ("codex", "aider", "cline", "continue", "cursor", "opencode"):
+    for a in ("codex", "aider", "cline", "continue", "cursor", "opencode", "hermes"):
         assert a in out
+
+
+def test_render_hermes_custom_endpoint():
+    out = render("hermes")
+    assert out is not None
+    assert "provider: custom" in out
+    assert "default: quality" in out
+    assert "http://localhost:8080/v1" in out
 
 
 def test_render_known():

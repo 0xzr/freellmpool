@@ -138,6 +138,35 @@ _PROFILES: tuple[Profile, ...] = (
         notes="Pick freellmpool/spread for agentic work — it fans requests across the whole pool.",
     ),
     Profile(
+        name="hermes",
+        label="Hermes Agent",
+        client_kind="openai",
+        base_url=f"{_DEFAULT_PROXY}/v1",
+        model_family="quality",
+        cost_class="free",
+        role_map={
+            "coder": "agentic custom-endpoint lane using capability-aware free routing",
+        },
+        config_snippets={
+            "~/.hermes/config.yaml": (
+                "model:\n"
+                "  provider: custom\n"
+                "  default: quality\n"
+                f"  base_url: {_DEFAULT_PROXY}/v1\n"
+                "  api_key: anything"
+            ),
+        },
+        doctor_checks=[
+            DoctorCheck("binary", "hermes CLI", "hermes"),
+            DoctorCheck("binary", "freellmpool CLI", "freellmpool"),
+            DoctorCheck("url", "proxy /v1/models", _DEFAULT_PROXY, path="/v1/models"),
+        ],
+        notes=(
+            "Hermes supports this as a custom OpenAI-compatible endpoint. "
+            "Run 'hermes model' for the interactive setup instead."
+        ),
+    ),
+    Profile(
         name="codex",
         label="OpenAI Codex CLI",
         client_kind="openai",

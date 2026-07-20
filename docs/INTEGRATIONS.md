@@ -63,6 +63,13 @@ Anthropic bridge, `/v1/models` for concrete `provider/model` ids, `/dashboard`
 for operations, `/playground` for browser-side battle runs, and
 `/freellmpool/battle` for JSON/Markdown comparison results.
 
+For automation, `/healthz` and `/livez` are public liveness aliases;
+`/readyz` is a public advisory local-capacity probe (200 or 503), and
+`/v1/providers` is the authenticated secret-free inventory. Use
+`/v1/models?ready=true` to keep the normal OpenAI/Anthropic model-list shape
+while filtering out locally exhausted or cooling-down targets. These are local
+snapshots and never live-probe an upstream provider.
+
 ### opencode
 `opencode.json` (project or `~/.config/opencode/`):
 ```json
@@ -88,6 +95,11 @@ spread quota). Full guide: <https://0xzr.github.io/freellmpool/run-opencode-on-f
   sparkline, last-served model). Install: `opencode plugin -g file:<repo>/integrations/opencode-tui`.
 - [`integrations/opencode`](../integrations/opencode) — a server plugin adding
   `freellmpool_status` and `freellmpool_models` tools and a served-model toast.
+
+**Registry publication status: pending.** The intended package names are
+`opencode-freellmpool` and `opencode-freellmpool-tui`; CI packs, clean-installs,
+and loads both, but do not use an npm install command until the registry versions
+are verified. The local-file commands above are the current working path.
 
 ### metaswarm
 [`integrations/metaswarm`](../integrations/metaswarm) contains an experimental
@@ -120,6 +132,32 @@ freellmpool profile doctor metaswarm --dry-run
 It includes Tailnet setup for remote agents, a free/cheap worker lane, a larger
 freellmpool reviewer lane, and Codex/Opus lanes only as explicit user-owned paid
 escalation/final-review tools.
+
+### Hermes Agent
+
+Hermes supports OpenAI-compatible custom endpoints. Start the proxy, then either
+run `hermes model` and choose **Custom endpoint**, or inspect the print-only
+profile:
+
+```bash
+freellmpool profile install hermes
+freellmpool profile doctor hermes --dry-run
+```
+
+The rendered `~/.hermes/config.yaml` block is:
+
+```yaml
+model:
+  provider: custom
+  default: quality
+  base_url: http://localhost:8080/v1
+  api_key: anything
+```
+
+`quality` selects freellmpool's capability-aware routing alias. Hermes still
+sees a custom endpoint rather than a native provider, and freellmpool does not
+edit `~/.hermes/config.yaml`. Upstream reference:
+<https://github.com/NousResearch/hermes-agent/blob/a7d7c02cb6db071eced4ac82e24f878588619600/website/docs/integrations/providers.md#custom--self-hosted-llm-providers>.
 
 ### aider
 ```bash

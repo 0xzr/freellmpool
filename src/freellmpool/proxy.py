@@ -12,6 +12,7 @@ freellmpool pulls in nothing beyond httpx.
 
 Supported routes:
     GET  /v1/models                 list available (provider/model) ids
+    GET  /v1/providers              secret-free provider readiness inventory
     POST /v1/chat/completions       route a chat completion (true token streaming)
     POST /v1/embeddings             pooled free embeddings
     POST /v1/audio/transcriptions   pooled free audio transcription (Whisper, multipart)
@@ -20,6 +21,8 @@ Supported routes:
     GET  /playground                local comparison playground
     POST /freellmpool/battle        bounded local model battle
     GET  /healthz                   liveness probe
+    GET  /livez                     liveness probe alias
+    GET  /readyz                    advisory local-capacity readiness probe
 """
 
 from __future__ import annotations
@@ -43,6 +46,7 @@ from .errors import (
     FreeLLMPoolError,
     NoProvidersConfigured,
 )
+from .readiness import ReadinessSnapshot, readiness_snapshot
 from .router import Pool
 from .routing_modes import PUBLIC_ROUTING_ALIASES, routing_override
 from .savings import usd_saved
@@ -56,28 +60,36 @@ _MAX_AUDIO_BODY = 25 * 1024 * 1024
 _TRANSCRIPTION_FORMATS = ("json", "text", "verbose_json")
 
 
-def _model_ids(pool: Pool) -> list[str]:
+def _model_ids(pool: Pool, ready_model_ids: frozenset[str] | None = None) -> list[str]:
     # "auto" + per-request routing aliases (mapped to a routing mode by the proxy),
     # then every enabled provider/model id.
-    # INVARIANT: always non-empty (the routing aliases are unconditional). _anthropic_models_payload
-    # relies on this for first_id/last_id = ids[0]/ids[-1] without a guard — keep these seeds
-    # unconditional, or restore that guard.
-    ids = list(PUBLIC_ROUTING_ALIASES)
+    # Unfiltered discovery always includes routing aliases. A readiness-filtered
+    # empty pool returns an empty list (the Anthropic payload handles null bounds).
+    ids = list(PUBLIC_ROUTING_ALIASES) if ready_model_ids is None or ready_model_ids else []
     for provider in pool.providers:
         for m in provider.models:
-            if m.enabled:
-                ids.append(f"{provider.id}/{m.name}")
+            model_id = f"{provider.id}/{m.name}"
+            if m.enabled and (ready_model_ids is None or model_id in ready_model_ids):
+                ids.append(model_id)
     return ids
 
 
-def _openai_models_payload(pool: Pool) -> dict:
-    data = [{"id": mid, "object": "model", "owned_by": "freellmpool"} for mid in _model_ids(pool)]
+def _openai_models_payload(
+    pool: Pool, ready_model_ids: frozenset[str] | None = None
+) -> dict:
+    data = [
+        {"id": mid, "object": "model", "owned_by": "freellmpool"}
+        for mid in _model_ids(pool, ready_model_ids)
+    ]
     return {"object": "list", "data": data}
 
 
-def _anthropic_models_payload(pool: Pool) -> dict:
-    ids = _model_ids(pool)
-    ids.extend(a for a in known_aliases(pool.env) if a.startswith("claude-") and a not in ids)
+def _anthropic_models_payload(
+    pool: Pool, ready_model_ids: frozenset[str] | None = None
+) -> dict:
+    ids = _model_ids(pool, ready_model_ids)
+    if ready_model_ids is None:
+        ids.extend(a for a in known_aliases(pool.env) if a.startswith("claude-") and a not in ids)
     data = [
         {
             "type": "model",
@@ -90,9 +102,34 @@ def _anthropic_models_payload(pool: Pool) -> dict:
     return {
         "data": data,
         "has_more": False,
-        "first_id": ids[0],
-        "last_id": ids[-1],
+        "first_id": ids[0] if ids else None,
+        "last_id": ids[-1] if ids else None,
     }
+
+
+def _readiness_snapshot(pool: Pool) -> ReadinessSnapshot:
+    """Take one quota/cooldown snapshot without probing an upstream."""
+    now = pool._clock()
+    return readiness_snapshot(
+        pool.providers,
+        env=pool.env,
+        quota=pool.quota.snapshot(),
+        cooldowns=pool.cooldown_snapshot(now),
+    )
+
+
+def _ready_filter(query: str) -> bool | None:
+    values = parse_qs(query, keep_blank_values=True).get("ready")
+    if values is None:
+        return None
+    if len(values) != 1:
+        raise ValueError("ready must be specified once")
+    value = values[0].casefold()
+    if value in {"true", "1"}:
+        return True
+    if value in {"false", "0"}:
+        return False
+    raise ValueError("ready must be true, false, 1, or 0")
 
 
 def _provider_leaderboard(pool: Pool, limit: int = 5) -> list[tuple[str, float]]:
@@ -293,8 +330,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
 
         def _do_get(self) -> None:
             path = urlsplit(self.path).path.rstrip("/") or "/"
-            if path == "/healthz":
+            if path in ("/healthz", "/livez"):
                 self._send(200, {"status": "ok"})
+                return
+            if path == "/readyz":
+                snapshot = _readiness_snapshot(pool)
+                self._send(
+                    200 if snapshot.ready_providers else 503,
+                    snapshot.readiness_payload(),
+                )
                 return
             # Shareable SVG badge/card of lifetime "served free" totals. Embeddable
             # (e.g. in a README) only when FREELLMPOOL_PUBLIC_BADGE is set, so a
@@ -348,12 +392,23 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self.wfile.write(html)
                 return
             if path.endswith("/v1/models") or path == "/models":
+                try:
+                    ready = _ready_filter(urlsplit(self.path).query)
+                except ValueError as exc:
+                    self._error(400, str(exc), "invalid_request_error")
+                    return
+                ready_ids = None
+                if ready:
+                    ready_ids = frozenset(_readiness_snapshot(pool).ready_model_ids)
                 payload = (
-                    _anthropic_models_payload(pool)
+                    _anthropic_models_payload(pool, ready_ids)
                     if self._wants_anthropic_models()
-                    else _openai_models_payload(pool)
+                    else _openai_models_payload(pool, ready_ids)
                 )
                 self._send(200, payload)
+                return
+            if path == "/v1/providers":
+                self._send(200, _readiness_snapshot(pool).provider_payload())
                 return
             if path in ("/status", "/v1/status"):
                 with recent_lock:

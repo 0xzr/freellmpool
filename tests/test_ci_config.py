@@ -67,6 +67,64 @@ def test_ci_builds_and_smoke_tests_container() -> None:
     assert "push: true" not in docker_job
 
 
+def test_ci_validates_opencode_packages_with_current_runtimes() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert workflow.count("\n  opencode-packages:\n") == 1
+    job = workflow.split("\n  opencode-packages:\n", maxsplit=1)[1].split(
+        "\n  docker-smoke:\n", maxsplit=1
+    )[0]
+    for required in (
+        "permissions:\n      contents: read",
+        "actions/setup-node@v6",
+        'node-version: "24"',
+        "oven-sh/setup-bun@v2",
+        "npm@11.5.1",
+        "node scripts/check_opencode_packages.mjs",
+    ):
+        assert required in job
+
+
+def test_ci_strictly_checks_focused_helpers_without_recursive_debt() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert (
+        "mypy --follow-imports=skip src/freellmpool/routing_modes.py "
+        "src/freellmpool/catalog_validation.py src/freellmpool/_version.py "
+        "src/freellmpool/readiness.py"
+    ) in workflow
+
+
+def test_opencode_publish_workflow_is_manual_protected_and_exact_sha() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "publish-opencode.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "workflow_dispatch:" in workflow
+    assert "pull_request:" not in workflow
+    assert "push:" not in workflow
+    for required in (
+        "package:",
+        "version:",
+        "commit:",
+        "environment: npm",
+        "contents: read",
+        "id-token: write",
+        "runs-on: ubuntu-latest",
+        "actions/checkout@v7",
+        "actions/setup-node@v6",
+        'node-version: "24"',
+        "oven-sh/setup-bun@v2",
+        "npm@11.5.1",
+        "git rev-parse origin/main",
+        "node scripts/check_opencode_packages.mjs",
+        "secrets.NPM_TOKEN",
+        "npm publish --access public --provenance",
+        "npm view",
+    ):
+        assert required in workflow
+
+
 def test_dependabot_covers_project_supply_chains() -> None:
     config = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
 

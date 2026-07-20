@@ -24,6 +24,13 @@ the 30-second target on a clean Linux/Python 3.12 environment, with no API keys
 when a keyless provider is up:
 
 ```bash
+# One command when uv is installed; no checkout or manually managed virtualenv:
+uvx freellmpool ask --max-tokens 32 "Reply with one short sentence: freellmpool is ready."
+```
+
+Portable virtual-environment path:
+
+```bash
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
@@ -111,7 +118,19 @@ freellmpool proxy                       # starts http://localhost:8080
 freellmpool code claude                 # prints the one-line setup for Claude Code
 freellmpool profile list                # richer installable profiles
 freellmpool profile show metaswarm      # Tailnet-aware Metaswarm profile
-# (also: codex, aider, cline, continue, cursor, opencode, metaswarm)
+freellmpool profile install hermes       # Hermes custom-endpoint config
+# (also: codex, aider, cline, continue, cursor, hermes, opencode, metaswarm)
+```
+
+The Hermes profile prints (and never writes) this supported custom-endpoint
+block; `hermes model` provides the interactive equivalent:
+
+```yaml
+model:
+  provider: custom
+  default: quality
+  base_url: http://localhost:8080/v1
+  api_key: anything
 ```
 
 Claude Code gateway mode can also be launched directly:
@@ -136,6 +155,9 @@ estimated savings, tokens served free, provider race, latency), per-request
 **quality routing** via the model picker (`freellmpool/auto|fast|quality|fair`), and `freellmpool_status`
 / `freellmpool_models` tools — see [integrations/opencode-tui](integrations/opencode-tui)
 and the [guide](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html).
+The `opencode-freellmpool` and `opencode-freellmpool-tui` npm tarballs are
+validated in CI; registry publication is still pending, so the linked local-file
+instructions remain the working install path.
 
 **New in 0.11:** capacity tools — `freellmpool capacity status` shows which free
 tiers are usable right now, `freellmpool providers health` live-probes them, and
@@ -240,7 +262,7 @@ run on free models too. `freellmpool code <agent>` prints the exact setup, while
 without mutating third-party config:
 
 ```bash
-freellmpool code aider       # also: claude, codex, cline, continue, cursor, opencode
+freellmpool code aider       # also: claude, codex, cline, continue, cursor, hermes, opencode
 freellmpool profile show opencode
 freellmpool profile doctor opencode --dry-run
 ```
@@ -253,10 +275,17 @@ Main proxy surfaces:
 - `/v1/embeddings` and `/v1/audio/transcriptions` — OpenAI-compatible embedding
   and Whisper-style multipart transcription.
 - `/v1/models` — routing aliases plus concrete `provider/model` ids.
+- `/v1/models?ready=true` — the same shape, limited to locally ready targets.
+- `/v1/providers` — authenticated, secret-free provider/model readiness details.
 - `/freellmpool/battle` and `/playground` — bounded browser/JSON model comparisons.
-- `/dashboard`, `/status`, `/healthz`, `/badge.svg` — local operations surfaces.
+- `/healthz` and `/livez` — public process liveness aliases.
+- `/readyz` — public advisory local-capacity readiness (200 when at least one
+  provider is ready, otherwise 503); it never live-probes an upstream.
+- `/dashboard`, `/status`, and `/badge.svg` — local operations surfaces.
 
-`/playground` and the API routes are auth-protected when the proxy key is set.
+`/playground`, `/v1/providers`, and model inventory are auth-protected when
+the proxy key is set. Liveness/readiness stay public for orchestrator probes;
+readiness is a local quota/cooldown snapshot, not an upstream health guarantee.
 Setup snippets for specific tools are in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
 and [docs/AGENTS.md](docs/AGENTS.md). The repo also includes an experimental
 [metaswarm review adapter](integrations/metaswarm) for using `freellmpool` as an
@@ -536,23 +565,25 @@ Architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## How it compares
 
+Comparison snapshot: 2026-07-19. Competitor rows link to the exact README commit
+used for the claims; scopes change quickly, so treat this as a dated map rather
+than a permanent ranking.
+
 | Tool | Keyless start | # providers | Failover | MCP server | CLI | Transcription | Local/self-hosted | License |
 |---|---|---:|---|---|---|---|---|---|
-| **freellmpool** | Yes: Pollinations, OVHcloud, Kilo Gateway; LLM7 is key-optional | 22 cataloged chat providers | Yes: tries the next provider on rate limits, timeouts, 5xx, empty replies, and transport errors | Yes: `freellmpool mcp` | Yes: `freellmpool ask`, `tokenmax`, `providers`, `proxy`, and more | Yes: OpenAI-compatible `/v1/audio/transcriptions` with provider failover | Yes: local Python package and local proxy | MIT |
-| OpenRouter free models | No: OpenRouter account/API key required | One hosted OpenRouter account routing across many upstreams; the free-model router currently lists free variants | Yes: OpenRouter handles provider routing/fallbacks | Not a native MCP server; OpenRouter docs show MCP-client/tool patterns | No first-party local CLI in the docs checked | Yes: OpenRouter now documents audio transcription APIs | No: hosted service | Proprietary service |
-| LiteLLM | No: bring provider keys or hosted LiteLLM credentials | 100+ LLM providers | Yes: router/fallbacks, including transcription fallbacks | Yes: LiteLLM Proxy includes an MCP Gateway | Yes: SDK/proxy command surface, not a one-shot free-model CLI | Yes: `/audio/transcriptions` support | Yes: self-host the proxy or use hosted LiteLLM | MIT for core repo; commercial license for enterprise-only pieces |
-| FreeLLMAPI | No: add your own free-tier provider keys; keyless providers can be configured after setup | 16 free-tier providers plus custom OpenAI-compatible endpoints | Yes: fallback chain on 429, 5xx, and timeouts | No native MCP server in the README checked | Dashboard/server, desktop app, and Docker; no first-class one-shot CLI in the README checked | No: `/v1/audio/*` is listed as not yet supported | Yes: self-hosted Node/Docker proxy | MIT |
+| **freellmpool** | Yes, when a configured keyless provider is available | 22 chat providers cataloged locally | Yes: retryable provider failures, empty replies, and transport errors | Yes: `freellmpool mcp` | One-shot CLI plus profiles, library, and proxy commands | Yes: `/v1/audio/transcriptions` with failover | Yes: small Python package and local proxy | MIT |
+| [OpenRouter free models](https://openrouter.ai/openrouter/free/providers) | No: hosted API use requires an account/key | Hosted router; the linked free router listed 22 models at snapshot | [Yes](https://openrouter.ai/docs/guides/routing/model-fallbacks): hosted provider/model fallbacks | [Yes](https://openrouter.ai/blog/announcements/openrouter-mcp-server/): hosted remote MCP server | Hosted API/SDK and agent SDK, not a local gateway CLI | [Audio input/transcription](https://openrouter.ai/docs/guides/overview/multimodal/audio) through multimodal chat | No: hosted service | Proprietary service |
+| [LiteLLM](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/README.md) | No: bring provider or hosted-gateway credentials | README claims 100+ LLMs/providers | Yes: router retries/fallbacks | Yes: AI Gateway includes an MCP Gateway | Python SDK and proxy/gateway CLI surface | Yes: `/audio/transcriptions` | Yes: self-hosted proxy or hosted offering | MIT core; commercial enterprise features |
+| [OmniRoute](https://github.com/diegosouzapw/OmniRoute/blob/d8ff51874c8add566d43225988b9bc67e0542d65/README.md) | Yes: its setup documents a no-auth OpenCode option | README claims 268 integrations/providers and 90+ free options | Yes: layered fallback/circuit-breaker routing | Yes: MCP and A2A control planes | Broad management CLI and one-command agent setup | Audio translation is documented; other media capabilities vary by provider | Yes: Node application with dashboard, Docker, desktop/PWA paths | MIT |
+| [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi/blob/759de8e7ed1edc1cd513c9777cd0a807fb5ceee3/README.md) | Server starts with a Docker one-liner; inference capacity is configured afterward | README claims **28 free LLM providers** and 339 endpoints | Yes: provider/key routing and fallback | Yes: **MCP (Streamable HTTP)** | Dashboard/server and desktop apps | Not documented; audio speech/TTS is supported | Yes: Node/Docker server and desktop apps | MIT |
 
-FreeLLMAPI predates this project, and the overlap is independent convergence:
-both projects noticed that legitimate free tiers are useful when treated
-carefully. freellmpool's niche is the **keyless, pip-installable client** for
-squeezing hosted free tiers from a CLI, library, local proxy, and MCP server;
-OpenRouter is the polished hosted route; LiteLLM is the mature bring-your-own-key
-gateway.
-
-Table sources: freellmpool's catalog and proxy code in this repo; OpenRouter's
-quickstart, free-model, routing, and audio docs; LiteLLM's README, MCP docs, and
-audio transcription docs; FreeLLMAPI's README.
+FreeLLMAPI predates this project, and the overlap is independent convergence
+around legitimate free tiers. OmniRoute
+optimizes for an expansive control plane and many protocols; FreeLLMAPI for a
+dashboard-centric self-hosted router with encrypted key management; freellmpool
+for the smallest Python/CLI/library path with a keyless-capable first reply.
+Those are product-scope choices, not a claim that one tool is best for every
+deployment.
 
 ## FAQ
 

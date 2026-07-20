@@ -46,6 +46,11 @@ your editor and lives alongside OpenCode's own Context / MCP / LSP panels.
 
 ## Install
 
+> **Registry publication status: pending.** `opencode-freellmpool-tui` and the
+> companion `opencode-freellmpool` server plugin are pack/install/load-tested
+> in CI, but are not yet verified on npm. Use the local-file command below until
+> that status changes.
+
 OpenCode TUI plugins are installed with the built-in installer (which wires the OpenTUI
 runtime for you — there are no `node_modules` to manage):
 
@@ -55,7 +60,7 @@ opencode plugin -g file:/absolute/path/to/integrations/opencode-tui
 ```
 
 That records the plugin in `~/.config/opencode/tui.json`. Start the proxy
-(`freellmpool-proxy`) and launch `opencode` — the panel appears on the home screen and in
+(`freellmpool proxy`) and launch `opencode` — the panel appears on the home screen and in
 the session sidebar.
 
 > TUI plugins are configured in `tui.json`, **not** the `plugin` array in `opencode.json`
@@ -68,7 +73,7 @@ To remove it, delete the entry from `~/.config/opencode/tui.json`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `FREELLMPOOL_PROXY_URL` | `http://localhost:8765` | proxy base URL the dashboard polls |
+| `FREELLMPOOL_PROXY_URL` | `http://localhost:8080` | proxy base URL the dashboard polls |
 | `FREELLMPOOL_PROXY_KEY` | _(none)_ | sent as `Authorization: Bearer <key>` if your proxy requires one |
 
 ## Controlling routing
