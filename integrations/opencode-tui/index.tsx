@@ -8,11 +8,11 @@
 // latency sparkline, and the most-recently-served provider/model.
 //
 // Install:  opencode plugin -g file:/path/to/integrations/opencode-tui
-// Config:   FREELLMPOOL_PROXY_URL (default http://localhost:8765)
+// Config:   FREELLMPOOL_PROXY_URL (default http://localhost:8080)
 //
 import { createEffect, createSignal, onCleanup, For, Show } from "solid-js"
 
-const PROXY = (process.env.FREELLMPOOL_PROXY_URL || "http://localhost:8765").replace(/\/+$/, "")
+const PROXY = (process.env.FREELLMPOOL_PROXY_URL || "http://localhost:8080").replace(/\/+$/, "")
 const PROXY_KEY = process.env.FREELLMPOOL_PROXY_KEY || ""
 const AUTH = PROXY_KEY ? { Authorization: `Bearer ${PROXY_KEY}` } : {}
 const POLL_MS = 1500
@@ -201,7 +201,7 @@ const plugin = async (api) => {
         fallback={
           <box border borderColor={theme.error} paddingLeft={1} paddingRight={1} flexDirection="column">
             <text fg={theme.error}>● freellmpool</text>
-            <text fg={theme.textMuted}>proxy offline — start `freellmpool-proxy`</text>
+            <text fg={theme.textMuted}>proxy offline — start `freellmpool proxy`</text>
           </box>
         }
       >

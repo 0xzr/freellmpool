@@ -2,13 +2,28 @@
   "name": "opencode-freellmpool",
   "version": "0.1.0",
   "description": "OpenCode plugin for freellmpool: see the serving provider/model, usage & rate-limits, and control routing quality.",
+  "private": false,
   "type": "module",
   "main": "freellmpool.js",
-  "exports": "./freellmpool.js",
+  "exports": {
+    ".": "./freellmpool.js"
+  },
   "keywords": ["opencode", "opencode-plugin", "freellmpool", "llm", "proxy"],
   "license": "MIT",
+  "homepage": "https://github.com/0xzr/freellmpool/tree/main/integrations/opencode#readme",
+  "bugs": {
+    "url": "https://github.com/0xzr/freellmpool/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xzr/freellmpool.git",
+    "directory": "integrations/opencode"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.14.0"
   },
-  "files": ["freellmpool.js", "README.md"]
+  "files": ["LICENSE", "README.md", "freellmpool.js"]
 }

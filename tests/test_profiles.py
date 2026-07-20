@@ -25,6 +25,7 @@ def test_builtin_profiles_cover_supported_agents():
         "claude",
         "aider",
         "continue",
+        "hermes",
     }
     assert expected.issubset(PROFILES)
     for profile in PROFILES.values():
@@ -64,6 +65,32 @@ def test_profile_install_prints_quickstart_and_snippets(capsys):
     assert "freellmpool proxy --port 8080" in out
     assert "opencode.json" in out
     assert '"freellmpool"' in out
+
+
+def test_hermes_profile_uses_supported_custom_endpoint(capsys):
+    profile = PROFILES["hermes"]
+    assert profile.client_kind == "openai"
+    assert profile.model_family == "quality"
+    assert profile.base_url == "http://localhost:8080/v1"
+    config = profile.config_snippets["~/.hermes/config.yaml"]
+    assert "provider: custom" in config
+    assert "default: quality" in config
+    assert "base_url: http://localhost:8080/v1" in config
+    assert "api_key: anything" in config
+    assert "hermes model" in profile.notes
+
+    assert main(["profile", "install", "hermes"]) == 0
+    out = capsys.readouterr().out
+    assert "~/.hermes/config.yaml" in out
+    assert "hermes model" in out
+
+
+def test_profile_doctor_hermes_dry_run(capsys):
+    assert main(["profile", "doctor", "hermes", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "hermes CLI" in out
+    assert "freellmpool CLI" in out
+    assert "http://localhost:8080/v1/models" in out
 
 
 def test_unknown_profile_returns_error(capsys):
@@ -149,6 +176,37 @@ def test_profile_doctor_opencode_fake_proxy(monkeypatch, capsys):
     assert "doctor results for 'opencode'" in out
     assert "proxy /v1/models" in out
     assert "All required checks passed" in out
+
+
+def test_profile_doctor_hermes_accepts_authenticated_proxy(monkeypatch, capsys):
+    monkeypatch.setattr("freellmpool.profiles.shutil.which", lambda name: f"/fake/{name}")
+
+    class _LockedModelsHandler(_ModelsHandler):
+        def do_GET(self):  # noqa: N802
+            self.send_response(401)
+            self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _LockedModelsHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        assert main(["profile", "doctor", "hermes", "--base-url", base_url]) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+    out = capsys.readouterr().out
+    assert "doctor results for 'hermes'" in out
+    assert "responded HTTP 401" in out
+    assert "All required checks passed" in out
+
+
+def test_hermes_base_url_override_preserves_v1_contract():
+    profile = profile_with_base_url(PROFILES["hermes"], "http://example.test:9000")
+    assert profile.base_url == "http://example.test:9000/v1"
+    assert [check.url() for check in profile.doctor_checks if check.kind == "url"] == [
+        "http://example.test:9000/v1/models"
+    ]
 
 
 def test_profile_with_base_url_normalizes_openai_url():

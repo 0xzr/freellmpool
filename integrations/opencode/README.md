@@ -4,7 +4,7 @@ See which free provider/model is actually serving you, check usage and rate-limi
 and control routing quality — all from inside [OpenCode](https://opencode.ai).
 
 It talks to a running [freellmpool](https://github.com/0xzr/freellmpool) proxy
-(`freellmpool proxy`, default `http://localhost:8765`).
+(`freellmpool proxy`, default `http://localhost:8080`).
 
 ## What it adds
 
@@ -43,6 +43,11 @@ across all of them while still preferring the quick/healthy ones.
 
 ## Install
 
+> **Registry publication status: pending.** `opencode-freellmpool` and its
+> companion `opencode-freellmpool-tui` are pack/install/load-tested in CI, but
+> are not yet verified on npm. Use the local-file path below until that status
+> changes.
+
 **Option A — drop-in (no build):**
 
 ```sh
@@ -59,7 +64,7 @@ cp freellmpool.js ~/.config/opencode/plugin/
 ```
 
 Then make sure the proxy is running (`freellmpool proxy`) and that OpenCode has a
-`freellmpool` provider pointed at it (`baseURL: http://localhost:8765/v1`). Add the
+`freellmpool` provider pointed at it (`baseURL: http://localhost:8080/v1`). Add the
 routing aliases as models so you can pick them:
 
 ```jsonc
@@ -67,7 +72,7 @@ routing aliases as models so you can pick them:
   "provider": {
     "freellmpool": {
       "npm": "@ai-sdk/openai-compatible",
-      "options": { "baseURL": "http://localhost:8765/v1" },
+      "options": { "baseURL": "http://localhost:8080/v1" },
       "models": {
         "spread": {},
         "auto": {},
@@ -84,7 +89,7 @@ routing aliases as models so you can pick them:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `FREELLMPOOL_PROXY_URL` | `http://localhost:8765` | proxy base URL |
+| `FREELLMPOOL_PROXY_URL` | `http://localhost:8080` | proxy base URL |
 | `FREELLMPOOL_PROXY_KEY` | _(none)_ | sent as `Authorization: Bearer <key>` if your proxy requires one |
 | `FREELLMPOOL_TOAST` | on | set to `0`/`false`/`off` to silence the served-model toast |
 

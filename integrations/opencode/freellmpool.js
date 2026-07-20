@@ -14,14 +14,14 @@
 //
 // Zero build step, zero extra deps: drop this file in ~/.config/opencode/plugin/ or
 // reference it from opencode.json `plugin`. Config:
-//   FREELLMPOOL_PROXY_URL   base URL (default http://localhost:8765)
+//   FREELLMPOOL_PROXY_URL   base URL (default http://localhost:8080)
 //   FREELLMPOOL_PROXY_KEY   sent as `Authorization: Bearer <key>` if the proxy needs one
 //   FREELLMPOOL_TOAST       set to 0/false/off to silence the served-model toast
 
 import { tool } from "@opencode-ai/plugin";
 
 const BASE_URL = (
-  process.env.FREELLMPOOL_PROXY_URL || "http://localhost:8765"
+  process.env.FREELLMPOOL_PROXY_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
 const PROXY_KEY = process.env.FREELLMPOOL_PROXY_KEY || "";
 const TOAST = !/^(0|false|off|no)$/i.test(process.env.FREELLMPOOL_TOAST || "");

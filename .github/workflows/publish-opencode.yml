@@ -1,0 +1,109 @@
+name: Publish OpenCode package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        required: true
+        type: choice
+        options:
+          - opencode-freellmpool
+          - opencode-freellmpool-tui
+      version:
+        description: Exact manifest version
+        required: true
+        type: string
+      commit:
+        description: Exact current main merge SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Validate immutable commit input
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+        run: |
+          case "$RELEASE_COMMIT" in
+            *[!0-9a-f]*|"") exit 1 ;;
+          esac
+          test "${#RELEASE_COMMIT}" -eq 40
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+
+      - name: Require the exact current main tip
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+        run: |
+          git fetch --no-tags origin main
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$(git rev-parse origin/main)" = "$RELEASE_COMMIT"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Use trusted-publishing-capable npm
+        run: npm install --global npm@11.5.1
+
+      - name: Pack, install, and load both integrations
+        run: node scripts/check_opencode_packages.mjs
+
+      - name: Resolve and validate package
+        id: package
+        env:
+          PACKAGE_NAME: ${{ inputs.package }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          case "$PACKAGE_NAME" in
+            opencode-freellmpool) package_dir=integrations/opencode ;;
+            opencode-freellmpool-tui) package_dir=integrations/opencode-tui ;;
+            *) exit 1 ;;
+          esac
+          manifest_name=$(node -p "require('./$package_dir/package.json').name")
+          manifest_version=$(node -p "require('./$package_dir/package.json').version")
+          test "$manifest_name" = "$PACKAGE_NAME"
+          test "$manifest_version" = "$RELEASE_VERSION"
+          if npm view "$PACKAGE_NAME@$RELEASE_VERSION" version >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing $PACKAGE_NAME@$RELEASE_VERSION" >&2
+            exit 1
+          fi
+          echo "directory=$package_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Publish selected package with provenance
+        working-directory: ${{ steps.package.outputs.directory }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if test -n "$NPM_TOKEN"; then
+            export NODE_AUTH_TOKEN="$NPM_TOKEN"
+          fi
+          npm publish --access public --provenance
+
+      - name: Verify registry metadata and tarball
+        env:
+          PACKAGE_NAME: ${{ inputs.package }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          test "$(npm view "$PACKAGE_NAME@$RELEASE_VERSION" version)" = "$RELEASE_VERSION"
+          registry_tarball=$(npm view "$PACKAGE_NAME@$RELEASE_VERSION" dist.tarball)
+          test -n "$registry_tarball"
+          npm pack "$PACKAGE_NAME@$RELEASE_VERSION" --dry-run

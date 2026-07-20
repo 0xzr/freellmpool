@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Advisory proxy operations APIs: public `/livez` and `/readyz`, an
+  authenticated secret-free `/v1/providers` inventory, and
+  `/v1/models?ready=true` filtering.
+- A print-only Hermes Agent custom-endpoint profile and setup documentation.
+- Registry-ready OpenCode server/TUI packages with clean tarball install/load
+  validation and a protected manual publication workflow.
 - Experimental metaswarm review adapter integration, with setup docs and no-key
   smoke coverage for fail-closed `auth_missing` behavior.
 - A dated [live model-activity audit](docs/MODEL_ACTIVITY_AUDIT_2026-07-14.md)
@@ -20,6 +26,8 @@ All notable changes to this project are documented here. The format is based on
 - Weekly Dependabot coverage for Python, GitHub Actions, and container images.
 
 ### Changed
+- Corrected the OpenCode integrations to use the proxy's actual port 8080
+  default and refreshed the dated competitor comparison from pinned sources.
 - Refreshed the provider catalog to 239 enabled chat routes and 397 cataloged
   chat models, adding live-verified current models and disabling stale, retired,
   empty, degraded, or repeatedly timing-out routes.

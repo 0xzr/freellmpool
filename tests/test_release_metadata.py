@@ -57,6 +57,35 @@ def test_readme_has_copy_pastable_tailnet_and_metaswarm_paths() -> None:
     assert "freellmpool profile doctor metaswarm --dry-run" in readme
 
 
+def test_readme_has_current_adoption_paths_and_pinned_comparison_sources() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    integrations = (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8")
+
+    assert 'uvx freellmpool ask --max-tokens 32' in readme
+    assert "Comparison snapshot: 2026-07-19" in readme
+    assert (
+        "tashfeenahmed/freellmapi/blob/"
+        "759de8e7ed1edc1cd513c9777cd0a807fb5ceee3/README.md"
+    ) in readme
+    assert (
+        "diegosouzapw/OmniRoute/blob/"
+        "d8ff51874c8add566d43225988b9bc67e0542d65/README.md"
+    ) in readme
+    assert "28 free LLM providers" in readme
+    assert "MCP (Streamable HTTP)" in readme
+    assert "OmniRoute" in readme
+
+    for text in (readme, integrations):
+        assert "freellmpool profile install hermes" in text
+        assert "provider: custom" in text
+        assert "default: quality" in text
+        assert "http://localhost:8080/v1" in text
+        assert "/livez" in text
+        assert "/readyz" in text
+        assert "/v1/providers" in text
+        assert "/v1/models?ready=true" in text
+
+
 def test_roadmap_reflects_kimi_m3_addendum() -> None:
     roadmap = (ROOT / "docs/ROADMAP.md").read_text(encoding="utf-8")
     assert "Top 10 feature map" in roadmap
