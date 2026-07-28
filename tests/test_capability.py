@@ -54,6 +54,18 @@ def test_current_agent_models_use_researched_capability_tiers():
     )
 
 
+def test_model_capability_preserves_direct_synced_score_before_alias():
+    table = {
+        "qwen3.6-35b-a3b": 0.9041,
+        "qwen3-30b-a3b": 0.3536,
+    }
+
+    assert c.model_capability("Qwen/Qwen3.6-35B-A3B", table) == 0.9041
+    assert c.model_capability(
+        "Qwen/Qwen3.6-27B", {"qwen3-30b-a3b": 0.3536}
+    ) == 0.3536
+
+
 def test_heuristic_orders_by_size_and_keywords():
     assert c._heuristic_score("llama-3.1-405b") > c._heuristic_score("llama-3.1-8b-instant")
     assert c._heuristic_score("foo-flash") <= 0.40  # downweight keyword

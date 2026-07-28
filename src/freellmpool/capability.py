@@ -83,12 +83,8 @@ _MODEL_NAME_ALIASES = {
 
 
 @lru_cache(maxsize=8192)
-def normalize_model_name(name: str) -> str:
-    """A stable lookup key for a model name, robust to provider/vendor prefixes and
-    packaging/date suffixes. The same function keys both the catalog names and the
-    benchmark names, so equivalent variants collapse to one key (e.g.
-    ``llama-3.3-70b-versatile`` and ``llama-3.3-70b-instruct`` → ``llama-3.3-70b``).
-    """
+def _normalize_model_name_base(name: str) -> str:
+    """Normalize spelling and packaging while preserving the model's own identity."""
     s = (name or "").strip().lower()
     s = _PROVIDER_PREFIX_RE.sub("", s)
     # Normalize separators early (":", "_", spaces → "-"), BEFORE peeling suffixes,
@@ -104,7 +100,18 @@ def normalize_model_name(name: str) -> str:
             break
         s = peeled
     s = s.strip("-")
-    return _MODEL_NAME_ALIASES.get(s, s)
+    return s
+
+
+@lru_cache(maxsize=8192)
+def normalize_model_name(name: str) -> str:
+    """A stable lookup key for a model name, robust to provider/vendor prefixes and
+    packaging/date suffixes. The same function keys both the catalog names and the
+    benchmark names, so equivalent variants collapse to one key (e.g.
+    ``llama-3.3-70b-versatile`` and ``llama-3.3-70b-instruct`` → ``llama-3.3-70b``).
+    """
+    key = _normalize_model_name_base(name)
+    return _MODEL_NAME_ALIASES.get(key, key)
 
 
 def _core(name: str) -> str:
@@ -223,7 +230,14 @@ def model_capability(name: str, table: Mapping[str, float] | None = None) -> flo
     """
     if table is None:
         table = capability_table()
-    key = normalize_model_name(name)
+    # Prefer an exact synchronized score for the current model identity. Alias
+    # fallback is intentionally second: users with an older score cache must not
+    # silently lose a measured Qwen3.6/Kimi score merely because a conservative
+    # bundled comparison alias was added in a newer release.
+    direct_key = _normalize_model_name_base(name)
+    if direct_key in table:
+        return table[direct_key]
+    key = _MODEL_NAME_ALIASES.get(direct_key, direct_key)
     if key in table:
         return table[key]
     core = _core(name)

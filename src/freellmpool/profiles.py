@@ -114,7 +114,7 @@ _PROFILES: tuple[Profile, ...] = (
                             "npm": "@ai-sdk/openai-compatible",
                             "options": {
                                 "baseURL": f"{_DEFAULT_PROXY}/v1",
-                                "headerTimeout": 60_000,
+                                "headerTimeout": 600_000,
                                 "timeout": 600_000,
                                 "chunkTimeout": 120_000,
                             },

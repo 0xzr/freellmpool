@@ -43,6 +43,18 @@ def test_retryable_5xx_sets_no_client_status(providers, env, quota):
     assert ei.value.client_status is None  # 5xx is retryable, not a client error
 
 
+def test_provider_account_quota_is_not_surfaced_as_client_error(providers, env, quota):
+    post = make_post(
+        {"test": (402, {"error": "You have depleted your monthly included credits."})}
+    )
+    pool = Pool(providers[:2], quota=quota, env=env, post=post)
+
+    with pytest.raises(AllProvidersExhausted) as ei:
+        pool.chat([{"role": "user", "content": "hi"}])
+
+    assert ei.value.client_status is None
+
+
 def test_proxy_surfaces_client_error_status(providers, env, quota):
     post = make_post({"test": (400, {"error": {"message": "bad request"}})})
     pool = Pool(providers, quota=quota, env=env, post=post, stream_post=make_stream_post({}))

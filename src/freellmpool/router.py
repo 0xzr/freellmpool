@@ -531,17 +531,26 @@ class Pool:
 
         if mode == "agent":
             table = capability_table()
+            provider_used: dict[str, int] = {}
+            for target in targets:
+                provider_id = target.provider.id
+                provider_used[provider_id] = provider_used.get(provider_id, 0) + used_of(target)
 
-            def agent_key(t: Target) -> tuple[int, int, int, int, float, float, int]:
+            def agent_key(
+                t: Target,
+            ) -> tuple[int, int, int, int, int, float, float, int, int]:
                 capability = model_capability(t.model, table)
                 tier = int((capability + 1e-9) / _AGENT_CAPABILITY_TIER)
+                account_used = provider_used[t.provider.id]
                 return (
                     over_of(t),
                     1 if failing_of(t) else 0,
                     -tier,
+                    account_used // _SPREAD_BUCKET,
                     used_of(t) // _SPREAD_BUCKET,
                     score_of(t),
                     -capability,
+                    account_used,
                     used_of(t),
                 )
 
@@ -708,7 +717,10 @@ class Pool:
         tool_choice=None,
         routing: str | None = None,
     ) -> Reply:
-        """Like :meth:`ask` but takes raw OpenAI-style ``messages``."""
+        """Like :meth:`ask` but takes raw OpenAI-style ``messages``.
+
+        ``timeout`` is one overall deadline shared by every failover attempt.
+        """
         if not self.providers:
             raise NoProvidersConfigured(
                 "no provider has an API key set; see .env.example for the env vars"
@@ -754,6 +766,7 @@ class Pool:
         # target's cooldown state exactly once so a concurrent 429 can't place the
         # same target in both buckets.
         now = self._clock()
+        deadline = now + max(0.0, timeout)
         states = [
             (
                 t,
@@ -765,7 +778,7 @@ class Pool:
         sequence = [t for t, c in states if not c] + [t for t, c in states if c]
 
         attempts: list[tuple[str, str]] = []
-        rate_limited: set[str] = set()  # providers that 429'd during THIS request
+        unavailable_providers: set[str] = set()  # provider-wide quota failures this request
         client_error: ProviderHTTPError | None = None  # first non-retryable 4xx seen
         # Context-window awareness: estimate the request size once, skip models we
         # already know are too small, and fail loudly if nothing fits.
@@ -774,9 +787,10 @@ class Pool:
         ctx_overflow = False
         non_ctx_failure = False
         for target in sequence:
-            if target.provider.id in rate_limited:
-                # Already 429'd this request — don't waste calls on its other models.
-                attempts.append((target.name, "skipped (provider rate-limited this request)"))
+            if target.provider.id in unavailable_providers:
+                # A provider-wide quota failure already occurred this request; do
+                # not waste calls on another model backed by the same account.
+                attempts.append((target.name, "skipped (provider quota unavailable this request)"))
                 continue
             api_key = target.provider.api_key(self.env)
             if api_key is None and not target.provider.keyless:  # pragma: no cover
@@ -791,8 +805,12 @@ class Pool:
                 emit(self._on_event, "context_skip", target=target.name, context=cap, needed=needed)
                 ctx_overflow = True
                 continue
-            emit(self._on_event, "attempt", target=target.name, n=len(attempts) + 1)
             started = self._clock()
+            remaining = deadline - started
+            if remaining <= 0:
+                attempts.append((target.name, "skipped (overall request timeout exhausted)"))
+                break
+            emit(self._on_event, "attempt", target=target.name, n=len(attempts) + 1)
             try:
                 reply = _client.call(
                     target.provider,
@@ -802,7 +820,7 @@ class Pool:
                     env=self.env,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    timeout=timeout,
+                    timeout=remaining,
                     tools=tools,
                     tool_choice=tool_choice,
                     post=self._post,
@@ -820,11 +838,12 @@ class Pool:
                     continue
                 if exc.status == 429:
                     self._mark_cooldown(target.provider.id, self._clock())
-                    rate_limited.add(target.provider.id)
+                    unavailable_providers.add(target.provider.id)
                     emit(self._on_event, "cooldown", target=target.name, status=429)
-                if _is_account_quota_exhaustion(exc):
+                account_exhausted = _is_account_quota_exhaustion(exc)
+                if account_exhausted:
                     self._mark_account_backoff(target.provider.id, self._clock())
-                    rate_limited.add(target.provider.id)
+                    unavailable_providers.add(target.provider.id)
                 # Any non-context failure (incl. a rate-limit, which might have fit)
                 # means "too long" isn't provably the whole story — stay generic.
                 non_ctx_failure = True
@@ -832,7 +851,7 @@ class Pool:
                 # remember the first one so an exhausted pool can surface the real
                 # client error instead of a generic 502. (Failover still proceeds —
                 # another provider may accept it.)
-                if not exc.retryable and client_error is None:
+                if not exc.retryable and not account_exhausted and client_error is None:
                     client_error = exc
                 if _is_health_failure(exc):
                     self.metrics.record_failure(target.name, str(exc))
@@ -910,7 +929,8 @@ class Pool:
         Yields a meta dict ``{"provider", "model"}`` first, then content-delta
         strings. Failover happens *before* the first token (on a non-200); once
         tokens flow, freellmpool is committed to that provider. Gemini-adapter
-        providers are skipped (no OpenAI-shape stream).
+        providers are skipped (no OpenAI-shape stream). ``timeout`` is one
+        overall deadline shared by every pre-stream failover attempt.
         """
         if not self.providers:
             raise NoProvidersConfigured("no provider has an API key set")
@@ -926,17 +946,25 @@ class Pool:
             raise NoProvidersConfigured("no streamable (provider, model) matched the filters")
 
         now = self._clock()
-        states = [(t, self._cooled(t.provider.id, now)) for t in targets]
+        deadline = now + max(0.0, timeout)
+        states = [
+            (
+                t,
+                self._cooled(t.provider.id, now)
+                or self._account_backed_off(t.provider.id, now),
+            )
+            for t in targets
+        ]
         sequence = [t for t, c in states if not c] + [t for t, c in states if c]
         attempts: list[tuple[str, str]] = []
-        rate_limited: set[str] = set()
+        unavailable_providers: set[str] = set()
         est_tokens = estimate_input_tokens(messages)
         needed = est_tokens + max_tokens
         ctx_overflow = False
         non_ctx_failure = False
         for target in sequence:
-            if target.provider.id in rate_limited:
-                attempts.append((target.name, "skipped (provider rate-limited this request)"))
+            if target.provider.id in unavailable_providers:
+                attempts.append((target.name, "skipped (provider quota unavailable this request)"))
                 continue
             api_key = target.provider.api_key(self.env)
             if api_key is None and not target.provider.keyless:
@@ -951,8 +979,12 @@ class Pool:
                 emit(self._on_event, "context_skip", target=target.name, context=cap, needed=needed)
                 ctx_overflow = True
                 continue
-            emit(self._on_event, "attempt", target=target.name, stream=True)
             started = self._clock()
+            remaining = deadline - started
+            if remaining <= 0:
+                attempts.append((target.name, "skipped (overall request timeout exhausted)"))
+                break
+            emit(self._on_event, "attempt", target=target.name, stream=True)
             gen = _client.stream_call(
                 target.provider,
                 target.model,
@@ -961,7 +993,7 @@ class Pool:
                 env=self.env,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                timeout=timeout,
+                timeout=remaining,
                 stream_post=self._stream_post,
             )
             try:
@@ -985,8 +1017,11 @@ class Pool:
                     continue
                 if exc.status == 429:
                     self._mark_cooldown(target.provider.id, self._clock())
-                    rate_limited.add(target.provider.id)
+                    unavailable_providers.add(target.provider.id)
                     emit(self._on_event, "cooldown", target=target.name, status=429)
+                if _is_account_quota_exhaustion(exc):
+                    self._mark_account_backoff(target.provider.id, self._clock())
+                    unavailable_providers.add(target.provider.id)
                 # Any non-context failure (incl. a rate-limit, which might have fit)
                 # means "too long" isn't provably the whole story — stay generic.
                 non_ctx_failure = True

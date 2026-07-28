@@ -58,6 +58,91 @@ def test_chat_completions_shape(server):
     assert "x_freellmpool" in body
 
 
+def test_agent_route_leaves_client_deadline_margin_for_buffered_and_streaming(
+    providers, env, quota
+):
+    seen: list[tuple[str, float]] = []
+
+    def post(url, headers, body, timeout):
+        seen.append(("buffered", timeout))
+        return HTTPResult(200, openai_body("ok"), "ok")
+
+    canned_stream = make_stream_post({})
+
+    def stream_post(url, headers, body, timeout):
+        seen.append(("stream", timeout))
+        return canned_stream(url, headers, body, timeout)
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=post,
+        stream_post=stream_post,
+    )
+    httpd, base = _serve(pool)
+    try:
+        payload = {
+            "model": "agent",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        assert _post_json(base + "/v1/chat/completions", payload)[0] == 200
+
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps({**payload, "stream": True}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310 (localhost test)
+            assert resp.status == 200
+            resp.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    by_kind = {kind: timeout for kind, timeout in seen}
+    assert by_kind["buffered"] == pytest.approx(540.0, abs=0.1)
+    assert by_kind["stream"] == pytest.approx(540.0, abs=0.1)
+
+
+def test_agent_route_enforces_one_overall_failover_budget(providers, env, quota):
+    clock = {"now": 0.0}
+    seen_timeouts: list[float] = []
+
+    def post(url, headers, body, timeout):
+        seen_timeouts.append(timeout)
+        clock["now"] += 300.0
+        return HTTPResult(503, {"error": "down"}, "down")
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+    )
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(
+                {
+                    "model": "agent",
+                    "messages": [{"role": "user", "content": "hi"}],
+                }
+            ).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)  # noqa: S310 (localhost test)
+        assert exc_info.value.code == 502
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert seen_timeouts == [540.0, 240.0]
+
+
 def test_proxy_server_header_uses_package_version(server):
     with urllib.request.urlopen(server + "/v1/models") as resp:  # noqa: S310
         assert f"freellmpool/{__version__}" in resp.headers["Server"]

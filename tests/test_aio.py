@@ -70,6 +70,37 @@ def test_async_account_quota_exhaustion_deprioritizes_provider(providers, env, q
     assert "beta.test" in calls[0]
 
 
+def test_async_account_quota_is_not_surfaced_as_client_error(providers, env, quota):
+    apost = _async_post(
+        {"test": (402, {"error": "You have depleted your monthly included credits."})}
+    )
+    pool = AsyncPool(Pool(providers[:2], quota=quota, env=env), apost=apost)
+
+    with pytest.raises(AllProvidersExhausted) as exc_info:
+        asyncio.run(pool.achat([{"role": "user", "content": "hi"}]))
+
+    assert exc_info.value.client_status is None
+
+
+def test_async_chat_uses_one_overall_failover_timeout(providers, env, quota):
+    clock = {"now": 0.0}
+    seen: list[float] = []
+
+    async def apost(url, headers, body, timeout):
+        seen.append(timeout)
+        clock["now"] += 40.0
+        return sync_client.HTTPResult(503, {"error": "down"}, "down")
+
+    pool = AsyncPool(
+        Pool(providers[:2], quota=quota, env=env, clock=lambda: clock["now"]),
+        apost=apost,
+    )
+
+    with pytest.raises(AllProvidersExhausted):
+        asyncio.run(pool.achat([{"role": "user", "content": "hi"}], timeout=60.0))
+    assert seen == [60.0, 20.0]
+
+
 def test_async_surfaces_nonretryable_client_error(providers, env, quota):
     apost = _async_post({"test": (400, {"error": {"message": "bad request"}})})
     pool = AsyncPool(Pool(providers, quota=quota, env=env), apost=apost)

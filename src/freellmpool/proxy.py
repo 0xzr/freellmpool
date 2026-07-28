@@ -55,6 +55,11 @@ _MAX_BODY = 16 * 1024 * 1024  # 16 MB cap on request bodies
 # Audio uploads are larger than JSON; Groq's free tier accepts up to 25 MB, so cap audio
 # multipart bodies there rather than at the JSON limit (a valid 20 MB clip must not 413).
 _MAX_AUDIO_BODY = 25 * 1024 * 1024
+# Long-running agent loops regularly spend several minutes in tool-aware reasoning.
+# The OpenCode profile uses the ``agent`` routing alias and a matching ten-minute
+# client deadline; carry that intent through to the actual provider request rather
+# than silently falling back to Pool's generic 90-second default.
+_AGENT_UPSTREAM_TIMEOUT = 540.0  # leave one minute for proxy/client handoff
 # response_format values we forward. srt/vtt aren't accepted by Groq/Mistral's transcription
 # endpoints (they'd fail upstream and surface as a confusing 502), so reject them up front.
 _TRANSCRIPTION_FORMATS = ("json", "text", "verbose_json")
@@ -754,6 +759,9 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     providers=provider_filter,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    timeout=(
+                        _AGENT_UPSTREAM_TIMEOUT if routing_override == "agent" else 90.0
+                    ),
                     tools=tools,
                     tool_choice=tool_choice,
                     routing=routing_override,
@@ -830,6 +838,9 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     providers=provider_filter,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    timeout=(
+                        _AGENT_UPSTREAM_TIMEOUT if routing_override == "agent" else 90.0
+                    ),
                     routing=routing_override,
                 )
                 meta = next(gen)  # provider/model chosen, or raises before any bytes

@@ -85,7 +85,7 @@ def test_opencode_jail_defaults_to_agent_route_with_long_stream_timeouts() -> No
 
     assert "OPENCODE_FP_MODEL:-freellmpool/agent" in script
     assert '"agent":' in script
-    assert '"headerTimeout": 60000' in script
+    assert '"headerTimeout": 600000' in script
     assert '"timeout": 600000' in script
     assert '"chunkTimeout": 120000' in script
 

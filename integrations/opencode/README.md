@@ -77,7 +77,7 @@ routing aliases as models so you can pick them:
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "http://localhost:8080/v1",
-        "headerTimeout": 60000,
+        "headerTimeout": 600000,
         "timeout": 600000,
         "chunkTimeout": 120000
       },

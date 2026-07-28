@@ -202,7 +202,7 @@ cat > "$IMG_CFG/opencode.jsonc" <<JSON
       "name": "freellmpool (free pool)",
       "options": {
         "baseURL": "$PROXY_URL/v1", "apiKey": "unused",
-        "headerTimeout": 60000, "timeout": 600000, "chunkTimeout": 120000
+        "headerTimeout": 600000, "timeout": 600000, "chunkTimeout": 120000
       },
       "models": {
         "agent":   { "name": "agent (strongest tier + spread)", "tool_call": true, "structured_output": true, "limit": { "context": 128000, "output": 8192 } },

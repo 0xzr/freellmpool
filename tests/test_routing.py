@@ -242,6 +242,36 @@ def test_agent_stays_in_strongest_capability_tier_and_spreads_usage(
     assert spread.index("frontier-a") < spread.index("medium")
 
 
+def test_agent_spreads_by_provider_not_catalog_width(monkeypatch, quota):
+    """A provider must not earn extra traffic merely by listing more models."""
+    monkeypatch.setattr("freellmpool.router.capability_table", lambda: {})
+    monkeypatch.setattr("freellmpool.router.model_capability", lambda _name, _table: 0.99)
+    wide = Provider(
+        id="wide",
+        label="Wide",
+        adapter="openai",
+        base_url="https://wide.test/v1",
+        auth="none",
+        models=(Model("wide-a"), Model("wide-b"), Model("wide-c")),
+    )
+    narrow = Provider(
+        id="narrow",
+        label="Narrow",
+        adapter="openai",
+        base_url="https://narrow.test/v1",
+        auth="none",
+        models=(Model("narrow-a"),),
+    )
+    for model in wide.models:
+        quota.record("wide", model.name, 7)
+    quota.record("narrow", "narrow-a", 7)
+
+    pool = Pool([wide, narrow], quota=quota, env={})
+    order = pool._order(pool._all_targets(), routing="agent")
+
+    assert order[0].provider.id == "narrow"
+
+
 def test_quality_over_budget_model_sinks(tmp_path, monkeypatch, quota):
     pool = _quality_pool(
         tmp_path,

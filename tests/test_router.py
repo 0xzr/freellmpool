@@ -157,6 +157,56 @@ def test_stream_chat_failover_before_first_byte(providers, env, quota):
     assert "".join(gen) == "ok"
 
 
+def test_stream_chat_account_quota_skips_provider_catalog_and_backs_off(
+    providers, env, quota
+):
+    sp = make_stream_post(
+        {
+            "alpha.test": (402, ["You have depleted your monthly included credits."]),
+            "beta.test": (200, ["ok"]),
+        }
+    )
+    pool = Pool(providers[:2], quota=quota, env=env, stream_post=sp)
+    messages = [{"role": "user", "content": "hi"}]
+
+    first = pool.stream_chat(messages)
+    assert next(first)["provider"] == "beta"
+    assert "".join(first) == "ok"
+    assert sum("alpha.test" in call["url"] for call in sp.calls) == 1
+    assert pool.cooldown_snapshot(pool._clock())["alpha"] > 0
+
+    sp.calls.clear()
+    second = pool.stream_chat(messages)
+    assert next(second)["provider"] == "beta"
+    assert "beta.test" in sp.calls[0]["url"]
+
+
+def test_stream_chat_uses_one_overall_failover_timeout(providers, env, quota):
+    clock = {"now": 0.0}
+    seen: list[float] = []
+
+    def stream_post(url, headers, body, timeout):
+        seen.append(timeout)
+        clock["now"] += 40.0
+        return 503, iter(())
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        stream_post=stream_post,
+        clock=lambda: clock["now"],
+    )
+    gen = pool.stream_chat(
+        [{"role": "user", "content": "hi"}],
+        timeout=60.0,
+    )
+
+    with pytest.raises(AllProvidersExhausted):
+        next(gen)
+    assert seen == [60.0, 20.0]
+
+
 def test_stream_chat_skips_gemini(providers, env, quota):
     # 'gee' is a gemini-adapter provider → excluded from streaming
     sp = make_stream_post({})

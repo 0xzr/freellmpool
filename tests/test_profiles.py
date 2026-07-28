@@ -75,7 +75,7 @@ def test_opencode_profile_defaults_to_long_running_agent_route_and_timeouts():
     assert profile.model_family == "agent"
     assert config["model"] == "freellmpool/agent"
     assert "agent" in provider["models"]
-    assert provider["options"]["headerTimeout"] >= 60_000
+    assert provider["options"]["headerTimeout"] >= 600_000
     assert provider["options"]["timeout"] >= 600_000
     assert provider["options"]["chunkTimeout"] >= 60_000
 
