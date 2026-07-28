@@ -30,6 +30,9 @@ def test_normalize_collapses_variants_and_strips_vendor():
         ("morph/morph-glm52-744b", "glm-5.2"),
         ("morph/morph-minimax3-428b", "minimax-m3"),
         ("morph/morph-dsv4flash", "deepseek-v4-flash"),
+        ("cloudflare/@cf/moonshotai/kimi-k2.7-code", "kimi-k2.6"),
+        ("huggingface/Qwen/Qwen3.6-27B", "qwen3-30b-a3b"),
+        ("huggingface/Qwen/Qwen3.6-35B-A3B", "qwen3-30b-a3b"),
     ],
 )
 def test_normalize_current_provider_vendor_aliases(catalog_name, benchmark_name):
@@ -41,6 +44,26 @@ def test_bundled_scores_include_current_artificial_analysis_frontier_models():
     assert scores["glm-5.2"] > scores["mimo-v2.5-pro"]
     assert scores["minimax-m3"] == scores["deepseek-v4-pro"]
     assert scores["kimi-k2.6"] == scores["minimax-m3"]
+
+
+def test_current_agent_models_use_researched_capability_tiers():
+    table = c.capability_table()
+    assert c.model_capability("@cf/moonshotai/kimi-k2.7-code", table) >= 0.95
+    assert c.model_capability("Qwen/Qwen3.6-35B-A3B", table) == c.model_capability(
+        "Qwen/Qwen3-30B-A3B", table
+    )
+
+
+def test_model_capability_preserves_direct_synced_score_before_alias():
+    table = {
+        "qwen3.6-35b-a3b": 0.9041,
+        "qwen3-30b-a3b": 0.3536,
+    }
+
+    assert c.model_capability("Qwen/Qwen3.6-35B-A3B", table) == 0.9041
+    assert c.model_capability(
+        "Qwen/Qwen3.6-27B", {"qwen3-30b-a3b": 0.3536}
+    ) == 0.3536
 
 
 def test_heuristic_orders_by_size_and_keywords():

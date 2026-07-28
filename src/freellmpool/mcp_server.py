@@ -56,7 +56,7 @@ from .recipes import (
 )
 from .roles import format_roles, valid_roles
 from .router import Pool
-from .routing_modes import routing_override
+from .routing_modes import PUBLIC_ROUTING_ALIASES, routing_override
 from .tailnet import (
     detect_tailnet,
     format_setup_hints,
@@ -111,8 +111,8 @@ TOOLS = [
                 },
                 "routing": {
                     "type": "string",
-                    "enum": ["auto", "fast", "quality", "fair", "spread"],
-                    "description": "How to pick the model: quality (best capable model for the prompt), fast (lowest latency), fair (spread quota), or auto (server default).",
+                    "enum": list(PUBLIC_ROUTING_ALIASES),
+                    "description": "How to pick the model: agent (strongest healthy tier with quota spreading), quality (capability matched to prompt), spread (whole-pool breadth), fast (lowest latency), fair (provider balance), or auto (server default).",
                 },
                 "max_tokens": {
                     "type": "integer",
@@ -148,7 +148,7 @@ TOOLS = [
                 },
                 "routing": {
                     "type": "string",
-                    "enum": ["auto", "fast", "quality", "fair", "spread"],
+                    "enum": list(PUBLIC_ROUTING_ALIASES),
                     "description": "How to rank candidate panel models (default: quality).",
                 },
                 "max_tokens": {
@@ -186,7 +186,7 @@ TOOLS = [
                 },
                 "routing": {
                     "type": "string",
-                    "enum": ["auto", "fast", "quality", "fair", "spread"],
+                    "enum": list(PUBLIC_ROUTING_ALIASES),
                     "description": "How to rank candidate panel models (default: quality).",
                 },
                 "max_tokens": {
@@ -222,7 +222,7 @@ TOOLS = [
                 },
                 "routing": {
                     "type": "string",
-                    "enum": ["auto", "fast", "quality", "fair", "spread"],
+                    "enum": list(PUBLIC_ROUTING_ALIASES),
                     "description": "How to rank candidate panel models (default: quality).",
                 },
                 "max_tokens": {
@@ -373,7 +373,7 @@ TOOLS = [
                 "prompt": {"type": "string", "description": "The prompt to analyze."},
                 "routing": {
                     "type": "string",
-                    "enum": ["auto", "fast", "quality", "fair", "spread"],
+                    "enum": list(PUBLIC_ROUTING_ALIASES),
                     "description": "Routing mode to explain (default: the server's mode).",
                 },
             },
@@ -780,7 +780,7 @@ def _tool_route(pool: Pool, args: dict) -> dict:
         f"routing mode: {routing}",
         f"estimated prompt difficulty: {difficulty:.2f}  (0 = trivial, 1 = hardest)",
         "",
-        f"top candidates (in failover order){' — strongest-fit first' if routing == 'quality' else ''}:",
+        f"top candidates (in failover order){' — strongest-tier first' if routing == 'agent' else ' — strongest-fit first' if routing == 'quality' else ''}:",
     ]
     for i, t in enumerate(targets[:8], 1):
         cap = model_capability(t.model, table)

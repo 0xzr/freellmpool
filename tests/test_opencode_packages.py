@@ -78,6 +78,18 @@ def test_opencode_packages_use_the_proxy_default_and_current_command() -> None:
     assert "freellmpool proxy" in combined
 
 
+def test_opencode_jail_defaults_to_agent_route_with_long_stream_timeouts() -> None:
+    script = (
+        ROOT / "integrations" / "opencode-jail" / "opencode-freellmpool-jailed.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "OPENCODE_FP_MODEL:-freellmpool/agent" in script
+    assert '"agent":' in script
+    assert '"headerTimeout": 600000' in script
+    assert '"timeout": 600000' in script
+    assert '"chunkTimeout": 120000' in script
+
+
 def test_opencode_tui_distinguishes_proxy_failures() -> None:
     source = (ROOT / "integrations" / "opencode-tui" / "index.tsx").read_text(encoding="utf-8")
     assert 'AUTH_REQUIRED: "auth_required"' in source

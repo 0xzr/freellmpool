@@ -1,0 +1,3584 @@
+{
+  "generated_at": "2026-07-28T12:22:14.171953+00:00",
+  "method": "GitHub code search via authenticated gh CLI; deduplicated by Git blob SHA; Git blob API fetch; base64 decode; case-insensitive term screen",
+  "queries": [
+    {
+      "query": "GLM-5.2 in:file",
+      "category": "model",
+      "requested": 30,
+      "returned": 30
+    },
+    {
+      "query": "Kimi-K2.7 in:file",
+      "category": "model",
+      "requested": 30,
+      "returned": 30
+    },
+    {
+      "query": "MiniMax-M3 in:file",
+      "category": "model",
+      "requested": 30,
+      "returned": 30
+    },
+    {
+      "query": "Qwen3.6 in:file",
+      "category": "model",
+      "requested": 30,
+      "returned": 30
+    },
+    {
+      "query": "headerTimeout in:file",
+      "category": "runtime",
+      "requested": 20,
+      "returned": 20
+    },
+    {
+      "query": "chunkTimeout in:file",
+      "category": "runtime",
+      "requested": 20,
+      "returned": 20
+    },
+    {
+      "query": "opencode provider registry in:file",
+      "category": "runtime",
+      "requested": 20,
+      "returned": 20
+    },
+    {
+      "query": "opencode openai-compatible in:file",
+      "category": "runtime",
+      "requested": 20,
+      "returned": 20
+    },
+    {
+      "query": "models.dev provider in:file",
+      "category": "runtime",
+      "requested": 20,
+      "returned": 20
+    }
+  ],
+  "successful_blob_count": 207,
+  "failed_blob_count": 0,
+  "sources": [
+    {
+      "repository": "0xSero/glm-5.2-sm120",
+      "path": "README.md",
+      "commit_sha": "579d78b14112198f57aa141332328a79ab02c5a5",
+      "blob_sha": "fcc7eac45fbda7bc4e3496d05285a1d4d2825e64",
+      "bytes": 10253,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/0xSero/glm-5.2-sm120/blob/579d78b14112198f57aa141332328a79ab02c5a5/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1273059507/git/blobs/fcc7eac45fbda7bc4e3496d05285a1d4d2825e64",
+      "contents_api_url": "https://api.github.com/repositories/1273059507/contents/README.md?ref=579d78b14112198f57aa141332328a79ab02c5a5"
+    },
+    {
+      "repository": "0xSojalSec/LLMs-local",
+      "path": "README.md",
+      "commit_sha": "787ecb36937e27b252bc35043d91715e3471bae8",
+      "blob_sha": "69838df989d35b69b3c52c208936ce58e52157ad",
+      "bytes": 53878,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/0xSojalSec/LLMs-local/blob/787ecb36937e27b252bc35043d91715e3471bae8/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1118133888/git/blobs/69838df989d35b69b3c52c208936ce58e52157ad",
+      "contents_api_url": "https://api.github.com/repositories/1118133888/contents/README.md?ref=787ecb36937e27b252bc35043d91715e3471bae8"
+    },
+    {
+      "repository": "602387193c/ComfyUI-wiki",
+      "path": "README.md",
+      "commit_sha": "ff9ea9e26cb732e647a64b5958f7e31960cae594",
+      "blob_sha": "893c9ac46f5158a20b8e102d07a0ab677ec64fd5",
+      "bytes": 67707,
+      "matched_queries": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/602387193c/ComfyUI-wiki/blob/ff9ea9e26cb732e647a64b5958f7e31960cae594/README.md",
+      "blob_api_url": "https://api.github.com/repositories/773748469/git/blobs/893c9ac46f5158a20b8e102d07a0ab677ec64fd5",
+      "contents_api_url": "https://api.github.com/repositories/773748469/contents/README.md?ref=ff9ea9e26cb732e647a64b5958f7e31960cae594"
+    },
+    {
+      "repository": "ahastudio/til",
+      "path": "llm/hy3.md",
+      "commit_sha": "e58cbaf3cef0c151a924a4f5c36ac7975280dc96",
+      "blob_sha": "e11356787564e2afd0f2c3a5c9e06c6e585a923b",
+      "bytes": 15121,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/ahastudio/til/blob/e58cbaf3cef0c151a924a4f5c36ac7975280dc96/llm/hy3.md",
+      "blob_api_url": "https://api.github.com/repositories/43975064/git/blobs/e11356787564e2afd0f2c3a5c9e06c6e585a923b",
+      "contents_api_url": "https://api.github.com/repositories/43975064/contents/llm/hy3.md?ref=e58cbaf3cef0c151a924a4f5c36ac7975280dc96"
+    },
+    {
+      "repository": "aiqinxuancai/AutoLinker",
+      "path": "CONFIG.md",
+      "commit_sha": "3e71ddb298a5577c60bb87c9e4ba98bd72c6a76a",
+      "blob_sha": "96479bc5662374c5c609b48d5c7d0f2e5b425f7a",
+      "bytes": 7608,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/aiqinxuancai/AutoLinker/blob/3e71ddb298a5577c60bb87c9e4ba98bd72c6a76a/CONFIG.md",
+      "blob_api_url": "https://api.github.com/repositories/702043608/git/blobs/96479bc5662374c5c609b48d5c7d0f2e5b425f7a",
+      "contents_api_url": "https://api.github.com/repositories/702043608/contents/CONFIG.md?ref=3e71ddb298a5577c60bb87c9e4ba98bd72c6a76a"
+    },
+    {
+      "repository": "aisingapore/sealion",
+      "path": "README.md",
+      "commit_sha": "d75f7923db666f266e4dd95b49161a2a1a9a0e5c",
+      "blob_sha": "5f24a3fb831b14bb804440ddcc292cf6bfa0f1c2",
+      "bytes": 12140,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/aisingapore/sealion/blob/d75f7923db666f266e4dd95b49161a2a1a9a0e5c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/712243573/git/blobs/5f24a3fb831b14bb804440ddcc292cf6bfa0f1c2",
+      "contents_api_url": "https://api.github.com/repositories/712243573/contents/README.md?ref=d75f7923db666f266e4dd95b49161a2a1a9a0e5c"
+    },
+    {
+      "repository": "akitaonrails/llm-coding-benchmark",
+      "path": "CLAUDE.md",
+      "commit_sha": "b8559a92ebe327d2385a6e6525c0a60abb83c4d4",
+      "blob_sha": "8420e255b820e8d6a3071e7a1767abbeb13a89d1",
+      "bytes": 15039,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/akitaonrails/llm-coding-benchmark/blob/b8559a92ebe327d2385a6e6525c0a60abb83c4d4/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1202063755/git/blobs/8420e255b820e8d6a3071e7a1767abbeb13a89d1",
+      "contents_api_url": "https://api.github.com/repositories/1202063755/contents/CLAUDE.md?ref=b8559a92ebe327d2385a6e6525c0a60abb83c4d4"
+    },
+    {
+      "repository": "akitaonrails/llm-coding-benchmark",
+      "path": "llama.md",
+      "commit_sha": "b8559a92ebe327d2385a6e6525c0a60abb83c4d4",
+      "blob_sha": "8e172ab81b5e6db097c03116aa013542f6d52aa3",
+      "bytes": 3214,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/akitaonrails/llm-coding-benchmark/blob/b8559a92ebe327d2385a6e6525c0a60abb83c4d4/llama.md",
+      "blob_api_url": "https://api.github.com/repositories/1202063755/git/blobs/8e172ab81b5e6db097c03116aa013542f6d52aa3",
+      "contents_api_url": "https://api.github.com/repositories/1202063755/contents/llama.md?ref=b8559a92ebe327d2385a6e6525c0a60abb83c4d4"
+    },
+    {
+      "repository": "Alph4d0g/opencode-omniroute-auth",
+      "path": "AGENTS.md",
+      "commit_sha": "b23df26f9b3153e8e6423175434ff4e14879c853",
+      "blob_sha": "95fdcf8a65ac61f96fa1d635d0c10ba15b4cc30b",
+      "bytes": 7879,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Alph4d0g/opencode-omniroute-auth/blob/b23df26f9b3153e8e6423175434ff4e14879c853/AGENTS.md",
+      "blob_api_url": "https://api.github.com/repositories/1168301589/git/blobs/95fdcf8a65ac61f96fa1d635d0c10ba15b4cc30b",
+      "contents_api_url": "https://api.github.com/repositories/1168301589/contents/AGENTS.md?ref=b23df26f9b3153e8e6423175434ff4e14879c853"
+    },
+    {
+      "repository": "andthattoo/structured-cot",
+      "path": "README.md",
+      "commit_sha": "9aee3de6689164781b438ff30f42369f2e8f74d0",
+      "blob_sha": "aca595b8bbfa9301b934e743c5bfad343cdfea09",
+      "bytes": 12648,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/andthattoo/structured-cot/blob/9aee3de6689164781b438ff30f42369f2e8f74d0/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1219447575/git/blobs/aca595b8bbfa9301b934e743c5bfad343cdfea09",
+      "contents_api_url": "https://api.github.com/repositories/1219447575/contents/README.md?ref=9aee3de6689164781b438ff30f42369f2e8f74d0"
+    },
+    {
+      "repository": "antonbabenko/terraform-skill",
+      "path": "README.md",
+      "commit_sha": "0a3a4a66e99001347d36a41e10260a825be3ab62",
+      "blob_sha": "1ac8902a9f2db5f866f1607b8661661489acb20d",
+      "bytes": 15553,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/antonbabenko/terraform-skill/blob/0a3a4a66e99001347d36a41e10260a825be3ab62/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1135169266/git/blobs/1ac8902a9f2db5f866f1607b8661661489acb20d",
+      "contents_api_url": "https://api.github.com/repositories/1135169266/contents/README.md?ref=0a3a4a66e99001347d36a41e10260a825be3ab62"
+    },
+    {
+      "repository": "AntonKluge/open-code-action",
+      "path": "README.md",
+      "commit_sha": "46aa32da97f7c522d336dfe9bab82d0abe4c484a",
+      "blob_sha": "a3ea6da5ba096aa7e66ea126c1610d5a9bd8a79b",
+      "bytes": 6722,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/AntonKluge/open-code-action/blob/46aa32da97f7c522d336dfe9bab82d0abe4c484a/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1134968105/git/blobs/a3ea6da5ba096aa7e66ea126c1610d5a9bd8a79b",
+      "contents_api_url": "https://api.github.com/repositories/1134968105/contents/README.md?ref=46aa32da97f7c522d336dfe9bab82d0abe4c484a"
+    },
+    {
+      "repository": "atlassian/gostatsd",
+      "path": "TRANSPORT.md",
+      "commit_sha": "3f8f762e40df2d9f720cd96cf4bd39b65f81a24d",
+      "blob_sha": "35b4e3df7bda8a858e6f326d0bff56d5cc7a8211",
+      "bytes": 3106,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/atlassian/gostatsd/blob/3f8f762e40df2d9f720cd96cf4bd39b65f81a24d/TRANSPORT.md",
+      "blob_api_url": "https://api.github.com/repositories/55813517/git/blobs/35b4e3df7bda8a858e6f326d0bff56d5cc7a8211",
+      "contents_api_url": "https://api.github.com/repositories/55813517/contents/TRANSPORT.md?ref=3f8f762e40df2d9f720cd96cf4bd39b65f81a24d"
+    },
+    {
+      "repository": "awesome-opencode/awesome-opencode",
+      "path": "README.md",
+      "commit_sha": "bcc5c03cec19789b45ef9af4a969e3fe3fd7431b",
+      "blob_sha": "ef1de85bcff7773fc64f281669243368f9f595bc",
+      "bytes": 122524,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/awesome-opencode/awesome-opencode/blob/bcc5c03cec19789b45ef9af4a969e3fe3fd7431b/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1061458721/git/blobs/ef1de85bcff7773fc64f281669243368f9f595bc",
+      "contents_api_url": "https://api.github.com/repositories/1061458721/contents/README.md?ref=bcc5c03cec19789b45ef9af4a969e3fe3fd7431b"
+    },
+    {
+      "repository": "Azure/feast-azure",
+      "path": "README.md",
+      "commit_sha": "0ed394963398cc7dd3dda8a78560eaa56921a23b",
+      "blob_sha": "9cbd8ccba074f8e5e97ec27e61a73a54ae5ab2d7",
+      "bytes": 4586,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Azure/feast-azure/blob/0ed394963398cc7dd3dda8a78560eaa56921a23b/README.md",
+      "blob_api_url": "https://api.github.com/repositories/411756720/git/blobs/9cbd8ccba074f8e5e97ec27e61a73a54ae5ab2d7",
+      "contents_api_url": "https://api.github.com/repositories/411756720/contents/README.md?ref=0ed394963398cc7dd3dda8a78560eaa56921a23b"
+    },
+    {
+      "repository": "baranwang/opencode-provider-alias",
+      "path": "README.md",
+      "commit_sha": "39e1365001a37ad863198147999f2721811f2a0d",
+      "blob_sha": "77a54e9f10638882bc5c1a1c6d28dd2c98b22a8e",
+      "bytes": 4711,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/baranwang/opencode-provider-alias/blob/39e1365001a37ad863198147999f2721811f2a0d/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1220666408/git/blobs/77a54e9f10638882bc5c1a1c6d28dd2c98b22a8e",
+      "contents_api_url": "https://api.github.com/repositories/1220666408/contents/README.md?ref=39e1365001a37ad863198147999f2721811f2a0d"
+    },
+    {
+      "repository": "baranwang/opencode-provider-alias",
+      "path": "README.zh-CN.md",
+      "commit_sha": "39e1365001a37ad863198147999f2721811f2a0d",
+      "blob_sha": "ee46883c12d99cf4c94aef2cc963dd33b5470b89",
+      "bytes": 4697,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/baranwang/opencode-provider-alias/blob/39e1365001a37ad863198147999f2721811f2a0d/README.zh-CN.md",
+      "blob_api_url": "https://api.github.com/repositories/1220666408/git/blobs/ee46883c12d99cf4c94aef2cc963dd33b5470b89",
+      "contents_api_url": "https://api.github.com/repositories/1220666408/contents/README.zh-CN.md?ref=39e1365001a37ad863198147999f2721811f2a0d"
+    },
+    {
+      "repository": "BayramAnnakov/retain",
+      "path": "CLAUDE.md",
+      "commit_sha": "7604bdfe9b7ee604514364465ce7605b8d0c095f",
+      "blob_sha": "150e068da02a6f50c3da0073d643f7362ff1d308",
+      "bytes": 15110,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/BayramAnnakov/retain/blob/7604bdfe9b7ee604514364465ce7605b8d0c095f/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1128636956/git/blobs/150e068da02a6f50c3da0073d643f7362ff1d308",
+      "contents_api_url": "https://api.github.com/repositories/1128636956/contents/CLAUDE.md?ref=7604bdfe9b7ee604514364465ce7605b8d0c095f"
+    },
+    {
+      "repository": "bcurts/agentchattr",
+      "path": "README.md",
+      "commit_sha": "c24f605c9b24fb7a98003f7930e2d5e7a7f7d297",
+      "blob_sha": "3848361bed2f4660e46589b93b4b61919e9ad30a",
+      "bytes": 36683,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/bcurts/agentchattr/blob/c24f605c9b24fb7a98003f7930e2d5e7a7f7d297/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1167859863/git/blobs/3848361bed2f4660e46589b93b4b61919e9ad30a",
+      "contents_api_url": "https://api.github.com/repositories/1167859863/contents/README.md?ref=c24f605c9b24fb7a98003f7930e2d5e7a7f7d297"
+    },
+    {
+      "repository": "bingoohuang/gou",
+      "path": "io/nbreader/nbreader.go",
+      "commit_sha": "4873089fc9df3041ccd566e75feb730bccc9ace5",
+      "blob_sha": "93415006c9cf25665bfaf9bbc4095d75639536b4",
+      "bytes": 4049,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/bingoohuang/gou/blob/4873089fc9df3041ccd566e75feb730bccc9ace5/io/nbreader/nbreader.go",
+      "blob_api_url": "https://api.github.com/repositories/123451408/git/blobs/93415006c9cf25665bfaf9bbc4095d75639536b4",
+      "contents_api_url": "https://api.github.com/repositories/123451408/contents/io/nbreader/nbreader.go?ref=4873089fc9df3041ccd566e75feb730bccc9ace5"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "en/2026/2026-06-13.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "c30dbdf0305150eae275ffe6d9f902ace6782195",
+      "bytes": 46229,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/en/2026/2026-06-13.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/c30dbdf0305150eae275ffe6d9f902ace6782195",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/en/2026/2026-06-13.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "en/2026/2026-06-14.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "b991e8f70dd49264ca54b46c4ea958c5ad3532da",
+      "bytes": 45198,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/en/2026/2026-06-14.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/b991e8f70dd49264ca54b46c4ea958c5ad3532da",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/en/2026/2026-06-14.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "en/2026/2026-06-15.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "f1ebdb7099b7c5fd24694c2afd56b74b32dac03e",
+      "bytes": 46494,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/en/2026/2026-06-15.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/f1ebdb7099b7c5fd24694c2afd56b74b32dac03e",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/en/2026/2026-06-15.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "en/2026/2026-06-16.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "82907a6578790568fb182d646ad00c9c69cc3695",
+      "bytes": 48289,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "Qwen3.6",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/en/2026/2026-06-16.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/82907a6578790568fb182d646ad00c9c69cc3695",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/en/2026/2026-06-16.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "en/2026/2026-06-17.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "29b6453f1820d0bd6135a9fbcdb07f4fabd62ef4",
+      "bytes": 50616,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/en/2026/2026-06-17.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/29b6453f1820d0bd6135a9fbcdb07f4fabd62ef4",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/en/2026/2026-06-17.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "zh/2026/2026-06-13.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "04cb160ff6513abe72af99d7f800bdc9dabdbe45",
+      "bytes": 45578,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/zh/2026/2026-06-13.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/04cb160ff6513abe72af99d7f800bdc9dabdbe45",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/zh/2026/2026-06-13.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "zh/2026/2026-06-14.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "dd00bf4df9ee90cf743a08c4bb3757780c9508a9",
+      "bytes": 44127,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/zh/2026/2026-06-14.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/dd00bf4df9ee90cf743a08c4bb3757780c9508a9",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/zh/2026/2026-06-14.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "zh/2026/2026-06-15.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "fed3f02a29d6cfb6d53c3966afc2900a6edaac46",
+      "bytes": 45045,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/zh/2026/2026-06-15.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/fed3f02a29d6cfb6d53c3966afc2900a6edaac46",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/zh/2026/2026-06-15.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "BuilderPulse/BuilderPulse",
+      "path": "zh/2026/2026-06-17.md",
+      "commit_sha": "d3cb88e19be9d318e704852370bd6224f9862343",
+      "blob_sha": "63fee4056d87c743c76c1b1f67722d8c86df1485",
+      "bytes": 48179,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/BuilderPulse/BuilderPulse/blob/d3cb88e19be9d318e704852370bd6224f9862343/zh/2026/2026-06-17.md",
+      "blob_api_url": "https://api.github.com/repositories/1210412315/git/blobs/63fee4056d87c743c76c1b1f67722d8c86df1485",
+      "contents_api_url": "https://api.github.com/repositories/1210412315/contents/zh/2026/2026-06-17.md?ref=d3cb88e19be9d318e704852370bd6224f9862343"
+    },
+    {
+      "repository": "caolib/find-models",
+      "path": "docs/models.dev.md",
+      "commit_sha": "d87e8d9e86e36338aad0a077bb7a22dcfaa31b65",
+      "blob_sha": "b9b01324ebe789222ca326807180cab787425eff",
+      "bytes": 13056,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/caolib/find-models/blob/d87e8d9e86e36338aad0a077bb7a22dcfaa31b65/docs/models.dev.md",
+      "blob_api_url": "https://api.github.com/repositories/1299124235/git/blobs/b9b01324ebe789222ca326807180cab787425eff",
+      "contents_api_url": "https://api.github.com/repositories/1299124235/contents/docs/models.dev.md?ref=d87e8d9e86e36338aad0a077bb7a22dcfaa31b65"
+    },
+    {
+      "repository": "cch123/golang-notes",
+      "path": "v2ray/process.md",
+      "commit_sha": "354f9e43a55c173f85c03dd07f5de186a6c89c51",
+      "blob_sha": "628af088cb2fd8decba9b4356f1bb48dbb9530a8",
+      "bytes": 9083,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/cch123/golang-notes/blob/354f9e43a55c173f85c03dd07f5de186a6c89c51/v2ray/process.md",
+      "blob_api_url": "https://api.github.com/repositories/128011041/git/blobs/628af088cb2fd8decba9b4356f1bb48dbb9530a8",
+      "contents_api_url": "https://api.github.com/repositories/128011041/contents/v2ray/process.md?ref=354f9e43a55c173f85c03dd07f5de186a6c89c51"
+    },
+    {
+      "repository": "cclank/Hermes-Wiki",
+      "path": "README.md",
+      "commit_sha": "e3034c54e5b59547f08a3cfd43ed3d102a16aa0d",
+      "blob_sha": "c250ee916521be76b072f4f8b31ca8dfe0fc99aa",
+      "bytes": 233701,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "Qwen3.6",
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cclank/Hermes-Wiki/blob/e3034c54e5b59547f08a3cfd43ed3d102a16aa0d/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1204368062/git/blobs/c250ee916521be76b072f4f8b31ca8dfe0fc99aa",
+      "contents_api_url": "https://api.github.com/repositories/1204368062/contents/README.md?ref=e3034c54e5b59547f08a3cfd43ed3d102a16aa0d"
+    },
+    {
+      "repository": "chenyu116/request",
+      "path": "conf.go",
+      "commit_sha": "2a3f7e617399e2d0ba2b98e8171b5793f0791fa7",
+      "blob_sha": "dbcc2bdce0f4a298b3d9ae7a3fad18844c17ac5b",
+      "bytes": 1937,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/chenyu116/request/blob/2a3f7e617399e2d0ba2b98e8171b5793f0791fa7/conf.go",
+      "blob_api_url": "https://api.github.com/repositories/373032012/git/blobs/dbcc2bdce0f4a298b3d9ae7a3fad18844c17ac5b",
+      "contents_api_url": "https://api.github.com/repositories/373032012/contents/conf.go?ref=2a3f7e617399e2d0ba2b98e8171b5793f0791fa7"
+    },
+    {
+      "repository": "ciouskeila-hue/cybercode-cli",
+      "path": "README.md",
+      "commit_sha": "5cbb7469fe6331c13c421f89378f7cf4879f2082",
+      "blob_sha": "a187df8528f737969876c294f09715e8daf2b6d2",
+      "bytes": 19389,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/ciouskeila-hue/cybercode-cli/blob/5cbb7469fe6331c13c421f89378f7cf4879f2082/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1279240581/git/blobs/a187df8528f737969876c294f09715e8daf2b6d2",
+      "contents_api_url": "https://api.github.com/repositories/1279240581/contents/README.md?ref=5cbb7469fe6331c13c421f89378f7cf4879f2082"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "design/chat-api.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "562fca42b0190e740c7f4e086930cebc5dea44dd",
+      "bytes": 44145,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/design/chat-api.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/562fca42b0190e740c7f4e086930cebc5dea44dd",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/design/chat-api.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "design/think-sessions.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "34e4b545c1952b76e61b5587953af6b71ba18160",
+      "bytes": 40151,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/design/think-sessions.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/34e4b545c1952b76e61b5587953af6b71ba18160",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/design/think-sessions.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "docs/agents/codemode.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "e313f175f0eae98a97c0a0549afbeece5328d058",
+      "bytes": 15524,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/docs/agents/codemode.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/e313f175f0eae98a97c0a0549afbeece5328d058",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/docs/agents/codemode.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "docs/think/workflows.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "51e6587ed8280b5caa37be71e00221b7b36722ba",
+      "bytes": 8124,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/docs/think/workflows.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/51e6587ed8280b5caa37be71e00221b7b36722ba",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/docs/think/workflows.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "examples/ai-chat/README.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "2add96601bbfc53f0701c94373988ceb2da0ecad",
+      "bytes": 2413,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/examples/ai-chat/README.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/2add96601bbfc53f0701c94373988ceb2da0ecad",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/examples/ai-chat/README.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "experimental/voice.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "9cc54e476bbb1cde7a04f9f0cae3174b29cf3bc8",
+      "bytes": 26168,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/experimental/voice.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/9cc54e476bbb1cde7a04f9f0cae3174b29cf3bc8",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/experimental/voice.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "ideas/messengers.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "af45be3018e514fd4002658d71f59e04c7c4a107",
+      "bytes": 22303,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/ideas/messengers.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/af45be3018e514fd4002658d71f59e04c7c4a107",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/ideas/messengers.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "cloudflare/agents",
+      "path": "ideas/voice.md",
+      "commit_sha": "f089c5b6a13f98ad728f9c9cb9d729469b945233",
+      "blob_sha": "d7d2f2cae0791d4654bca95a0e5adeddebff5a49",
+      "bytes": 41951,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/ideas/voice.md",
+      "blob_api_url": "https://api.github.com/repositories/924394244/git/blobs/d7d2f2cae0791d4654bca95a0e5adeddebff5a49",
+      "contents_api_url": "https://api.github.com/repositories/924394244/contents/ideas/voice.md?ref=f089c5b6a13f98ad728f9c9cb9d729469b945233"
+    },
+    {
+      "repository": "CodeAlta/CodeAlta",
+      "path": "doc/providers.md",
+      "commit_sha": "cd29442fa1b43d32a0e298c9367efc427c0f400e",
+      "blob_sha": "0b0fb45c12503c14b7c1ff1bd347f6d7e56ff372",
+      "bytes": 22726,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/CodeAlta/CodeAlta/blob/cd29442fa1b43d32a0e298c9367efc427c0f400e/doc/providers.md",
+      "blob_api_url": "https://api.github.com/repositories/1166995215/git/blobs/0b0fb45c12503c14b7c1ff1bd347f6d7e56ff372",
+      "contents_api_url": "https://api.github.com/repositories/1166995215/contents/doc/providers.md?ref=cd29442fa1b43d32a0e298c9367efc427c0f400e"
+    },
+    {
+      "repository": "cyberpapiii/chipotlai-max",
+      "path": "README.md",
+      "commit_sha": "ba3ec39919621b73a732fce530c9f0b10fb4244b",
+      "blob_sha": "e07428b3cda16ebe06814771ce53b3d2b7e24c65",
+      "bytes": 4234,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/cyberpapiii/chipotlai-max/blob/ba3ec39919621b73a732fce530c9f0b10fb4244b/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1183652402/git/blobs/e07428b3cda16ebe06814771ce53b3d2b7e24c65",
+      "contents_api_url": "https://api.github.com/repositories/1183652402/contents/README.md?ref=ba3ec39919621b73a732fce530c9f0b10fb4244b"
+    },
+    {
+      "repository": "datawhalechina/self-llm",
+      "path": "README.md",
+      "commit_sha": "0932a89b0fd8e7a9844874eceb8ec993d6570d78",
+      "blob_sha": "3e3f9121fb6c4e481bebc2bcaeefd77f9f9ac232",
+      "bytes": 19547,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/datawhalechina/self-llm/blob/0932a89b0fd8e7a9844874eceb8ec993d6570d78/README.md",
+      "blob_api_url": "https://api.github.com/repositories/719367888/git/blobs/3e3f9121fb6c4e481bebc2bcaeefd77f9f9ac232",
+      "contents_api_url": "https://api.github.com/repositories/719367888/contents/README.md?ref=0932a89b0fd8e7a9844874eceb8ec993d6570d78"
+    },
+    {
+      "repository": "DD2497-Project-Group-1/dostroy",
+      "path": "README.md",
+      "commit_sha": "4456fe8177674e0703eed5a96ff4d945aa50c298",
+      "blob_sha": "9dac1abde0cc17f48b1202d40bd12fe4faf5e4fa",
+      "bytes": 3968,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/DD2497-Project-Group-1/dostroy/blob/4456fe8177674e0703eed5a96ff4d945aa50c298/README.md",
+      "blob_api_url": "https://api.github.com/repositories/219016024/git/blobs/9dac1abde0cc17f48b1202d40bd12fe4faf5e4fa",
+      "contents_api_url": "https://api.github.com/repositories/219016024/contents/README.md?ref=4456fe8177674e0703eed5a96ff4d945aa50c298"
+    },
+    {
+      "repository": "DeepMyst/Mysti",
+      "path": "CLAUDE.md",
+      "commit_sha": "6d709229b5199f6769fb3cf763e5122dcc43c079",
+      "blob_sha": "934c811f3d099d0d98e8c552740d10e7fe800d0b",
+      "bytes": 13825,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/DeepMyst/Mysti/blob/6d709229b5199f6769fb3cf763e5122dcc43c079/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1106550266/git/blobs/934c811f3d099d0d98e8c552740d10e7fe800d0b",
+      "contents_api_url": "https://api.github.com/repositories/1106550266/contents/CLAUDE.md?ref=6d709229b5199f6769fb3cf763e5122dcc43c079"
+    },
+    {
+      "repository": "deepreinforce-ai/Ornith-1",
+      "path": "README.md",
+      "commit_sha": "54d9383cf68512bbb94fa501381d240b82860f60",
+      "blob_sha": "70bff75fc30b3771046e7569b32febfee33d3eff",
+      "bytes": 42970,
+      "matched_queries": [
+        "GLM-5.2",
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "Qwen3.6",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/deepreinforce-ai/Ornith-1/blob/54d9383cf68512bbb94fa501381d240b82860f60/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1275806147/git/blobs/70bff75fc30b3771046e7569b32febfee33d3eff",
+      "contents_api_url": "https://api.github.com/repositories/1275806147/contents/README.md?ref=54d9383cf68512bbb94fa501381d240b82860f60"
+    },
+    {
+      "repository": "deepsweet/mlx-eval",
+      "path": "README.md",
+      "commit_sha": "586b12cf4a90565dc31d3cd560d875b347495ffd",
+      "blob_sha": "60eb303df96788dc5411346a1e47591c8c612218",
+      "bytes": 1376,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/deepsweet/mlx-eval/blob/586b12cf4a90565dc31d3cd560d875b347495ffd/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1219256143/git/blobs/60eb303df96788dc5411346a1e47591c8c612218",
+      "contents_api_url": "https://api.github.com/repositories/1219256143/contents/README.md?ref=586b12cf4a90565dc31d3cd560d875b347495ffd"
+    },
+    {
+      "repository": "devfeel/dotweb",
+      "path": "version.MD",
+      "commit_sha": "d5bf658955358d6b4aa98ae6c0c96b1609a3340b",
+      "blob_sha": "6270a2408571e4dec37d2b211aa70ce6c1a5229d",
+      "bytes": 52066,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/devfeel/dotweb/blob/d5bf658955358d6b4aa98ae6c0c96b1609a3340b/version.MD",
+      "blob_api_url": "https://api.github.com/repositories/73269516/git/blobs/6270a2408571e4dec37d2b211aa70ce6c1a5229d",
+      "contents_api_url": "https://api.github.com/repositories/73269516/contents/version.MD?ref=d5bf658955358d6b4aa98ae6c0c96b1609a3340b"
+    },
+    {
+      "repository": "dicey-code/PortScanner",
+      "path": "README.md",
+      "commit_sha": "da345cb938b39f7a2f3c25cd92df408b7d72054a",
+      "blob_sha": "da27967f3331f7fa188fed4f618797531e39748f",
+      "bytes": 3473,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/dicey-code/PortScanner/blob/da345cb938b39f7a2f3c25cd92df408b7d72054a/README.md",
+      "blob_api_url": "https://api.github.com/repositories/954832368/git/blobs/da27967f3331f7fa188fed4f618797531e39748f",
+      "contents_api_url": "https://api.github.com/repositories/954832368/contents/README.md?ref=da345cb938b39f7a2f3c25cd92df408b7d72054a"
+    },
+    {
+      "repository": "dirac-run/dirac",
+      "path": "README.md",
+      "commit_sha": "0699c443f731a3ae956f8c5b99ca66414e23cfef",
+      "blob_sha": "f5e82079b33b5c6aa9b6656ef132e70e03336721",
+      "bytes": 13344,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/dirac-run/dirac/blob/0699c443f731a3ae956f8c5b99ca66414e23cfef/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1202290616/git/blobs/f5e82079b33b5c6aa9b6656ef132e70e03336721",
+      "contents_api_url": "https://api.github.com/repositories/1202290616/contents/README.md?ref=0699c443f731a3ae956f8c5b99ca66414e23cfef"
+    },
+    {
+      "repository": "disler/pi-vs-claude-code",
+      "path": "README.md",
+      "commit_sha": "0ed11f44932fdef29bd98467700019762298f50d",
+      "blob_sha": "8e45fe030dd07797dbc277339f92c4dff064101d",
+      "bytes": 30167,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/disler/pi-vs-claude-code/blob/0ed11f44932fdef29bd98467700019762298f50d/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1162079900/git/blobs/8e45fe030dd07797dbc277339f92c4dff064101d",
+      "contents_api_url": "https://api.github.com/repositories/1162079900/contents/README.md?ref=0ed11f44932fdef29bd98467700019762298f50d"
+    },
+    {
+      "repository": "dk14/2pc",
+      "path": "src/main/scala/org/example/package.scala",
+      "commit_sha": "2db410c2848cabf2867786e8ee7f0f0fd6970a59",
+      "blob_sha": "571d0c9e64876367c7c5c3b27eeceef2f10b061e",
+      "bytes": 3203,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/dk14/2pc/blob/2db410c2848cabf2867786e8ee7f0f0fd6970a59/src/main/scala/org/example/package.scala",
+      "blob_api_url": "https://api.github.com/repositories/24554480/git/blobs/571d0c9e64876367c7c5c3b27eeceef2f10b061e",
+      "contents_api_url": "https://api.github.com/repositories/24554480/contents/src/main/scala/org/example/package.scala?ref=2db410c2848cabf2867786e8ee7f0f0fd6970a59"
+    },
+    {
+      "repository": "elastic/go-elasticsearch",
+      "path": "doc.go",
+      "commit_sha": "fc5a7d5304ee6ee099937676d8088a6d6d977759",
+      "blob_sha": "cc93292143d84134fd538c45b88a11d8e26ec99d",
+      "bytes": 2317,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/elastic/go-elasticsearch/blob/fc5a7d5304ee6ee099937676d8088a6d6d977759/doc.go",
+      "blob_api_url": "https://api.github.com/repositories/86367047/git/blobs/cc93292143d84134fd538c45b88a11d8e26ec99d",
+      "contents_api_url": "https://api.github.com/repositories/86367047/contents/doc.go?ref=fc5a7d5304ee6ee099937676d8088a6d6d977759"
+    },
+    {
+      "repository": "ellipticmarketing/modelrelay",
+      "path": "README.md",
+      "commit_sha": "2634eebe9cae0b3e7aea60e42d39f196306ed7c0",
+      "blob_sha": "e4bce4e8f59163ef3a222343a17de1703ff5a628",
+      "bytes": 11706,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/ellipticmarketing/modelrelay/blob/2634eebe9cae0b3e7aea60e42d39f196306ed7c0/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1166826832/git/blobs/e4bce4e8f59163ef3a222343a17de1703ff5a628",
+      "contents_api_url": "https://api.github.com/repositories/1166826832/contents/README.md?ref=2634eebe9cae0b3e7aea60e42d39f196306ed7c0"
+    },
+    {
+      "repository": "EricLBuehler/candle-vllm",
+      "path": "README.md",
+      "commit_sha": "36fe5d951acdd7e80995eb1caffecd18f7df0f78",
+      "blob_sha": "0da77b8bebd38e09a549f99e0c356c48087832f4",
+      "bytes": 17089,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Qwen3.6",
+        "opencode"
+      ],
+      "immutable_url": "https://github.com/EricLBuehler/candle-vllm/blob/36fe5d951acdd7e80995eb1caffecd18f7df0f78/README.md",
+      "blob_api_url": "https://api.github.com/repositories/711471000/git/blobs/0da77b8bebd38e09a549f99e0c356c48087832f4",
+      "contents_api_url": "https://api.github.com/repositories/711471000/contents/README.md?ref=36fe5d951acdd7e80995eb1caffecd18f7df0f78"
+    },
+    {
+      "repository": "eugenehp/llama-cpp-rs",
+      "path": "MTP.md",
+      "commit_sha": "ef911063e369124703a00e1b04b7dd98df95dceb",
+      "blob_sha": "2ec4e4b40f987b3e31d52e9020654f96936d35ed",
+      "bytes": 4181,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/eugenehp/llama-cpp-rs/blob/ef911063e369124703a00e1b04b7dd98df95dceb/MTP.md",
+      "blob_api_url": "https://api.github.com/repositories/892989477/git/blobs/2ec4e4b40f987b3e31d52e9020654f96936d35ed",
+      "contents_api_url": "https://api.github.com/repositories/892989477/contents/MTP.md?ref=ef911063e369124703a00e1b04b7dd98df95dceb"
+    },
+    {
+      "repository": "facebook/fbthrift",
+      "path": "thrift/lib/cpp2/async/BiDiStream.h",
+      "commit_sha": "0fec4a90f1868941ce9f87f77854ce692da50799",
+      "blob_sha": "c7df54fd6ee42dee8d0c0ad65c8ee6ca18cfd571",
+      "bytes": 3567,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/facebook/fbthrift/blob/0fec4a90f1868941ce9f87f77854ce692da50799/thrift/lib/cpp2/async/BiDiStream.h",
+      "blob_api_url": "https://api.github.com/repositories/11131631/git/blobs/c7df54fd6ee42dee8d0c0ad65c8ee6ca18cfd571",
+      "contents_api_url": "https://api.github.com/repositories/11131631/contents/thrift/lib/cpp2/async/BiDiStream.h?ref=0fec4a90f1868941ce9f87f77854ce692da50799"
+    },
+    {
+      "repository": "facebook/fbthrift",
+      "path": "thrift/lib/cpp2/async/RpcOptions.cpp",
+      "commit_sha": "0fec4a90f1868941ce9f87f77854ce692da50799",
+      "blob_sha": "62ac320a04d838f87a2f9462732bf1108bbc2b01",
+      "bytes": 9305,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/facebook/fbthrift/blob/0fec4a90f1868941ce9f87f77854ce692da50799/thrift/lib/cpp2/async/RpcOptions.cpp",
+      "blob_api_url": "https://api.github.com/repositories/11131631/git/blobs/62ac320a04d838f87a2f9462732bf1108bbc2b01",
+      "contents_api_url": "https://api.github.com/repositories/11131631/contents/thrift/lib/cpp2/async/RpcOptions.cpp?ref=0fec4a90f1868941ce9f87f77854ce692da50799"
+    },
+    {
+      "repository": "facebook/fbthrift",
+      "path": "thrift/lib/cpp2/async/Sink.h",
+      "commit_sha": "0fec4a90f1868941ce9f87f77854ce692da50799",
+      "blob_sha": "c7aaf6fbcef7e5d45b6f82298b08546d029ffb03",
+      "bytes": 5856,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/facebook/fbthrift/blob/0fec4a90f1868941ce9f87f77854ce692da50799/thrift/lib/cpp2/async/Sink.h",
+      "blob_api_url": "https://api.github.com/repositories/11131631/git/blobs/c7aaf6fbcef7e5d45b6f82298b08546d029ffb03",
+      "contents_api_url": "https://api.github.com/repositories/11131631/contents/thrift/lib/cpp2/async/Sink.h?ref=0fec4a90f1868941ce9f87f77854ce692da50799"
+    },
+    {
+      "repository": "facebook/fbthrift",
+      "path": "thrift/lib/python/common.pyx",
+      "commit_sha": "0fec4a90f1868941ce9f87f77854ce692da50799",
+      "blob_sha": "a209de04790db0633ca35a649d32399c75c43381",
+      "bytes": 7813,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/facebook/fbthrift/blob/0fec4a90f1868941ce9f87f77854ce692da50799/thrift/lib/python/common.pyx",
+      "blob_api_url": "https://api.github.com/repositories/11131631/git/blobs/a209de04790db0633ca35a649d32399c75c43381",
+      "contents_api_url": "https://api.github.com/repositories/11131631/contents/thrift/lib/python/common.pyx?ref=0fec4a90f1868941ce9f87f77854ce692da50799"
+    },
+    {
+      "repository": "fastclaw-ai/weclaw",
+      "path": "README.md",
+      "commit_sha": "10711d0c6b7e2b0a784f808ef2f07ba83c2b9023",
+      "blob_sha": "93c1b93e429e213209fba2da1e819c1a450a7ff5",
+      "bytes": 8833,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode"
+      ],
+      "immutable_url": "https://github.com/fastclaw-ai/weclaw/blob/10711d0c6b7e2b0a784f808ef2f07ba83c2b9023/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1188762109/git/blobs/93c1b93e429e213209fba2da1e819c1a450a7ff5",
+      "contents_api_url": "https://api.github.com/repositories/1188762109/contents/README.md?ref=10711d0c6b7e2b0a784f808ef2f07ba83c2b9023"
+    },
+    {
+      "repository": "fo11ow-me/hrm",
+      "path": "README.md",
+      "commit_sha": "5371f476bc09ba96aa58e078449769d37d1a416c",
+      "blob_sha": "a947ac45901ed87112b9354854b95959c06e4da4",
+      "bytes": 2796,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/fo11ow-me/hrm/blob/5371f476bc09ba96aa58e078449769d37d1a416c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/481171203/git/blobs/a947ac45901ed87112b9354854b95959c06e4da4",
+      "contents_api_url": "https://api.github.com/repositories/481171203/contents/README.md?ref=5371f476bc09ba96aa58e078449769d37d1a416c"
+    },
+    {
+      "repository": "Free-The-Ai/free-ai",
+      "path": "SKILL.md",
+      "commit_sha": "ceca87be331abd27fdde319599103fc9e7e99c2a",
+      "blob_sha": "c953727bbabd2f1c6f93bc5384fce5b7c1cff5cb",
+      "bytes": 6601,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Free-The-Ai/free-ai/blob/ceca87be331abd27fdde319599103fc9e7e99c2a/SKILL.md",
+      "blob_api_url": "https://api.github.com/repositories/1217441281/git/blobs/c953727bbabd2f1c6f93bc5384fce5b7c1cff5cb",
+      "contents_api_url": "https://api.github.com/repositories/1217441281/contents/SKILL.md?ref=ceca87be331abd27fdde319599103fc9e7e99c2a"
+    },
+    {
+      "repository": "FreyreCorona/SideCar",
+      "path": "core/upload.go",
+      "commit_sha": "d356c2b271f132e5bba13a977ee0669bbdf3e3c6",
+      "blob_sha": "df4c4e82049e8857a11fce35724c229235952ff8",
+      "bytes": 12953,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/FreyreCorona/SideCar/blob/d356c2b271f132e5bba13a977ee0669bbdf3e3c6/core/upload.go",
+      "blob_api_url": "https://api.github.com/repositories/1150653364/git/blobs/df4c4e82049e8857a11fce35724c229235952ff8",
+      "contents_api_url": "https://api.github.com/repositories/1150653364/contents/core/upload.go?ref=d356c2b271f132e5bba13a977ee0669bbdf3e3c6"
+    },
+    {
+      "repository": "fsmw/opencode-openai-api",
+      "path": "README.md",
+      "commit_sha": "4d061402e10332ea7022973c611e410d03351a11",
+      "blob_sha": "5839520c9829cafddb3f0607d83c4056d388133c",
+      "bytes": 3460,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode"
+      ],
+      "immutable_url": "https://github.com/fsmw/opencode-openai-api/blob/4d061402e10332ea7022973c611e410d03351a11/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1116351498/git/blobs/5839520c9829cafddb3f0607d83c4056d388133c",
+      "contents_api_url": "https://api.github.com/repositories/1116351498/contents/README.md?ref=4d061402e10332ea7022973c611e410d03351a11"
+    },
+    {
+      "repository": "ginuerzh/gost",
+      "path": "ws.go",
+      "commit_sha": "1d516e35e654c7864a0ce907b021a4799715c832",
+      "blob_sha": "9dc8f0dc6914338c4e1c213fb4304f1d6ae8462f",
+      "bytes": 17734,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/ginuerzh/gost/blob/1d516e35e654c7864a0ce907b021a4799715c832/ws.go",
+      "blob_api_url": "https://api.github.com/repositories/32575637/git/blobs/9dc8f0dc6914338c4e1c213fb4304f1d6ae8462f",
+      "contents_api_url": "https://api.github.com/repositories/32575637/contents/ws.go?ref=1d516e35e654c7864a0ce907b021a4799715c832"
+    },
+    {
+      "repository": "go-graphite/go-carbon",
+      "path": "points/glue.go",
+      "commit_sha": "3acabf21eb31bfadf3fb4bd61f9ce450f223c5ce",
+      "blob_sha": "b928895dc05721044ce0bfcba1bf0f4d328779b6",
+      "bytes": 791,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/go-graphite/go-carbon/blob/3acabf21eb31bfadf3fb4bd61f9ce450f223c5ce/points/glue.go",
+      "blob_api_url": "https://api.github.com/repositories/30824101/git/blobs/b928895dc05721044ce0bfcba1bf0f4d328779b6",
+      "contents_api_url": "https://api.github.com/repositories/30824101/contents/points/glue.go?ref=3acabf21eb31bfadf3fb4bd61f9ce450f223c5ce"
+    },
+    {
+      "repository": "gpac/mp4box.js",
+      "path": "demo/downloader.js",
+      "commit_sha": "c07133a2c87d6edd409e54b8ec1f65320fed55c0",
+      "blob_sha": "da5817042713732555bac55c2e23d00aba8e478b",
+      "bytes": 4746,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/gpac/mp4box.js/blob/c07133a2c87d6edd409e54b8ec1f65320fed55c0/demo/downloader.js",
+      "blob_api_url": "https://api.github.com/repositories/19062997/git/blobs/da5817042713732555bac55c2e23d00aba8e478b",
+      "contents_api_url": "https://api.github.com/repositories/19062997/contents/demo/downloader.js?ref=c07133a2c87d6edd409e54b8ec1f65320fed55c0"
+    },
+    {
+      "repository": "GradientHQ/parallax",
+      "path": "README.md",
+      "commit_sha": "162354a03234a28cf6e2946e2e0b2203da7c3721",
+      "blob_sha": "56cb1a7b5c174a27a1a0eef4a107f07e71e0b30e",
+      "bytes": 6772,
+      "matched_queries": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "Qwen3.6",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/GradientHQ/parallax/blob/162354a03234a28cf6e2946e2e0b2203da7c3721/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1061621636/git/blobs/56cb1a7b5c174a27a1a0eef4a107f07e71e0b30e",
+      "contents_api_url": "https://api.github.com/repositories/1061621636/contents/README.md?ref=162354a03234a28cf6e2946e2e0b2203da7c3721"
+    },
+    {
+      "repository": "GuanceCloud/cliutils",
+      "path": "oss.go",
+      "commit_sha": "774576ccb67bb84a82737a4aff3d28d103c4af2a",
+      "blob_sha": "7247a3ebad2836cd84323c1216fdd571f0fb7fd3",
+      "bytes": 5356,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/GuanceCloud/cliutils/blob/774576ccb67bb84a82737a4aff3d28d103c4af2a/oss.go",
+      "blob_api_url": "https://api.github.com/repositories/599531103/git/blobs/7247a3ebad2836cd84323c1216fdd571f0fb7fd3",
+      "contents_api_url": "https://api.github.com/repositories/599531103/contents/oss.go?ref=774576ccb67bb84a82737a4aff3d28d103c4af2a"
+    },
+    {
+      "repository": "GuardianWAF/GuardianWAF",
+      "path": "README.md",
+      "commit_sha": "de249fe8c680538d267ae00c0869a7d13408e16a",
+      "blob_sha": "a9a2abcb96f4943c9086c795eacd06edf53de396",
+      "bytes": 33536,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/GuardianWAF/GuardianWAF/blob/de249fe8c680538d267ae00c0869a7d13408e16a/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1183781845/git/blobs/a9a2abcb96f4943c9086c795eacd06edf53de396",
+      "contents_api_url": "https://api.github.com/repositories/1183781845/contents/README.md?ref=de249fe8c680538d267ae00c0869a7d13408e16a"
+    },
+    {
+      "repository": "Haervwe/open-webui-tools",
+      "path": "README.md",
+      "commit_sha": "9b5ec0cd17c5eaa72f43089fbc6639aa8f3d8a02",
+      "blob_sha": "d0165f18faa98129b57cd9d3b786fddc88a4ebd2",
+      "bytes": 79924,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Haervwe/open-webui-tools/blob/9b5ec0cd17c5eaa72f43089fbc6639aa8f3d8a02/README.md",
+      "blob_api_url": "https://api.github.com/repositories/885877865/git/blobs/d0165f18faa98129b57cd9d3b786fddc88a4ebd2",
+      "contents_api_url": "https://api.github.com/repositories/885877865/contents/README.md?ref=9b5ec0cd17c5eaa72f43089fbc6639aa8f3d8a02"
+    },
+    {
+      "repository": "hamzaabdulwahab/bonjou-cli",
+      "path": "internal/config/config.go",
+      "commit_sha": "9e4b3be13cfb6eebda024611a07145333dbd5f6e",
+      "blob_sha": "98e5a4ac95a1b5e99312e298ef21860ac10f4033",
+      "bytes": 7961,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/hamzaabdulwahab/bonjou-cli/blob/9e4b3be13cfb6eebda024611a07145333dbd5f6e/internal/config/config.go",
+      "blob_api_url": "https://api.github.com/repositories/1089960065/git/blobs/98e5a4ac95a1b5e99312e298ef21860ac10f4033",
+      "contents_api_url": "https://api.github.com/repositories/1089960065/contents/internal/config/config.go?ref=9e4b3be13cfb6eebda024611a07145333dbd5f6e"
+    },
+    {
+      "repository": "HKoon/ChatTTS-OpenVoice",
+      "path": "README.md",
+      "commit_sha": "1e90318a2683a2d7afaf85d5b4a67509cca496f6",
+      "blob_sha": "3301c29bed42a9a46099ae9fbd21600c2966f8c5",
+      "bytes": 1838,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/HKoon/ChatTTS-OpenVoice/blob/1e90318a2683a2d7afaf85d5b4a67509cca496f6/README.md",
+      "blob_api_url": "https://api.github.com/repositories/810625886/git/blobs/3301c29bed42a9a46099ae9fbd21600c2966f8c5",
+      "contents_api_url": "https://api.github.com/repositories/810625886/contents/README.md?ref=1e90318a2683a2d7afaf85d5b4a67509cca496f6"
+    },
+    {
+      "repository": "huangwb8/ChineseResearchLaTeX",
+      "path": "README.md",
+      "commit_sha": "01044a66e7e9173b7064b135e8113ea40e6cc9c3",
+      "blob_sha": "d81e61efb7b3a25d1e628a213d94219d35fd6a28",
+      "bytes": 26888,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/huangwb8/ChineseResearchLaTeX/blob/01044a66e7e9173b7064b135e8113ea40e6cc9c3/README.md",
+      "blob_api_url": "https://api.github.com/repositories/756475416/git/blobs/d81e61efb7b3a25d1e628a213d94219d35fd6a28",
+      "contents_api_url": "https://api.github.com/repositories/756475416/contents/README.md?ref=01044a66e7e9173b7064b135e8113ea40e6cc9c3"
+    },
+    {
+      "repository": "hudl/fargo",
+      "path": "rpc.go",
+      "commit_sha": "3eb9752cff0b65fbecf3ea04d7acd8f55a669fcd",
+      "blob_sha": "a4e2823377e73d5e731d88706eddd3967157207b",
+      "bytes": 3639,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/hudl/fargo/blob/3eb9752cff0b65fbecf3ea04d7acd8f55a669fcd/rpc.go",
+      "blob_api_url": "https://api.github.com/repositories/14306141/git/blobs/a4e2823377e73d5e731d88706eddd3967157207b",
+      "contents_api_url": "https://api.github.com/repositories/14306141/contents/rpc.go?ref=3eb9752cff0b65fbecf3ea04d7acd8f55a669fcd"
+    },
+    {
+      "repository": "hugefiver/OAI2LMApi",
+      "path": "CHANGELOG.md",
+      "commit_sha": "f4aa6c0841bb1cba81d7a4ae5a7753e2194bf63c",
+      "blob_sha": "953d13ba5427a8b0519aac7b88cd22a625203ed9",
+      "bytes": 12357,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/hugefiver/OAI2LMApi/blob/f4aa6c0841bb1cba81d7a4ae5a7753e2194bf63c/CHANGELOG.md",
+      "blob_api_url": "https://api.github.com/repositories/1119692380/git/blobs/953d13ba5427a8b0519aac7b88cd22a625203ed9",
+      "contents_api_url": "https://api.github.com/repositories/1119692380/contents/CHANGELOG.md?ref=f4aa6c0841bb1cba81d7a4ae5a7753e2194bf63c"
+    },
+    {
+      "repository": "i-love-flamingo/flamingo",
+      "path": "app.go",
+      "commit_sha": "3de17d54feb0d745eeaa1d7b1e8dcbe2a395e702",
+      "blob_sha": "48e3cf8e92dbd05a93a1ef6b28c644df7914f6d0",
+      "bytes": 13566,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/i-love-flamingo/flamingo/blob/3de17d54feb0d745eeaa1d7b1e8dcbe2a395e702/app.go",
+      "blob_api_url": "https://api.github.com/repositories/179072333/git/blobs/48e3cf8e92dbd05a93a1ef6b28c644df7914f6d0",
+      "contents_api_url": "https://api.github.com/repositories/179072333/contents/app.go?ref=3de17d54feb0d745eeaa1d7b1e8dcbe2a395e702"
+    },
+    {
+      "repository": "IIIIIllllIIIIIlllll/llama.cpp-hub",
+      "path": "NOTES.md",
+      "commit_sha": "48f31ce1dc3e108b5d5b558582f74dc3e89e4889",
+      "blob_sha": "9333384706a64007ed9152bc239ca08be77a366b",
+      "bytes": 8659,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/IIIIIllllIIIIIlllll/llama.cpp-hub/blob/48f31ce1dc3e108b5d5b558582f74dc3e89e4889/NOTES.md",
+      "blob_api_url": "https://api.github.com/repositories/1109812194/git/blobs/9333384706a64007ed9152bc239ca08be77a366b",
+      "contents_api_url": "https://api.github.com/repositories/1109812194/contents/NOTES.md?ref=48f31ce1dc3e108b5d5b558582f74dc3e89e4889"
+    },
+    {
+      "repository": "im4codes/imcodes",
+      "path": "CLAUDE.md",
+      "commit_sha": "efbca1bfc266141b0cc1ab3047545c456014e9d3",
+      "blob_sha": "073a0602469cc59854eff95f91b89f6ad9149f24",
+      "bytes": 11859,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/im4codes/imcodes/blob/efbca1bfc266141b0cc1ab3047545c456014e9d3/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1185233810/git/blobs/073a0602469cc59854eff95f91b89f6ad9149f24",
+      "contents_api_url": "https://api.github.com/repositories/1185233810/contents/CLAUDE.md?ref=efbca1bfc266141b0cc1ab3047545c456014e9d3"
+    },
+    {
+      "repository": "Indras-Mirror/llama.cpp-turboq-mtp",
+      "path": "README.md",
+      "commit_sha": "0bc0a270d43e6e0ed6b30386d278e45b6dc6dd9f",
+      "blob_sha": "64a85d6c433e79204b25a2cbf83a6099a6df8dbd",
+      "bytes": 18824,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/Indras-Mirror/llama.cpp-turboq-mtp/blob/0bc0a270d43e6e0ed6b30386d278e45b6dc6dd9f/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1231439413/git/blobs/64a85d6c433e79204b25a2cbf83a6099a6df8dbd",
+      "contents_api_url": "https://api.github.com/repositories/1231439413/contents/README.md?ref=0bc0a270d43e6e0ed6b30386d278e45b6dc6dd9f"
+    },
+    {
+      "repository": "j3ssie/osmedeus",
+      "path": "CLAUDE.md",
+      "commit_sha": "5d9ff490f2ca73bef33b3fe2e5dbbefbe807358a",
+      "blob_sha": "81e3318aec8b625085ca40a45229f953974f173d",
+      "bytes": 23433,
+      "matched_queries": [
+        "opencode openai-compatible",
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/j3ssie/osmedeus/blob/5d9ff490f2ca73bef33b3fe2e5dbbefbe807358a/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/156946744/git/blobs/81e3318aec8b625085ca40a45229f953974f173d",
+      "contents_api_url": "https://api.github.com/repositories/156946744/contents/CLAUDE.md?ref=5d9ff490f2ca73bef33b3fe2e5dbbefbe807358a"
+    },
+    {
+      "repository": "jamesmurdza/awesome-ai-devtools",
+      "path": "README.md",
+      "commit_sha": "90b5d6207719bbffa7417eeee3d326145accfa33",
+      "blob_sha": "c8cdc5ec20561a2524676858699cff27ea3fb68a",
+      "bytes": 61030,
+      "matched_queries": [
+        "opencode openai-compatible",
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/jamesmurdza/awesome-ai-devtools/blob/90b5d6207719bbffa7417eeee3d326145accfa33/README.md",
+      "blob_api_url": "https://api.github.com/repositories/674164679/git/blobs/c8cdc5ec20561a2524676858699cff27ea3fb68a",
+      "contents_api_url": "https://api.github.com/repositories/674164679/contents/README.md?ref=90b5d6207719bbffa7417eeee3d326145accfa33"
+    },
+    {
+      "repository": "janreges/siteone-crawler",
+      "path": "README.md",
+      "commit_sha": "b1f333e226f40935be83ee3977500b2f49cff563",
+      "blob_sha": "be61434854fd29a238015ca43b413533a746b162",
+      "bytes": 80307,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/janreges/siteone-crawler/blob/b1f333e226f40935be83ee3977500b2f49cff563/README.md",
+      "blob_api_url": "https://api.github.com/repositories/700333533/git/blobs/be61434854fd29a238015ca43b413533a746b162",
+      "contents_api_url": "https://api.github.com/repositories/700333533/contents/README.md?ref=b1f333e226f40935be83ee3977500b2f49cff563"
+    },
+    {
+      "repository": "jdaln/dgx-spark-inference-stack",
+      "path": "TODO.md",
+      "commit_sha": "a686d894df707cdc91cfdd39700c0de770efbc24",
+      "blob_sha": "a9711d7823f4757939958cc86b12b6cf0c7039af",
+      "bytes": 4488,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/jdaln/dgx-spark-inference-stack/blob/a686d894df707cdc91cfdd39700c0de770efbc24/TODO.md",
+      "blob_api_url": "https://api.github.com/repositories/1150860809/git/blobs/a9711d7823f4757939958cc86b12b6cf0c7039af",
+      "contents_api_url": "https://api.github.com/repositories/1150860809/contents/TODO.md?ref=a686d894df707cdc91cfdd39700c0de770efbc24"
+    },
+    {
+      "repository": "jeinlee1991/chinese-llm-benchmark",
+      "path": "leaderboard/commerce2.md",
+      "commit_sha": "1353b10deec82bac38c43b4f5af00b6a67b51bdc",
+      "blob_sha": "78103a90328649fb291402887c7f2e23ef5efa78",
+      "bytes": 9812,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/jeinlee1991/chinese-llm-benchmark/blob/1353b10deec82bac38c43b4f5af00b6a67b51bdc/leaderboard/commerce2.md",
+      "blob_api_url": "https://api.github.com/repositories/649224670/git/blobs/78103a90328649fb291402887c7f2e23ef5efa78",
+      "contents_api_url": "https://api.github.com/repositories/649224670/contents/leaderboard/commerce2.md?ref=1353b10deec82bac38c43b4f5af00b6a67b51bdc"
+    },
+    {
+      "repository": "jeinlee1991/chinese-llm-benchmark",
+      "path": "\u6bcf\u5468\u6700\u65b0\u6a21\u578b.md",
+      "commit_sha": "1353b10deec82bac38c43b4f5af00b6a67b51bdc",
+      "blob_sha": "bdf98d71202029e1ae8460905065d2be845a7944",
+      "bytes": 150074,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/jeinlee1991/chinese-llm-benchmark/blob/1353b10deec82bac38c43b4f5af00b6a67b51bdc/\u6bcf\u5468\u6700\u65b0\u6a21\u578b.md",
+      "blob_api_url": "https://api.github.com/repositories/649224670/git/blobs/bdf98d71202029e1ae8460905065d2be845a7944",
+      "contents_api_url": "https://api.github.com/repositories/649224670/contents/\u6bcf\u5468\u6700\u65b0\u6a21\u578b.md?ref=1353b10deec82bac38c43b4f5af00b6a67b51bdc"
+    },
+    {
+      "repository": "jianshuo/ccglass",
+      "path": "README.md",
+      "commit_sha": "8340714ad3aaeaefb732daee7808a72671105f8a",
+      "blob_sha": "7414a1110f084bf9fd83a96a5651f747c03124ad",
+      "bytes": 19910,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/jianshuo/ccglass/blob/8340714ad3aaeaefb732daee7808a72671105f8a/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1246346594/git/blobs/7414a1110f084bf9fd83a96a5651f747c03124ad",
+      "contents_api_url": "https://api.github.com/repositories/1246346594/contents/README.md?ref=8340714ad3aaeaefb732daee7808a72671105f8a"
+    },
+    {
+      "repository": "jjang-ai/mlxstudio",
+      "path": "README.md",
+      "commit_sha": "fe7ccc5fad87303cba0dabc66e9f9d308ec0fde4",
+      "blob_sha": "c3839ef7aa9bbbd468bece7a1f93804a23a69a1e",
+      "bytes": 24037,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/jjang-ai/mlxstudio/blob/fe7ccc5fad87303cba0dabc66e9f9d308ec0fde4/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1173721368/git/blobs/c3839ef7aa9bbbd468bece7a1f93804a23a69a1e",
+      "contents_api_url": "https://api.github.com/repositories/1173721368/contents/README.md?ref=fe7ccc5fad87303cba0dabc66e9f9d308ec0fde4"
+    },
+    {
+      "repository": "jqknono/coding-plans-for-copilot",
+      "path": "DEV.md",
+      "commit_sha": "7966f07eb477cfd5cdb9c7d66b34aad28c179fb7",
+      "blob_sha": "fedc070519d060366b045a7ac3cd538b1d9a4381",
+      "bytes": 17361,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/jqknono/coding-plans-for-copilot/blob/7966f07eb477cfd5cdb9c7d66b34aad28c179fb7/DEV.md",
+      "blob_api_url": "https://api.github.com/repositories/1157813389/git/blobs/fedc070519d060366b045a7ac3cd538b1d9a4381",
+      "contents_api_url": "https://api.github.com/repositories/1157813389/contents/DEV.md?ref=7966f07eb477cfd5cdb9c7d66b34aad28c179fb7"
+    },
+    {
+      "repository": "jqknono/coding-plans-for-copilot",
+      "path": "README.md",
+      "commit_sha": "7966f07eb477cfd5cdb9c7d66b34aad28c179fb7",
+      "blob_sha": "6d603d800b85ed99cc4cf1c2587ad12ebaa61eeb",
+      "bytes": 26031,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/jqknono/coding-plans-for-copilot/blob/7966f07eb477cfd5cdb9c7d66b34aad28c179fb7/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1157813389/git/blobs/6d603d800b85ed99cc4cf1c2587ad12ebaa61eeb",
+      "contents_api_url": "https://api.github.com/repositories/1157813389/contents/README.md?ref=7966f07eb477cfd5cdb9c7d66b34aad28c179fb7"
+    },
+    {
+      "repository": "jqknono/coding-plans-for-copilot",
+      "path": "README_en.md",
+      "commit_sha": "7966f07eb477cfd5cdb9c7d66b34aad28c179fb7",
+      "blob_sha": "291eaaa8cf247ac9be47970b354fbb4bc46646b7",
+      "bytes": 28392,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/jqknono/coding-plans-for-copilot/blob/7966f07eb477cfd5cdb9c7d66b34aad28c179fb7/README_en.md",
+      "blob_api_url": "https://api.github.com/repositories/1157813389/git/blobs/291eaaa8cf247ac9be47970b354fbb4bc46646b7",
+      "contents_api_url": "https://api.github.com/repositories/1157813389/contents/README_en.md?ref=7966f07eb477cfd5cdb9c7d66b34aad28c179fb7"
+    },
+    {
+      "repository": "kolab-groupware/kdepim",
+      "path": "messagelist/core/model.cpp",
+      "commit_sha": "a0ec8149633c1d78f0b6d9dc933639319e52b783",
+      "blob_sha": "7f2298580d8ccf434212fadf070fb0d8a9d2cae1",
+      "bytes": 194447,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/kolab-groupware/kdepim/blob/a0ec8149633c1d78f0b6d9dc933639319e52b783/messagelist/core/model.cpp",
+      "blob_api_url": "https://api.github.com/repositories/24229057/git/blobs/7f2298580d8ccf434212fadf070fb0d8a9d2cae1",
+      "contents_api_url": "https://api.github.com/repositories/24229057/contents/messagelist/core/model.cpp?ref=a0ec8149633c1d78f0b6d9dc933639319e52b783"
+    },
+    {
+      "repository": "kotetsuy/EarthTourGuide",
+      "path": "qwen3.6",
+      "commit_sha": "d6c6724e0d6eb1f21d6ef405a3353c2ff00cdc38",
+      "blob_sha": "e55b3735209a4118c89c9a40ca66248da9f4fc56",
+      "bytes": 22,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/kotetsuy/EarthTourGuide/blob/d6c6724e0d6eb1f21d6ef405a3353c2ff00cdc38/qwen3.6",
+      "blob_api_url": "https://api.github.com/repositories/1260323601/git/blobs/e55b3735209a4118c89c9a40ca66248da9f4fc56",
+      "contents_api_url": "https://api.github.com/repositories/1260323601/contents/qwen3.6?ref=d6c6724e0d6eb1f21d6ef405a3353c2ff00cdc38"
+    },
+    {
+      "repository": "kubeshop/kusk-gen",
+      "path": "docs/traefik.md",
+      "commit_sha": "808a53fa464fbcdd51e85d8400ff1bf0ee25fdf8",
+      "blob_sha": "ad7196813b4d34b7e3a4e4291bd89b6b3ad22732",
+      "bytes": 18304,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/kubeshop/kusk-gen/blob/808a53fa464fbcdd51e85d8400ff1bf0ee25fdf8/docs/traefik.md",
+      "blob_api_url": "https://api.github.com/repositories/379575605/git/blobs/ad7196813b4d34b7e3a4e4291bd89b6b3ad22732",
+      "contents_api_url": "https://api.github.com/repositories/379575605/contents/docs/traefik.md?ref=808a53fa464fbcdd51e85d8400ff1bf0ee25fdf8"
+    },
+    {
+      "repository": "kyuz0/amd-strix-halo-vllm-toolboxes",
+      "path": "README.md",
+      "commit_sha": "6446b9595273f289e11586c3c7d3e1e6f2945888",
+      "blob_sha": "4908bd53ccd276c23d0f6130587e1743b29fd0c0",
+      "bytes": 12824,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/kyuz0/amd-strix-halo-vllm-toolboxes/blob/6446b9595273f289e11586c3c7d3e1e6f2945888/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1049824238/git/blobs/4908bd53ccd276c23d0f6130587e1743b29fd0c0",
+      "contents_api_url": "https://api.github.com/repositories/1049824238/contents/README.md?ref=6446b9595273f289e11586c3c7d3e1e6f2945888"
+    },
+    {
+      "repository": "Laliet/cc-switch-web",
+      "path": "README.md",
+      "commit_sha": "324dfc384d195eebc3442966b73f97fa4919a458",
+      "blob_sha": "c28c6b6654a7eeeaad545b8241cba0eeb584a7a8",
+      "bytes": 24236,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Laliet/cc-switch-web/blob/324dfc384d195eebc3442966b73f97fa4919a458/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1103717180/git/blobs/c28c6b6654a7eeeaad545b8241cba0eeb584a7a8",
+      "contents_api_url": "https://api.github.com/repositories/1103717180/contents/README.md?ref=324dfc384d195eebc3442966b73f97fa4919a458"
+    },
+    {
+      "repository": "leyten/shard",
+      "path": "README.md",
+      "commit_sha": "bb4f54ed65f2a0d53240f21e00a0f404b0b964bf",
+      "blob_sha": "820deb74b8e67e309ea3d5fbda8fe244f1971e8d",
+      "bytes": 12998,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/leyten/shard/blob/bb4f54ed65f2a0d53240f21e00a0f404b0b964bf/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1270587915/git/blobs/820deb74b8e67e309ea3d5fbda8fe244f1971e8d",
+      "contents_api_url": "https://api.github.com/repositories/1270587915/contents/README.md?ref=bb4f54ed65f2a0d53240f21e00a0f404b0b964bf"
+    },
+    {
+      "repository": "local-inference-lab/rtx6kpro",
+      "path": "models/kimi-k27-code.md",
+      "commit_sha": "22ce5041c3959d1554a24a848d8ce7ec090018f2",
+      "blob_sha": "bc5087dc383c96b43dea6def04f83b7c719dcf60",
+      "bytes": 17233,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7"
+      ],
+      "immutable_url": "https://github.com/local-inference-lab/rtx6kpro/blob/22ce5041c3959d1554a24a848d8ce7ec090018f2/models/kimi-k27-code.md",
+      "blob_api_url": "https://api.github.com/repositories/1176907145/git/blobs/bc5087dc383c96b43dea6def04f83b7c719dcf60",
+      "contents_api_url": "https://api.github.com/repositories/1176907145/contents/models/kimi-k27-code.md?ref=22ce5041c3959d1554a24a848d8ce7ec090018f2"
+    },
+    {
+      "repository": "local-inference-lab/rtx6kpro",
+      "path": "models/kimi.md",
+      "commit_sha": "22ce5041c3959d1554a24a848d8ce7ec090018f2",
+      "blob_sha": "754c41c6509580467697c23f09092cf98e1408f4",
+      "bytes": 2203,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7"
+      ],
+      "immutable_url": "https://github.com/local-inference-lab/rtx6kpro/blob/22ce5041c3959d1554a24a848d8ce7ec090018f2/models/kimi.md",
+      "blob_api_url": "https://api.github.com/repositories/1176907145/git/blobs/754c41c6509580467697c23f09092cf98e1408f4",
+      "contents_api_url": "https://api.github.com/repositories/1176907145/contents/models/kimi.md?ref=22ce5041c3959d1554a24a848d8ce7ec090018f2"
+    },
+    {
+      "repository": "lonePatient/awesome-pretrained-chinese-nlp-models",
+      "path": "README.md",
+      "commit_sha": "65abd11a01951c005768ad85d6187de475e04027",
+      "blob_sha": "598614a0b77a665ac200467bedca0eac8a6e8c7f",
+      "bytes": 28794,
+      "matched_queries": [
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "Qwen3.6",
+        "opencode"
+      ],
+      "immutable_url": "https://github.com/lonePatient/awesome-pretrained-chinese-nlp-models/blob/65abd11a01951c005768ad85d6187de475e04027/README.md",
+      "blob_api_url": "https://api.github.com/repositories/188584527/git/blobs/598614a0b77a665ac200467bedca0eac8a6e8c7f",
+      "contents_api_url": "https://api.github.com/repositories/188584527/contents/README.md?ref=65abd11a01951c005768ad85d6187de475e04027"
+    },
+    {
+      "repository": "lonePatient/awesome-pretrained-chinese-nlp-models",
+      "path": "docs/reasoning-llm.md",
+      "commit_sha": "65abd11a01951c005768ad85d6187de475e04027",
+      "blob_sha": "f80e48470aaf63000c91e1cbf062b1cd097bd219",
+      "bytes": 36734,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/lonePatient/awesome-pretrained-chinese-nlp-models/blob/65abd11a01951c005768ad85d6187de475e04027/docs/reasoning-llm.md",
+      "blob_api_url": "https://api.github.com/repositories/188584527/git/blobs/f80e48470aaf63000c91e1cbf062b1cd097bd219",
+      "contents_api_url": "https://api.github.com/repositories/188584527/contents/docs/reasoning-llm.md?ref=65abd11a01951c005768ad85d6187de475e04027"
+    },
+    {
+      "repository": "Luce-Org/lucebox",
+      "path": "harness/clients/run_opencode.sh",
+      "commit_sha": "c3b71e4b2ed2d08db96d55e7985f20035aa08d6f",
+      "blob_sha": "2fc2ce4f9d00369ea3c76603913b1b8a2711886c",
+      "bytes": 2308,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Luce-Org/lucebox/blob/c3b71e4b2ed2d08db96d55e7985f20035aa08d6f/harness/clients/run_opencode.sh",
+      "blob_api_url": "https://api.github.com/repositories/1200680436/git/blobs/2fc2ce4f9d00369ea3c76603913b1b8a2711886c",
+      "contents_api_url": "https://api.github.com/repositories/1200680436/contents/harness/clients/run_opencode.sh?ref=c3b71e4b2ed2d08db96d55e7985f20035aa08d6f"
+    },
+    {
+      "repository": "luongnv89/asm",
+      "path": "TODOS.md",
+      "commit_sha": "286ea95abaaac96ea055c28d896af4ee2313c00b",
+      "blob_sha": "25ee18207eb2b5eb5a882923bc644c1095ffcd7d",
+      "bytes": 7350,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/luongnv89/asm/blob/286ea95abaaac96ea055c28d896af4ee2313c00b/TODOS.md",
+      "blob_api_url": "https://api.github.com/repositories/1178954220/git/blobs/25ee18207eb2b5eb5a882923bc644c1095ffcd7d",
+      "contents_api_url": "https://api.github.com/repositories/1178954220/contents/TODOS.md?ref=286ea95abaaac96ea055c28d896af4ee2313c00b"
+    },
+    {
+      "repository": "luongnv89/asm",
+      "path": "tasks.md",
+      "commit_sha": "286ea95abaaac96ea055c28d896af4ee2313c00b",
+      "blob_sha": "7c350d28c4d740da2b71e1821433984a49772c89",
+      "bytes": 22279,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/luongnv89/asm/blob/286ea95abaaac96ea055c28d896af4ee2313c00b/tasks.md",
+      "blob_api_url": "https://api.github.com/repositories/1178954220/git/blobs/7c350d28c4d740da2b71e1821433984a49772c89",
+      "contents_api_url": "https://api.github.com/repositories/1178954220/contents/tasks.md?ref=286ea95abaaac96ea055c28d896af4ee2313c00b"
+    },
+    {
+      "repository": "MAC-AutoML/MindPipe",
+      "path": "README.md",
+      "commit_sha": "ddae180d132c5ddd92f43a268f4febc1f931c721",
+      "blob_sha": "723304fdfafb05bdb75b400f5ef1eb6b6cb08afb",
+      "bytes": 17156,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/MAC-AutoML/MindPipe/blob/ddae180d132c5ddd92f43a268f4febc1f931c721/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1139596354/git/blobs/723304fdfafb05bdb75b400f5ef1eb6b6cb08afb",
+      "contents_api_url": "https://api.github.com/repositories/1139596354/contents/README.md?ref=ddae180d132c5ddd92f43a268f4febc1f931c721"
+    },
+    {
+      "repository": "madelynnblue/moggio",
+      "path": "main.go",
+      "commit_sha": "83fbf3eb4182d564316f2dec5a85dbc4a86b1752",
+      "blob_sha": "50ebbc5ec8c0cd4d6859226e9e3f796e9a1f7b9d",
+      "bytes": 1550,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/madelynnblue/moggio/blob/83fbf3eb4182d564316f2dec5a85dbc4a86b1752/main.go",
+      "blob_api_url": "https://api.github.com/repositories/15517058/git/blobs/50ebbc5ec8c0cd4d6859226e9e3f796e9a1f7b9d",
+      "contents_api_url": "https://api.github.com/repositories/15517058/contents/main.go?ref=83fbf3eb4182d564316f2dec5a85dbc4a86b1752"
+    },
+    {
+      "repository": "matchmore/js-sdk",
+      "path": "src/manager.ts",
+      "commit_sha": "2c3403c3c7a79e6808d4db5fe1afae8936063dac",
+      "blob_sha": "b0033fe2db955300013b454f3093bf480ccac10f",
+      "bytes": 18464,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/matchmore/js-sdk/blob/2c3403c3c7a79e6808d4db5fe1afae8936063dac/src/manager.ts",
+      "blob_api_url": "https://api.github.com/repositories/87898952/git/blobs/b0033fe2db955300013b454f3093bf480ccac10f",
+      "contents_api_url": "https://api.github.com/repositories/87898952/contents/src/manager.ts?ref=2c3403c3c7a79e6808d4db5fe1afae8936063dac"
+    },
+    {
+      "repository": "microsoft/DbgShell",
+      "path": "ReadMe.md",
+      "commit_sha": "7f98155b863c00295cd24513cc2a4c1c0fdf346c",
+      "blob_sha": "6b7b5633062db409f1b5b9a74b5543343e9ed8ae",
+      "bytes": 13374,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/microsoft/DbgShell/blob/7f98155b863c00295cd24513cc2a4c1c0fdf346c/ReadMe.md",
+      "blob_api_url": "https://api.github.com/repositories/104886007/git/blobs/6b7b5633062db409f1b5b9a74b5543343e9ed8ae",
+      "contents_api_url": "https://api.github.com/repositories/104886007/contents/ReadMe.md?ref=7f98155b863c00295cd24513cc2a4c1c0fdf346c"
+    },
+    {
+      "repository": "microsoft/duroxide",
+      "path": "README.md",
+      "commit_sha": "b6e025554a94909cd2fdfebf1510929234479d66",
+      "blob_sha": "fa9f72d0df08859d3faae516dceb986f89fc7a65",
+      "bytes": 11285,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/microsoft/duroxide/blob/b6e025554a94909cd2fdfebf1510929234479d66/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1157332876/git/blobs/fa9f72d0df08859d3faae516dceb986f89fc7a65",
+      "contents_api_url": "https://api.github.com/repositories/1157332876/contents/README.md?ref=b6e025554a94909cd2fdfebf1510929234479d66"
+    },
+    {
+      "repository": "microsoft/tsyringe",
+      "path": "README.md",
+      "commit_sha": "e033769d97cfb6cc4a8569e2b50eb32015453302",
+      "blob_sha": "c8c959c53c3f20a2f1fdabeb9edd8fe09ff08a97",
+      "bytes": 24366,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/microsoft/tsyringe/blob/e033769d97cfb6cc4a8569e2b50eb32015453302/README.md",
+      "blob_api_url": "https://api.github.com/repositories/111044068/git/blobs/c8c959c53c3f20a2f1fdabeb9edd8fe09ff08a97",
+      "contents_api_url": "https://api.github.com/repositories/111044068/contents/README.md?ref=e033769d97cfb6cc4a8569e2b50eb32015453302"
+    },
+    {
+      "repository": "MiniMax-AI/MiniMax-M3",
+      "path": "README.md",
+      "commit_sha": "79882a353ea7d8b3b52ecaf6523ba7ab2a6fb6e5",
+      "blob_sha": "c44e4e23021c00e884a2f88f7b42eafd33e4965c",
+      "bytes": 4950,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/MiniMax-AI/MiniMax-M3/blob/79882a353ea7d8b3b52ecaf6523ba7ab2a6fb6e5/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1255737222/git/blobs/c44e4e23021c00e884a2f88f7b42eafd33e4965c",
+      "contents_api_url": "https://api.github.com/repositories/1255737222/contents/README.md?ref=79882a353ea7d8b3b52ecaf6523ba7ab2a6fb6e5"
+    },
+    {
+      "repository": "mitkox/ai-coding-factory",
+      "path": "README.md",
+      "commit_sha": "203c85e3cdc2b21427ecb4111e8acf986ecaa80b",
+      "blob_sha": "4899a5d7f23e706a3f36ed56427d57bd696b7119",
+      "bytes": 5543,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/mitkox/ai-coding-factory/blob/203c85e3cdc2b21427ecb4111e8acf986ecaa80b/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1131279386/git/blobs/4899a5d7f23e706a3f36ed56427d57bd696b7119",
+      "contents_api_url": "https://api.github.com/repositories/1131279386/contents/README.md?ref=203c85e3cdc2b21427ecb4111e8acf986ecaa80b"
+    },
+    {
+      "repository": "mitsuhiko/pi-llamacpp",
+      "path": "README.md",
+      "commit_sha": "66e4441770ae42cec548fee00e2ec9df179b4134",
+      "blob_sha": "5a5b8356a3a2c3b30615a5d0afe2904206babea1",
+      "bytes": 3266,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/mitsuhiko/pi-llamacpp/blob/66e4441770ae42cec548fee00e2ec9df179b4134/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1234192163/git/blobs/5a5b8356a3a2c3b30615a5d0afe2904206babea1",
+      "contents_api_url": "https://api.github.com/repositories/1234192163/contents/README.md?ref=66e4441770ae42cec548fee00e2ec9df179b4134"
+    },
+    {
+      "repository": "mmlong818/plotcat",
+      "path": "README.md",
+      "commit_sha": "365273c9ad1c86e723697c581736fe782195fae7",
+      "blob_sha": "6293222d66b8c517625a39c2e12ca3ec8c6fcc72",
+      "bytes": 5444,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/mmlong818/plotcat/blob/365273c9ad1c86e723697c581736fe782195fae7/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1288684460/git/blobs/6293222d66b8c517625a39c2e12ca3ec8c6fcc72",
+      "contents_api_url": "https://api.github.com/repositories/1288684460/contents/README.md?ref=365273c9ad1c86e723697c581736fe782195fae7"
+    },
+    {
+      "repository": "modernice/dragoman",
+      "path": "openai/client.go",
+      "commit_sha": "5ce3c26b1ec32597b96b40cdbde1d6770ababdeb",
+      "blob_sha": "3440a84c45fe8402b400d8bd3ca9995b1a93e02a",
+      "bytes": 9354,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/modernice/dragoman/blob/5ce3c26b1ec32597b96b40cdbde1d6770ababdeb/openai/client.go",
+      "blob_api_url": "https://api.github.com/repositories/314334586/git/blobs/3440a84c45fe8402b400d8bd3ca9995b1a93e02a",
+      "contents_api_url": "https://api.github.com/repositories/314334586/contents/openai/client.go?ref=5ce3c26b1ec32597b96b40cdbde1d6770ababdeb"
+    },
+    {
+      "repository": "moonrhythm/parapet",
+      "path": "README.md",
+      "commit_sha": "fa97bf547688a5b69823352b0f968d36fd0474c2",
+      "blob_sha": "5d96254c1718f222ec3508eeed6963e21b11d64b",
+      "bytes": 56521,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/moonrhythm/parapet/blob/fa97bf547688a5b69823352b0f968d36fd0474c2/README.md",
+      "blob_api_url": "https://api.github.com/repositories/151819086/git/blobs/5d96254c1718f222ec3508eeed6963e21b11d64b",
+      "contents_api_url": "https://api.github.com/repositories/151819086/contents/README.md?ref=fa97bf547688a5b69823352b0f968d36fd0474c2"
+    },
+    {
+      "repository": "morgan-at-keysight/socketscpi",
+      "path": "docs/history.rst",
+      "commit_sha": "c1233580aa5f0d2dc570e191d02603f543fb0c2a",
+      "blob_sha": "af2181c849a333f3f65308db790a6396740f1fa1",
+      "bytes": 1957,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/morgan-at-keysight/socketscpi/blob/c1233580aa5f0d2dc570e191d02603f543fb0c2a/docs/history.rst",
+      "blob_api_url": "https://api.github.com/repositories/179733952/git/blobs/af2181c849a333f3f65308db790a6396740f1fa1",
+      "contents_api_url": "https://api.github.com/repositories/179733952/contents/docs/history.rst?ref=c1233580aa5f0d2dc570e191d02603f543fb0c2a"
+    },
+    {
+      "repository": "nex-crm/wuphf",
+      "path": "README.md",
+      "commit_sha": "2aa53c1a37f4ac781dcd2801af944cd10cb1c51f",
+      "blob_sha": "22d990199991e6fd4384711aaffa4aadfad65341",
+      "bytes": 24826,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/nex-crm/wuphf/blob/2aa53c1a37f4ac781dcd2801af944cd10cb1c51f/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1191671352/git/blobs/22d990199991e6fd4384711aaffa4aadfad65341",
+      "contents_api_url": "https://api.github.com/repositories/1191671352/contents/README.md?ref=2aa53c1a37f4ac781dcd2801af944cd10cb1c51f"
+    },
+    {
+      "repository": "ninjahawk/hollow-agentOS",
+      "path": "README.md",
+      "commit_sha": "6e24167c3e4be57d1d3b83e98b07eae3a9b45b36",
+      "blob_sha": "02824678ecd5864dfd4528a40aad766ed87c5d93",
+      "bytes": 36295,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/ninjahawk/hollow-agentOS/blob/6e24167c3e4be57d1d3b83e98b07eae3a9b45b36/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1193386934/git/blobs/02824678ecd5864dfd4528a40aad766ed87c5d93",
+      "contents_api_url": "https://api.github.com/repositories/1193386934/contents/README.md?ref=6e24167c3e4be57d1d3b83e98b07eae3a9b45b36"
+    },
+    {
+      "repository": "Noumena-Network/code",
+      "path": "README.md",
+      "commit_sha": "2455f581ec5e3afe98814c9e8c7e8ec1ab2b02a3",
+      "blob_sha": "25b9118332a6d098fe36fa4740a9317b6bfc4fe4",
+      "bytes": 8158,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Noumena-Network/code/blob/2455f581ec5e3afe98814c9e8c7e8ec1ab2b02a3/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1271587892/git/blobs/25b9118332a6d098fe36fa4740a9317b6bfc4fe4",
+      "contents_api_url": "https://api.github.com/repositories/1271587892/contents/README.md?ref=2455f581ec5e3afe98814c9e8c7e8ec1ab2b02a3"
+    },
+    {
+      "repository": "ombharatiya/ai-system-design-guide",
+      "path": "README.md",
+      "commit_sha": "df612278ea4c51a3cf0489cf00aa2b7bf63f22da",
+      "blob_sha": "b79801ecfb30fa886687b273b22eeb8db3e618c2",
+      "bytes": 24458,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "opencode"
+      ],
+      "immutable_url": "https://github.com/ombharatiya/ai-system-design-guide/blob/df612278ea4c51a3cf0489cf00aa2b7bf63f22da/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1117470788/git/blobs/b79801ecfb30fa886687b273b22eeb8db3e618c2",
+      "contents_api_url": "https://api.github.com/repositories/1117470788/contents/README.md?ref=df612278ea4c51a3cf0489cf00aa2b7bf63f22da"
+    },
+    {
+      "repository": "OnesoftQwQ/opencode-go-copilot",
+      "path": "README.md",
+      "commit_sha": "70d0b79b7826bc666055d6a4fb2af9092958755c",
+      "blob_sha": "0eb9cf2dc77cc01b95b3ffebb861e9470fea6939",
+      "bytes": 10522,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/OnesoftQwQ/opencode-go-copilot/blob/70d0b79b7826bc666055d6a4fb2af9092958755c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1220629288/git/blobs/0eb9cf2dc77cc01b95b3ffebb861e9470fea6939",
+      "contents_api_url": "https://api.github.com/repositories/1220629288/contents/README.md?ref=70d0b79b7826bc666055d6a4fb2af9092958755c"
+    },
+    {
+      "repository": "open-gitagent/opengap",
+      "path": "docs.md",
+      "commit_sha": "d7a8e2edb54b942d6b4635cdd8b919ebd23e5da5",
+      "blob_sha": "e07246b6fdbd856bc2e3a683b2f3de064ab1c7d9",
+      "bytes": 44243,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/open-gitagent/opengap/blob/d7a8e2edb54b942d6b4635cdd8b919ebd23e5da5/docs.md",
+      "blob_api_url": "https://api.github.com/repositories/1165855406/git/blobs/e07246b6fdbd856bc2e3a683b2f3de064ab1c7d9",
+      "contents_api_url": "https://api.github.com/repositories/1165855406/contents/docs.md?ref=d7a8e2edb54b942d6b4635cdd8b919ebd23e5da5"
+    },
+    {
+      "repository": "openclaw/Tachikoma",
+      "path": "docs/models.md",
+      "commit_sha": "590cbc5a6ebf54661550a3cd02eb22f811a7e2c4",
+      "blob_sha": "47d23a87e8d8240bfe0ee9f6ad98646eb6c81819",
+      "bytes": 2701,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/openclaw/Tachikoma/blob/590cbc5a6ebf54661550a3cd02eb22f811a7e2c4/docs/models.md",
+      "blob_api_url": "https://api.github.com/repositories/1030970740/git/blobs/47d23a87e8d8240bfe0ee9f6ad98646eb6c81819",
+      "contents_api_url": "https://api.github.com/repositories/1030970740/contents/docs/models.md?ref=590cbc5a6ebf54661550a3cd02eb22f811a7e2c4"
+    },
+    {
+      "repository": "opendev-to/opendev",
+      "path": "docs/providers.md",
+      "commit_sha": "30d213108c52e7423b26b1caff906e1f86c2f790",
+      "blob_sha": "f628c98ab23f28c6c75e05a4ca274a28db9884d5",
+      "bytes": 8158,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/opendev-to/opendev/blob/30d213108c52e7423b26b1caff906e1f86c2f790/docs/providers.md",
+      "blob_api_url": "https://api.github.com/repositories/1172905557/git/blobs/f628c98ab23f28c6c75e05a4ca274a28db9884d5",
+      "contents_api_url": "https://api.github.com/repositories/1172905557/contents/docs/providers.md?ref=30d213108c52e7423b26b1caff906e1f86c2f790"
+    },
+    {
+      "repository": "opensearch-project/opensearch-go",
+      "path": "doc.go",
+      "commit_sha": "ed71ad698d2c28550b4735b6298e9bf67fd8321e",
+      "blob_sha": "a01a7835d87b0f20693f04e3d9e3529404919201",
+      "bytes": 2558,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/opensearch-project/opensearch-go/blob/ed71ad698d2c28550b4735b6298e9bf67fd8321e/doc.go",
+      "blob_api_url": "https://api.github.com/repositories/388883118/git/blobs/a01a7835d87b0f20693f04e3d9e3529404919201",
+      "contents_api_url": "https://api.github.com/repositories/388883118/contents/doc.go?ref=ed71ad698d2c28550b4735b6298e9bf67fd8321e"
+    },
+    {
+      "repository": "Osmantic/MMBT-Messy-Model-Bench-Tests",
+      "path": "README.md",
+      "commit_sha": "0adec7c5e9a91ef19b0f1385e9d9d2b589fee45c",
+      "blob_sha": "101cf6a7eda94b72319cf682fd85291ced1ddd75",
+      "bytes": 20194,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/Osmantic/MMBT-Messy-Model-Bench-Tests/blob/0adec7c5e9a91ef19b0f1385e9d9d2b589fee45c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1222743186/git/blobs/101cf6a7eda94b72319cf682fd85291ced1ddd75",
+      "contents_api_url": "https://api.github.com/repositories/1222743186/contents/README.md?ref=0adec7c5e9a91ef19b0f1385e9d9d2b589fee45c"
+    },
+    {
+      "repository": "pace/bricks",
+      "path": "http/README.md",
+      "commit_sha": "b96ddde95f7f2d3f8720a37656a3a748aeb392c2",
+      "blob_sha": "665d231201d1da0e87bec7d7c37ce5a6dee11ff6",
+      "bytes": 1711,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/pace/bricks/blob/b96ddde95f7f2d3f8720a37656a3a748aeb392c2/http/README.md",
+      "blob_api_url": "https://api.github.com/repositories/166778187/git/blobs/665d231201d1da0e87bec7d7c37ce5a6dee11ff6",
+      "contents_api_url": "https://api.github.com/repositories/166778187/contents/http/README.md?ref=b96ddde95f7f2d3f8720a37656a3a748aeb392c2"
+    },
+    {
+      "repository": "pgalko/BambooAI",
+      "path": "README.md",
+      "commit_sha": "855a78a05c1ad979e1d75a5844e37c767282526a",
+      "blob_sha": "bb3af4794f4f24f6cf4545e1446e173c42fb9cd9",
+      "bytes": 26887,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/pgalko/BambooAI/blob/855a78a05c1ad979e1d75a5844e37c767282526a/README.md",
+      "blob_api_url": "https://api.github.com/repositories/637253688/git/blobs/bb3af4794f4f24f6cf4545e1446e173c42fb9cd9",
+      "contents_api_url": "https://api.github.com/repositories/637253688/contents/README.md?ref=855a78a05c1ad979e1d75a5844e37c767282526a"
+    },
+    {
+      "repository": "Polyconseil/django-mds",
+      "path": "mds/admin.py",
+      "commit_sha": "964655d3f17d51e74e67ae4c7b62b446435b5506",
+      "blob_sha": "61157899d7fe8264a311b942882a976dd3db9dd1",
+      "bytes": 3792,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Polyconseil/django-mds/blob/964655d3f17d51e74e67ae4c7b62b446435b5506/mds/admin.py",
+      "blob_api_url": "https://api.github.com/repositories/154490057/git/blobs/61157899d7fe8264a311b942882a976dd3db9dd1",
+      "contents_api_url": "https://api.github.com/repositories/154490057/contents/mds/admin.py?ref=964655d3f17d51e74e67ae4c7b62b446435b5506"
+    },
+    {
+      "repository": "provos/ironcurtain",
+      "path": "CONFIG.md",
+      "commit_sha": "eff8e573e431000a70ef07919f91baca38567beb",
+      "blob_sha": "9455fcee5b555c706e726e84974718c014a42fcc",
+      "bytes": 17196,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/provos/ironcurtain/blob/eff8e573e431000a70ef07919f91baca38567beb/CONFIG.md",
+      "blob_api_url": "https://api.github.com/repositories/1163644748/git/blobs/9455fcee5b555c706e726e84974718c014a42fcc",
+      "contents_api_url": "https://api.github.com/repositories/1163644748/contents/CONFIG.md?ref=eff8e573e431000a70ef07919f91baca38567beb"
+    },
+    {
+      "repository": "provos/ironcurtain",
+      "path": "README.md",
+      "commit_sha": "eff8e573e431000a70ef07919f91baca38567beb",
+      "blob_sha": "90fa70bb01b1664fda0bf359ada0c8edefa83bdd",
+      "bytes": 30775,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/provos/ironcurtain/blob/eff8e573e431000a70ef07919f91baca38567beb/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1163644748/git/blobs/90fa70bb01b1664fda0bf359ada0c8edefa83bdd",
+      "contents_api_url": "https://api.github.com/repositories/1163644748/contents/README.md?ref=eff8e573e431000a70ef07919f91baca38567beb"
+    },
+    {
+      "repository": "quantumaikr/quant.cpp",
+      "path": "README.md",
+      "commit_sha": "9eed2dc5823a1b5bec269632d0f2237aee85f11f",
+      "blob_sha": "590d93b7ba97cc6c39521cfe479565cb170bdb73",
+      "bytes": 67602,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/quantumaikr/quant.cpp/blob/9eed2dc5823a1b5bec269632d0f2237aee85f11f/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1194842235/git/blobs/590d93b7ba97cc6c39521cfe479565cb170bdb73",
+      "contents_api_url": "https://api.github.com/repositories/1194842235/contents/README.md?ref=9eed2dc5823a1b5bec269632d0f2237aee85f11f"
+    },
+    {
+      "repository": "raketenkater/ggrun",
+      "path": "README.md",
+      "commit_sha": "5c8a3eb9dcbb49f759b790901bda58d43a742c13",
+      "blob_sha": "21fdf58ec252b7a7b71a9470bdafc8ca4b7cdb56",
+      "bytes": 6481,
+      "matched_queries": [
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/raketenkater/ggrun/blob/5c8a3eb9dcbb49f759b790901bda58d43a742c13/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1178786234/git/blobs/21fdf58ec252b7a7b71a9470bdafc8ca4b7cdb56",
+      "contents_api_url": "https://api.github.com/repositories/1178786234/contents/README.md?ref=5c8a3eb9dcbb49f759b790901bda58d43a742c13"
+    },
+    {
+      "repository": "rderaison/bromure",
+      "path": "vLLM.md",
+      "commit_sha": "a68791e40df47811c8825ea334e23fe214d14a90",
+      "blob_sha": "af3550fdaa3ebb7a90c417d08718e79009a8ac0a",
+      "bytes": 23406,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/rderaison/bromure/blob/a68791e40df47811c8825ea334e23fe214d14a90/vLLM.md",
+      "blob_api_url": "https://api.github.com/repositories/1176047082/git/blobs/af3550fdaa3ebb7a90c417d08718e79009a8ac0a",
+      "contents_api_url": "https://api.github.com/repositories/1176047082/contents/vLLM.md?ref=a68791e40df47811c8825ea334e23fe214d14a90"
+    },
+    {
+      "repository": "renning22/glm-5.2-4090",
+      "path": "README.md",
+      "commit_sha": "1540871f740cb2cd4ef1d14dfb720bba672e928c",
+      "blob_sha": "6de823c5dbc7074381ea9649ff9b09722de58237",
+      "bytes": 5529,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/renning22/glm-5.2-4090/blob/1540871f740cb2cd4ef1d14dfb720bba672e928c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1273294721/git/blobs/6de823c5dbc7074381ea9649ff9b09722de58237",
+      "contents_api_url": "https://api.github.com/repositories/1273294721/contents/README.md?ref=1540871f740cb2cd4ef1d14dfb720bba672e928c"
+    },
+    {
+      "repository": "renning22/glm-5.2-4090",
+      "path": "TECHNICAL.md",
+      "commit_sha": "1540871f740cb2cd4ef1d14dfb720bba672e928c",
+      "blob_sha": "15134c625798d725b93e1a38052303b4fb66e02b",
+      "bytes": 13801,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/renning22/glm-5.2-4090/blob/1540871f740cb2cd4ef1d14dfb720bba672e928c/TECHNICAL.md",
+      "blob_api_url": "https://api.github.com/repositories/1273294721/git/blobs/15134c625798d725b93e1a38052303b4fb66e02b",
+      "contents_api_url": "https://api.github.com/repositories/1273294721/contents/TECHNICAL.md?ref=1540871f740cb2cd4ef1d14dfb720bba672e928c"
+    },
+    {
+      "repository": "ResearAI/DeepScientist",
+      "path": "CLAUDE.md",
+      "commit_sha": "b36624417f0c6b8238ec02db37b94d6db2faa5b0",
+      "blob_sha": "eaba5f409557311fc10118697c30d9a78abb9280",
+      "bytes": 9320,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/ResearAI/DeepScientist/blob/b36624417f0c6b8238ec02db37b94d6db2faa5b0/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1064484445/git/blobs/eaba5f409557311fc10118697c30d9a78abb9280",
+      "contents_api_url": "https://api.github.com/repositories/1064484445/contents/CLAUDE.md?ref=b36624417f0c6b8238ec02db37b94d6db2faa5b0"
+    },
+    {
+      "repository": "routatic/proxy",
+      "path": "CLAUDE.md",
+      "commit_sha": "f4616cc9f78ab3417537a5bc39be3eede65d4b3b",
+      "blob_sha": "bf13b66d4219da463926de71c03412f4d7a7db0b",
+      "bytes": 13445,
+      "matched_queries": [
+        "GLM-5.2",
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Qwen3.6",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/routatic/proxy/blob/f4616cc9f78ab3417537a5bc39be3eede65d4b3b/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1213018000/git/blobs/bf13b66d4219da463926de71c03412f4d7a7db0b",
+      "contents_api_url": "https://api.github.com/repositories/1213018000/contents/CLAUDE.md?ref=f4616cc9f78ab3417537a5bc39be3eede65d4b3b"
+    },
+    {
+      "repository": "routatic/proxy",
+      "path": "MODELS.md",
+      "commit_sha": "f4616cc9f78ab3417537a5bc39be3eede65d4b3b",
+      "blob_sha": "5953fa688a147a5cd43bd0576733d335ed167050",
+      "bytes": 32264,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "Qwen3.6",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/routatic/proxy/blob/f4616cc9f78ab3417537a5bc39be3eede65d4b3b/MODELS.md",
+      "blob_api_url": "https://api.github.com/repositories/1213018000/git/blobs/5953fa688a147a5cd43bd0576733d335ed167050",
+      "contents_api_url": "https://api.github.com/repositories/1213018000/contents/MODELS.md?ref=f4616cc9f78ab3417537a5bc39be3eede65d4b3b"
+    },
+    {
+      "repository": "SamuelZ12/longcut",
+      "path": "CLAUDE.md",
+      "commit_sha": "c80c874b842b9224732d5dba34180610b71c4064",
+      "blob_sha": "b288bf8a1aaf7cc31fdf82993a1115e9f08c5afa",
+      "bytes": 17525,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/SamuelZ12/longcut/blob/c80c874b842b9224732d5dba34180610b71c4064/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1045340059/git/blobs/b288bf8a1aaf7cc31fdf82993a1115e9f08c5afa",
+      "contents_api_url": "https://api.github.com/repositories/1045340059/contents/CLAUDE.md?ref=c80c874b842b9224732d5dba34180610b71c4064"
+    },
+    {
+      "repository": "SamuelZ12/longcut",
+      "path": "README.md",
+      "commit_sha": "c80c874b842b9224732d5dba34180610b71c4064",
+      "blob_sha": "08e8a06e3b80be819fdad96a8fe7dcb885a3b759",
+      "bytes": 11365,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/SamuelZ12/longcut/blob/c80c874b842b9224732d5dba34180610b71c4064/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1045340059/git/blobs/08e8a06e3b80be819fdad96a8fe7dcb885a3b759",
+      "contents_api_url": "https://api.github.com/repositories/1045340059/contents/README.md?ref=c80c874b842b9224732d5dba34180610b71c4064"
+    },
+    {
+      "repository": "saucelabs/forwarder",
+      "path": "net.go",
+      "commit_sha": "d023f919cf303811492f35924b99593c437babf6",
+      "blob_sha": "43915ec4434b221ab3593ddbb32d6f5a0fe4adfd",
+      "bytes": 8311,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/saucelabs/forwarder/blob/d023f919cf303811492f35924b99593c437babf6/net.go",
+      "blob_api_url": "https://api.github.com/repositories/408562497/git/blobs/43915ec4434b221ab3593ddbb32d6f5a0fe4adfd",
+      "contents_api_url": "https://api.github.com/repositories/408562497/contents/net.go?ref=d023f919cf303811492f35924b99593c437babf6"
+    },
+    {
+      "repository": "semihalev/sdns",
+      "path": "api/README.md",
+      "commit_sha": "6f745fef3c0d2058044f20d98063bb6f0eac671a",
+      "blob_sha": "94adab7a107e419f326aa1dd7b59872db20eb80b",
+      "bytes": 5230,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/semihalev/sdns/blob/6f745fef3c0d2058044f20d98063bb6f0eac671a/api/README.md",
+      "blob_api_url": "https://api.github.com/repositories/151043940/git/blobs/94adab7a107e419f326aa1dd7b59872db20eb80b",
+      "contents_api_url": "https://api.github.com/repositories/151043940/contents/api/README.md?ref=6f745fef3c0d2058044f20d98063bb6f0eac671a"
+    },
+    {
+      "repository": "sentient-agi/EvoSkill",
+      "path": "README.md",
+      "commit_sha": "36f6f04952293d7054145550c2b9f0b0411bff1c",
+      "blob_sha": "61565ea29a63b42242dbe33d4ba3df3cec752c85",
+      "bytes": 24125,
+      "matched_queries": [
+        "opencode openai-compatible",
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/sentient-agi/EvoSkill/blob/36f6f04952293d7054145550c2b9f0b0411bff1c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1172896941/git/blobs/61565ea29a63b42242dbe33d4ba3df3cec752c85",
+      "contents_api_url": "https://api.github.com/repositories/1172896941/contents/README.md?ref=36f6f04952293d7054145550c2b9f0b0411bff1c"
+    },
+    {
+      "repository": "sergeknystautas/schmux",
+      "path": "docs/models.md",
+      "commit_sha": "69f7d2a206f112e3e1c484981d474131e3e86c06",
+      "blob_sha": "6efccfd3a11295cb2517830591d69a2186ba3e18",
+      "bytes": 16178,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/sergeknystautas/schmux/blob/69f7d2a206f112e3e1c484981d474131e3e86c06/docs/models.md",
+      "blob_api_url": "https://api.github.com/repositories/1128713520/git/blobs/6efccfd3a11295cb2517830591d69a2186ba3e18",
+      "contents_api_url": "https://api.github.com/repositories/1128713520/contents/docs/models.md?ref=69f7d2a206f112e3e1c484981d474131e3e86c06"
+    },
+    {
+      "repository": "sergzach/readingproc",
+      "path": "readingproc/core.py",
+      "commit_sha": "b897b423f3c36bee6ce604bc4a5969ee78d20d6c",
+      "blob_sha": "b3f6afc598c86b319eb08f5e865af547ce3a2f6f",
+      "bytes": 28954,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/sergzach/readingproc/blob/b897b423f3c36bee6ce604bc4a5969ee78d20d6c/readingproc/core.py",
+      "blob_api_url": "https://api.github.com/repositories/177298539/git/blobs/b3f6afc598c86b319eb08f5e865af547ce3a2f6f",
+      "contents_api_url": "https://api.github.com/repositories/177298539/contents/readingproc/core.py?ref=b897b423f3c36bee6ce604bc4a5969ee78d20d6c"
+    },
+    {
+      "repository": "SharpAI/SwiftLM",
+      "path": "README.md",
+      "commit_sha": "d5a9d118910142ce092fc4357777884a61bb8137",
+      "blob_sha": "26dd5e990faf46f294ef54bfb0b32303c24abdf9",
+      "bytes": 37343,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/SharpAI/SwiftLM/blob/d5a9d118910142ce092fc4357777884a61bb8137/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1187786518/git/blobs/26dd5e990faf46f294ef54bfb0b32303c24abdf9",
+      "contents_api_url": "https://api.github.com/repositories/1187786518/contents/README.md?ref=d5a9d118910142ce092fc4357777884a61bb8137"
+    },
+    {
+      "repository": "signal18/replication-manager",
+      "path": "graphite/points/glue.go",
+      "commit_sha": "2961f593497ba6232614e1cccd088dd130041712",
+      "blob_sha": "2573d154eba0dac34f62cff6d74948036e5381ef",
+      "bytes": 792,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/signal18/replication-manager/blob/2961f593497ba6232614e1cccd088dd130041712/graphite/points/glue.go",
+      "blob_api_url": "https://api.github.com/repositories/44248957/git/blobs/2573d154eba0dac34f62cff6d74948036e5381ef",
+      "contents_api_url": "https://api.github.com/repositories/44248957/contents/graphite/points/glue.go?ref=2961f593497ba6232614e1cccd088dd130041712"
+    },
+    {
+      "repository": "six2dez/burp-ai-agent",
+      "path": "SPEC.md",
+      "commit_sha": "cc3122b690cd15488195f7265ec4209833138d8d",
+      "blob_sha": "16f635ad81a63a9ef6be199aea4387314776099c",
+      "bytes": 10021,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode"
+      ],
+      "immutable_url": "https://github.com/six2dez/burp-ai-agent/blob/cc3122b690cd15488195f7265ec4209833138d8d/SPEC.md",
+      "blob_api_url": "https://api.github.com/repositories/1143535772/git/blobs/16f635ad81a63a9ef6be199aea4387314776099c",
+      "contents_api_url": "https://api.github.com/repositories/1143535772/contents/SPEC.md?ref=cc3122b690cd15488195f7265ec4209833138d8d"
+    },
+    {
+      "repository": "SKYLENAGE-AI/QwenClawBench",
+      "path": "README.md",
+      "commit_sha": "ca8af7f914f76082b4c27c21481da2495a5d5125",
+      "blob_sha": "71b93820bc29cb192f04400faede0e3652a9c08c",
+      "bytes": 10656,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/SKYLENAGE-AI/QwenClawBench/blob/ca8af7f914f76082b4c27c21481da2495a5d5125/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1205100121/git/blobs/71b93820bc29cb192f04400faede0e3652a9c08c",
+      "contents_api_url": "https://api.github.com/repositories/1205100121/contents/README.md?ref=ca8af7f914f76082b4c27c21481da2495a5d5125"
+    },
+    {
+      "repository": "softpudding/OpenBrowser",
+      "path": "README.md",
+      "commit_sha": "9ce62be5129da6e472c3c533509e103b7788fb5e",
+      "blob_sha": "1de0b21076167a13b3e7ad91ed11b635ceaf5851",
+      "bytes": 20833,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/softpudding/OpenBrowser/blob/9ce62be5129da6e472c3c533509e103b7788fb5e/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1161250477/git/blobs/1de0b21076167a13b3e7ad91ed11b635ceaf5851",
+      "contents_api_url": "https://api.github.com/repositories/1161250477/contents/README.md?ref=9ce62be5129da6e472c3c533509e103b7788fb5e"
+    },
+    {
+      "repository": "spacedriveapp/spacebot",
+      "path": "README.md",
+      "commit_sha": "ac52277404d3813045aa053b78c95810ab85e7c5",
+      "blob_sha": "db17399b0baf002bb3b910e786fdff8f107f820d",
+      "bytes": 25268,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/spacedriveapp/spacebot/blob/ac52277404d3813045aa053b78c95810ab85e7c5/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1155816493/git/blobs/db17399b0baf002bb3b910e786fdff8f107f820d",
+      "contents_api_url": "https://api.github.com/repositories/1155816493/contents/README.md?ref=ac52277404d3813045aa053b78c95810ab85e7c5"
+    },
+    {
+      "repository": "spacelift-io/spacectl",
+      "path": "README.md",
+      "commit_sha": "01e01b6a8143a00368b630ad459ca7536d36e056",
+      "blob_sha": "efe0074a2d83ae0954ad93d74c8fc0d59d03de36",
+      "bytes": 17807,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/spacelift-io/spacectl/blob/01e01b6a8143a00368b630ad459ca7536d36e056/README.md",
+      "blob_api_url": "https://api.github.com/repositories/354647574/git/blobs/efe0074a2d83ae0954ad93d74c8fc0d59d03de36",
+      "contents_api_url": "https://api.github.com/repositories/354647574/contents/README.md?ref=01e01b6a8143a00368b630ad459ca7536d36e056"
+    },
+    {
+      "repository": "spullara/models",
+      "path": "evals/eval-kimi-k2.7-code.txt",
+      "commit_sha": "32b212b7d0e48bc524ba62486bd8d82363efd1e6",
+      "blob_sha": "8554e397e79efc388e81bc229d2c88b7c7b1f6dc",
+      "bytes": 581,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/spullara/models/blob/32b212b7d0e48bc524ba62486bd8d82363efd1e6/evals/eval-kimi-k2.7-code.txt",
+      "blob_api_url": "https://api.github.com/repositories/899316375/git/blobs/8554e397e79efc388e81bc229d2c88b7c7b1f6dc",
+      "contents_api_url": "https://api.github.com/repositories/899316375/contents/evals/eval-kimi-k2.7-code.txt?ref=32b212b7d0e48bc524ba62486bd8d82363efd1e6"
+    },
+    {
+      "repository": "standardnguyen/rolandcode",
+      "path": "AUTONOMOUS-TASK.md",
+      "commit_sha": "81c03cd8c7578ef904c835ccbfc636738e236847",
+      "blob_sha": "5b36e02411fe4ff87f93d021e8cf3e15d5d2a196",
+      "bytes": 15081,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/standardnguyen/rolandcode/blob/81c03cd8c7578ef904c835ccbfc636738e236847/AUTONOMOUS-TASK.md",
+      "blob_api_url": "https://api.github.com/repositories/1176262799/git/blobs/5b36e02411fe4ff87f93d021e8cf3e15d5d2a196",
+      "contents_api_url": "https://api.github.com/repositories/1176262799/contents/AUTONOMOUS-TASK.md?ref=81c03cd8c7578ef904c835ccbfc636738e236847"
+    },
+    {
+      "repository": "startakovsky/llm-model-tracker",
+      "path": "glm-5.2.md",
+      "commit_sha": "4f383187570d2097f810fc4bd0ecaee845daca89",
+      "blob_sha": "452e786cf9b4f145e9fef7f2a3b1dcb73632bfa3",
+      "bytes": 3301,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/startakovsky/llm-model-tracker/blob/4f383187570d2097f810fc4bd0ecaee845daca89/glm-5.2.md",
+      "blob_api_url": "https://api.github.com/repositories/1289569417/git/blobs/452e786cf9b4f145e9fef7f2a3b1dcb73632bfa3",
+      "contents_api_url": "https://api.github.com/repositories/1289569417/contents/glm-5.2.md?ref=4f383187570d2097f810fc4bd0ecaee845daca89"
+    },
+    {
+      "repository": "startakovsky/llm-model-tracker",
+      "path": "kimi-k2.7-code.md",
+      "commit_sha": "4f383187570d2097f810fc4bd0ecaee845daca89",
+      "blob_sha": "39c013803c54b1dad6390d1cbbec5ac4b82b5db7",
+      "bytes": 2293,
+      "matched_queries": [
+        "Kimi-K2.7",
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "Kimi-K2.7",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/startakovsky/llm-model-tracker/blob/4f383187570d2097f810fc4bd0ecaee845daca89/kimi-k2.7-code.md",
+      "blob_api_url": "https://api.github.com/repositories/1289569417/git/blobs/39c013803c54b1dad6390d1cbbec5ac4b82b5db7",
+      "contents_api_url": "https://api.github.com/repositories/1289569417/contents/kimi-k2.7-code.md?ref=4f383187570d2097f810fc4bd0ecaee845daca89"
+    },
+    {
+      "repository": "startakovsky/llm-model-tracker",
+      "path": "minimax-m3.md",
+      "commit_sha": "4f383187570d2097f810fc4bd0ecaee845daca89",
+      "blob_sha": "9c6b41fe4d86e0c924ee3cb01a3261bf44ec6cff",
+      "bytes": 2879,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/startakovsky/llm-model-tracker/blob/4f383187570d2097f810fc4bd0ecaee845daca89/minimax-m3.md",
+      "blob_api_url": "https://api.github.com/repositories/1289569417/git/blobs/9c6b41fe4d86e0c924ee3cb01a3261bf44ec6cff",
+      "contents_api_url": "https://api.github.com/repositories/1289569417/contents/minimax-m3.md?ref=4f383187570d2097f810fc4bd0ecaee845daca89"
+    },
+    {
+      "repository": "steipete/summarize",
+      "path": "docs/llm.md",
+      "commit_sha": "9ae292022c4d7bc578fb68c912deaeb28aa970e3",
+      "blob_sha": "ff004bd3775a703ddbdf90b946f663bb51e6c6b0",
+      "bytes": 9331,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/steipete/summarize/blob/9ae292022c4d7bc578fb68c912deaeb28aa970e3/docs/llm.md",
+      "blob_api_url": "https://api.github.com/repositories/1118209243/git/blobs/ff004bd3775a703ddbdf90b946f663bb51e6c6b0",
+      "contents_api_url": "https://api.github.com/repositories/1118209243/contents/docs/llm.md?ref=9ae292022c4d7bc578fb68c912deaeb28aa970e3"
+    },
+    {
+      "repository": "suyiiyii/AutoGLM-GUI",
+      "path": "README.md",
+      "commit_sha": "17e23d21325c2094111e41b6c8753ce807d7ed1a",
+      "blob_sha": "28bd501eee828350b28e898aa90dc0a2a4ec9381",
+      "bytes": 32552,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/suyiiyii/AutoGLM-GUI/blob/17e23d21325c2094111e41b6c8753ce807d7ed1a/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1112828151/git/blobs/28bd501eee828350b28e898aa90dc0a2a4ec9381",
+      "contents_api_url": "https://api.github.com/repositories/1112828151/contents/README.md?ref=17e23d21325c2094111e41b6c8753ce807d7ed1a"
+    },
+    {
+      "repository": "suyoumo/ClawProBench",
+      "path": "README.md",
+      "commit_sha": "b1aba12c9b7c8dd64875aa03722c0e64cca93b17",
+      "blob_sha": "80f7f747c3e26b40b941131924deaeb3e0ca010e",
+      "bytes": 12416,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "Qwen3.6",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/suyoumo/ClawProBench/blob/b1aba12c9b7c8dd64875aa03722c0e64cca93b17/README.md",
+      "blob_api_url": "https://api.github.com/repositories/941429098/git/blobs/80f7f747c3e26b40b941131924deaeb3e0ca010e",
+      "contents_api_url": "https://api.github.com/repositories/941429098/contents/README.md?ref=b1aba12c9b7c8dd64875aa03722c0e64cca93b17"
+    },
+    {
+      "repository": "suyoumo/ClawProBench",
+      "path": "README.zh-CN.md",
+      "commit_sha": "b1aba12c9b7c8dd64875aa03722c0e64cca93b17",
+      "blob_sha": "fa69187556c09599b1a56dc3ccd88bfef8b618d9",
+      "bytes": 11714,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "MiniMax-M3",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/suyoumo/ClawProBench/blob/b1aba12c9b7c8dd64875aa03722c0e64cca93b17/README.zh-CN.md",
+      "blob_api_url": "https://api.github.com/repositories/941429098/git/blobs/fa69187556c09599b1a56dc3ccd88bfef8b618d9",
+      "contents_api_url": "https://api.github.com/repositories/941429098/contents/README.zh-CN.md?ref=b1aba12c9b7c8dd64875aa03722c0e64cca93b17"
+    },
+    {
+      "repository": "svent/go-nbreader",
+      "path": "nbreader.go",
+      "commit_sha": "7cef48da76dca6a496faa7fe63e39ed665cbd219",
+      "blob_sha": "ccd066ea1853a48091fdda6b8b8b60fba7e05407",
+      "bytes": 4125,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/svent/go-nbreader/blob/7cef48da76dca6a496faa7fe63e39ed665cbd219/nbreader.go",
+      "blob_api_url": "https://api.github.com/repositories/30157728/git/blobs/ccd066ea1853a48091fdda6b8b8b60fba7e05407",
+      "contents_api_url": "https://api.github.com/repositories/30157728/contents/nbreader.go?ref=7cef48da76dca6a496faa7fe63e39ed665cbd219"
+    },
+    {
+      "repository": "svent/sift",
+      "path": "sift.go",
+      "commit_sha": "76db109f2aeac08d9ca1d29999dd1a6272f7051c",
+      "blob_sha": "a70c27430c1835cead20c8252b14e6775edcd989",
+      "bytes": 19244,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/svent/sift/blob/76db109f2aeac08d9ca1d29999dd1a6272f7051c/sift.go",
+      "blob_api_url": "https://api.github.com/repositories/30164643/git/blobs/a70c27430c1835cead20c8252b14e6775edcd989",
+      "contents_api_url": "https://api.github.com/repositories/30164643/contents/sift.go?ref=76db109f2aeac08d9ca1d29999dd1a6272f7051c"
+    },
+    {
+      "repository": "sybil-solutions/codex-shim",
+      "path": "README.md",
+      "commit_sha": "b8116262d76b6904a017211f3dcec901c38cdf6b",
+      "blob_sha": "3a5f0d38f8dbebf84a507964a30bcbf26473a4b6",
+      "bytes": 44890,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/sybil-solutions/codex-shim/blob/b8116262d76b6904a017211f3dcec901c38cdf6b/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1246440630/git/blobs/3a5f0d38f8dbebf84a507964a30bcbf26473a4b6",
+      "contents_api_url": "https://api.github.com/repositories/1246440630/contents/README.md?ref=b8116262d76b6904a017211f3dcec901c38cdf6b"
+    },
+    {
+      "repository": "Synt744/g4f-opencode",
+      "path": "README.md",
+      "commit_sha": "cf9d6eb72d761ed11869262d93927468ccaeccbf",
+      "blob_sha": "463e235383e3c6d9d4c0b40064d47200184a3ee9",
+      "bytes": 5435,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Synt744/g4f-opencode/blob/cf9d6eb72d761ed11869262d93927468ccaeccbf/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1143336648/git/blobs/463e235383e3c6d9d4c0b40064d47200184a3ee9",
+      "contents_api_url": "https://api.github.com/repositories/1143336648/contents/README.md?ref=cf9d6eb72d761ed11869262d93927468ccaeccbf"
+    },
+    {
+      "repository": "szcharlesji/raycast-relay",
+      "path": "README.md",
+      "commit_sha": "9dc99733d52e61d826f8f23e91c6deab193ede98",
+      "blob_sha": "378a2edd844c46d35d2a50f05b18e8a1132b33a7",
+      "bytes": 6439,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/szcharlesji/raycast-relay/blob/9dc99733d52e61d826f8f23e91c6deab193ede98/README.md",
+      "blob_api_url": "https://api.github.com/repositories/956160468/git/blobs/378a2edd844c46d35d2a50f05b18e8a1132b33a7",
+      "contents_api_url": "https://api.github.com/repositories/956160468/contents/README.md?ref=9dc99733d52e61d826f8f23e91c6deab193ede98"
+    },
+    {
+      "repository": "taichuy/1flowbase",
+      "path": "README.md",
+      "commit_sha": "03cac703ae25e9dbfb31336602ab1152b0bb83b1",
+      "blob_sha": "535f8c7209935e943540150001a83822ee8f229f",
+      "bytes": 13568,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/taichuy/1flowbase/blob/03cac703ae25e9dbfb31336602ab1152b0bb83b1/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1176591016/git/blobs/535f8c7209935e943540150001a83822ee8f229f",
+      "contents_api_url": "https://api.github.com/repositories/1176591016/contents/README.md?ref=03cac703ae25e9dbfb31336602ab1152b0bb83b1"
+    },
+    {
+      "repository": "teambition/gear",
+      "path": "CHANGELOG.md",
+      "commit_sha": "183e49112fcd64f5010bbd68c37235a9240d8bd1",
+      "blob_sha": "9504e5e2df6b9580f07d6ec4e21d223cdb1a6da5",
+      "bytes": 11330,
+      "matched_queries": [
+        "headerTimeout"
+      ],
+      "matched_terms": [
+        "headerTimeout"
+      ],
+      "immutable_url": "https://github.com/teambition/gear/blob/183e49112fcd64f5010bbd68c37235a9240d8bd1/CHANGELOG.md",
+      "blob_api_url": "https://api.github.com/repositories/71258032/git/blobs/9504e5e2df6b9580f07d6ec4e21d223cdb1a6da5",
+      "contents_api_url": "https://api.github.com/repositories/71258032/contents/CHANGELOG.md?ref=183e49112fcd64f5010bbd68c37235a9240d8bd1"
+    },
+    {
+      "repository": "TeamWiseFlow/xiaobei",
+      "path": "CHANGELOG.md",
+      "commit_sha": "576db3bdb7f5c6c25731e055e4c5520debf9f6aa",
+      "blob_sha": "cc73ccd07e6cf13e8079e24d65f264eaa3c982d6",
+      "bytes": 45895,
+      "matched_queries": [
+        "Kimi-K2.7",
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/TeamWiseFlow/xiaobei/blob/576db3bdb7f5c6c25731e055e4c5520debf9f6aa/CHANGELOG.md",
+      "blob_api_url": "https://api.github.com/repositories/791124680/git/blobs/cc73ccd07e6cf13e8079e24d65f264eaa3c982d6",
+      "contents_api_url": "https://api.github.com/repositories/791124680/contents/CHANGELOG.md?ref=576db3bdb7f5c6c25731e055e4c5520debf9f6aa"
+    },
+    {
+      "repository": "technigmaai/dgx-spark",
+      "path": "README.md",
+      "commit_sha": "609bae69e0902459d8ced20dac9ec3d398ff03c3",
+      "blob_sha": "9cf458aa242c31de88018ccdd773e175392be888",
+      "bytes": 1594,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/technigmaai/dgx-spark/blob/609bae69e0902459d8ced20dac9ec3d398ff03c3/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1239148985/git/blobs/9cf458aa242c31de88018ccdd773e175392be888",
+      "contents_api_url": "https://api.github.com/repositories/1239148985/contents/README.md?ref=609bae69e0902459d8ced20dac9ec3d398ff03c3"
+    },
+    {
+      "repository": "TeleAI-UAGI/telemem",
+      "path": "README-ZH.md",
+      "commit_sha": "b012824148bcfe2400a7f12117b84317380b105c",
+      "blob_sha": "f7eccd5eb7a4a0929c4cfa1ef6ccffd41d1a707b",
+      "bytes": 31661,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/TeleAI-UAGI/telemem/blob/b012824148bcfe2400a7f12117b84317380b105c/README-ZH.md",
+      "blob_api_url": "https://api.github.com/repositories/1110317131/git/blobs/f7eccd5eb7a4a0929c4cfa1ef6ccffd41d1a707b",
+      "contents_api_url": "https://api.github.com/repositories/1110317131/contents/README-ZH.md?ref=b012824148bcfe2400a7f12117b84317380b105c"
+    },
+    {
+      "repository": "TeleAI-UAGI/telemem",
+      "path": "README.md",
+      "commit_sha": "b012824148bcfe2400a7f12117b84317380b105c",
+      "blob_sha": "c63911154c82b3f1c032f3a5f25cfc3d335dcfed",
+      "bytes": 34394,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/TeleAI-UAGI/telemem/blob/b012824148bcfe2400a7f12117b84317380b105c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1110317131/git/blobs/c63911154c82b3f1c032f3a5f25cfc3d335dcfed",
+      "contents_api_url": "https://api.github.com/repositories/1110317131/contents/README.md?ref=b012824148bcfe2400a7f12117b84317380b105c"
+    },
+    {
+      "repository": "Tencent-Hunyuan/HY-Embodied",
+      "path": "README.md",
+      "commit_sha": "16289e99111ee362a23f93d5b3a463ddc844decc",
+      "blob_sha": "db52fec71fdefce2d250ff82bda88778d13a2477",
+      "bytes": 17792,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/Tencent-Hunyuan/HY-Embodied/blob/16289e99111ee362a23f93d5b3a463ddc844decc/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1202005530/git/blobs/db52fec71fdefce2d250ff82bda88778d13a2477",
+      "contents_api_url": "https://api.github.com/repositories/1202005530/contents/README.md?ref=16289e99111ee362a23f93d5b3a463ddc844decc"
+    },
+    {
+      "repository": "tendermint/tendermint",
+      "path": "statesync/chunks.go",
+      "commit_sha": "9d1be86031365f6f56668d2f5f0e7312eb8fef62",
+      "blob_sha": "ec95419fe0074c94d7db2517b4359f9161082bed",
+      "bytes": 8873,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/tendermint/tendermint/blob/9d1be86031365f6f56668d2f5f0e7312eb8fef62/statesync/chunks.go",
+      "blob_api_url": "https://api.github.com/repositories/19799491/git/blobs/ec95419fe0074c94d7db2517b4359f9161082bed",
+      "contents_api_url": "https://api.github.com/repositories/19799491/contents/statesync/chunks.go?ref=9d1be86031365f6f56668d2f5f0e7312eb8fef62"
+    },
+    {
+      "repository": "tendermint/tendermint",
+      "path": "statesync/syncer.go",
+      "commit_sha": "9d1be86031365f6f56668d2f5f0e7312eb8fef62",
+      "blob_sha": "54c4aa26aceb09d0e52c76f48776bd278191297a",
+      "bytes": 16517,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/tendermint/tendermint/blob/9d1be86031365f6f56668d2f5f0e7312eb8fef62/statesync/syncer.go",
+      "blob_api_url": "https://api.github.com/repositories/19799491/git/blobs/54c4aa26aceb09d0e52c76f48776bd278191297a",
+      "contents_api_url": "https://api.github.com/repositories/19799491/contents/statesync/syncer.go?ref=9d1be86031365f6f56668d2f5f0e7312eb8fef62"
+    },
+    {
+      "repository": "Th0rgal/sandboxed.sh",
+      "path": "PROVIDERS.md",
+      "commit_sha": "e9427ec975ba50278d682556eececbf975a03da6",
+      "blob_sha": "a0bcd53295534b38d30f8175c96a0ace1a0eaef8",
+      "bytes": 8009,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Th0rgal/sandboxed.sh/blob/e9427ec975ba50278d682556eececbf975a03da6/PROVIDERS.md",
+      "blob_api_url": "https://api.github.com/repositories/1116744615/git/blobs/a0bcd53295534b38d30f8175c96a0ace1a0eaef8",
+      "contents_api_url": "https://api.github.com/repositories/1116744615/contents/PROVIDERS.md?ref=e9427ec975ba50278d682556eececbf975a03da6"
+    },
+    {
+      "repository": "themobileprof/MegaDBSync",
+      "path": "internal/migrate/helpers.go",
+      "commit_sha": "66d71cf5e53d12630a9338958d26d6e1809556a4",
+      "blob_sha": "0ae14370d9a9be53e86d5ee970aa349c524f4e16",
+      "bytes": 3864,
+      "matched_queries": [
+        "chunkTimeout"
+      ],
+      "matched_terms": [
+        "chunkTimeout"
+      ],
+      "immutable_url": "https://github.com/themobileprof/MegaDBSync/blob/66d71cf5e53d12630a9338958d26d6e1809556a4/internal/migrate/helpers.go",
+      "blob_api_url": "https://api.github.com/repositories/1272966492/git/blobs/0ae14370d9a9be53e86d5ee970aa349c524f4e16",
+      "contents_api_url": "https://api.github.com/repositories/1272966492/contents/internal/migrate/helpers.go?ref=66d71cf5e53d12630a9338958d26d6e1809556a4"
+    },
+    {
+      "repository": "TheMorpheus407/morphcook",
+      "path": "README.md",
+      "commit_sha": "3cf6f5fb3ca1c28ee971a0a2cbea09b332e7ba2a",
+      "blob_sha": "716f5258c0ada019a2b664d01026f59b1f206dbe",
+      "bytes": 2248,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/TheMorpheus407/morphcook/blob/3cf6f5fb3ca1c28ee971a0a2cbea09b332e7ba2a/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1264921302/git/blobs/716f5258c0ada019a2b664d01026f59b1f206dbe",
+      "contents_api_url": "https://api.github.com/repositories/1264921302/contents/README.md?ref=3cf6f5fb3ca1c28ee971a0a2cbea09b332e7ba2a"
+    },
+    {
+      "repository": "thesysdev/make-no-mistakes",
+      "path": "README.md",
+      "commit_sha": "7742fc31d4def475246d1f60c163395e45880f74",
+      "blob_sha": "9d9c41ff302ee0dfb2736b0dc1a04e3668a6871f",
+      "bytes": 3894,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/thesysdev/make-no-mistakes/blob/7742fc31d4def475246d1f60c163395e45880f74/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1201442668/git/blobs/9d9c41ff302ee0dfb2736b0dc1a04e3668a6871f",
+      "contents_api_url": "https://api.github.com/repositories/1201442668/contents/README.md?ref=7742fc31d4def475246d1f60c163395e45880f74"
+    },
+    {
+      "repository": "thiswillbeyourgithub/AnkiAIUtils",
+      "path": "README.md",
+      "commit_sha": "dbeaf2804ad6eb0d788dbac2a42044ba513e3516",
+      "blob_sha": "d8b72413cf76b9f08832e44cf2529406a53456d5",
+      "bytes": 37963,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/thiswillbeyourgithub/AnkiAIUtils/blob/dbeaf2804ad6eb0d788dbac2a42044ba513e3516/README.md",
+      "blob_api_url": "https://api.github.com/repositories/779312276/git/blobs/d8b72413cf76b9f08832e44cf2529406a53456d5",
+      "contents_api_url": "https://api.github.com/repositories/779312276/contents/README.md?ref=dbeaf2804ad6eb0d788dbac2a42044ba513e3516"
+    },
+    {
+      "repository": "thu-pacman/chitu",
+      "path": "docs/en/SUPPORTED_MODELS.md",
+      "commit_sha": "2978e64bfa42a3882ea46db58055ff51d6ffa4f2",
+      "blob_sha": "15080886829a7ba14b6b0abe39757c6faaf18277",
+      "bytes": 16295,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/thu-pacman/chitu/blob/2978e64bfa42a3882ea46db58055ff51d6ffa4f2/docs/en/SUPPORTED_MODELS.md",
+      "blob_api_url": "https://api.github.com/repositories/935868283/git/blobs/15080886829a7ba14b6b0abe39757c6faaf18277",
+      "contents_api_url": "https://api.github.com/repositories/935868283/contents/docs/en/SUPPORTED_MODELS.md?ref=2978e64bfa42a3882ea46db58055ff51d6ffa4f2"
+    },
+    {
+      "repository": "thu-pacman/chitu",
+      "path": "docs/zh/SUPPORTED_MODELS.md",
+      "commit_sha": "2978e64bfa42a3882ea46db58055ff51d6ffa4f2",
+      "blob_sha": "88b753b4b1a61afbc6e9169f83ab6de1982b3992",
+      "bytes": 16232,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/thu-pacman/chitu/blob/2978e64bfa42a3882ea46db58055ff51d6ffa4f2/docs/zh/SUPPORTED_MODELS.md",
+      "blob_api_url": "https://api.github.com/repositories/935868283/git/blobs/88b753b4b1a61afbc6e9169f83ab6de1982b3992",
+      "contents_api_url": "https://api.github.com/repositories/935868283/contents/docs/zh/SUPPORTED_MODELS.md?ref=2978e64bfa42a3882ea46db58055ff51d6ffa4f2"
+    },
+    {
+      "repository": "tmdgusya/prometheus",
+      "path": "README.md",
+      "commit_sha": "2f626062ff298fbb10d84519dca88cd0b484668f",
+      "blob_sha": "f729c1d8ad3a1f33b72ea1e0162c630a220ede8b",
+      "bytes": 9456,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/tmdgusya/prometheus/blob/2f626062ff298fbb10d84519dca88cd0b484668f/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1269284766/git/blobs/f729c1d8ad3a1f33b72ea1e0162c630a220ede8b",
+      "contents_api_url": "https://api.github.com/repositories/1269284766/contents/README.md?ref=2f626062ff298fbb10d84519dca88cd0b484668f"
+    },
+    {
+      "repository": "tonyd2wild/DeepSeek-v4-Flash-DSpark-1M-NVFP4-KV-2x-DGX-Spark",
+      "path": "README.md",
+      "commit_sha": "0081289d92049d15aafa666ad155b173747b10d8",
+      "blob_sha": "bf376158c8e670d5cc733fbd82f767c67baccf02",
+      "bytes": 36781,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/tonyd2wild/DeepSeek-v4-Flash-DSpark-1M-NVFP4-KV-2x-DGX-Spark/blob/0081289d92049d15aafa666ad155b173747b10d8/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1283545388/git/blobs/bf376158c8e670d5cc733fbd82f767c67baccf02",
+      "contents_api_url": "https://api.github.com/repositories/1283545388/contents/README.md?ref=0081289d92049d15aafa666ad155b173747b10d8"
+    },
+    {
+      "repository": "umbertogriffo/rag-chatbot",
+      "path": "README.md",
+      "commit_sha": "a82e18d66afb0a898e26d299cae6560d726083f8",
+      "blob_sha": "a30cc742d7fed1ed701ba7e5fb179fb9b028c751",
+      "bytes": 22193,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/umbertogriffo/rag-chatbot/blob/a82e18d66afb0a898e26d299cae6560d726083f8/README.md",
+      "blob_api_url": "https://api.github.com/repositories/659723393/git/blobs/a30cc742d7fed1ed701ba7e5fb179fb9b028c751",
+      "contents_api_url": "https://api.github.com/repositories/659723393/contents/README.md?ref=a82e18d66afb0a898e26d299cae6560d726083f8"
+    },
+    {
+      "repository": "vava-nessa/free-coding-models",
+      "path": "changelog/v0.5.50.md",
+      "commit_sha": "fc09b2ae7f68c1e22ec75fc14dd87736dbb473e7",
+      "blob_sha": "71f96716e8c8f57c92fe69530e3f5195f15fd6d7",
+      "bytes": 1668,
+      "matched_queries": [
+        "Kimi-K2.7"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Kimi-K2.7",
+        "Qwen3.6",
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/vava-nessa/free-coding-models/blob/fc09b2ae7f68c1e22ec75fc14dd87736dbb473e7/changelog/v0.5.50.md",
+      "blob_api_url": "https://api.github.com/repositories/1162971794/git/blobs/71f96716e8c8f57c92fe69530e3f5195f15fd6d7",
+      "contents_api_url": "https://api.github.com/repositories/1162971794/contents/changelog/v0.5.50.md?ref=fc09b2ae7f68c1e22ec75fc14dd87736dbb473e7"
+    },
+    {
+      "repository": "vercel-labs/ai-python",
+      "path": "README.md",
+      "commit_sha": "1ea0a40c81a3a6ecd7594549950c62c5ba92788d",
+      "blob_sha": "5938de75913b709a01173806b7c8b093f20e9c7c",
+      "bytes": 4899,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/vercel-labs/ai-python/blob/1ea0a40c81a3a6ecd7594549950c62c5ba92788d/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1135322438/git/blobs/5938de75913b709a01173806b7c8b093f20e9c7c",
+      "contents_api_url": "https://api.github.com/repositories/1135322438/contents/README.md?ref=1ea0a40c81a3a6ecd7594549950c62c5ba92788d"
+    },
+    {
+      "repository": "VikashLoomba/copilot-mcp",
+      "path": "AGENTS.md",
+      "commit_sha": "96c3ed5ca739a6bac928d2a735e20fb301baadfe",
+      "blob_sha": "f6131da2973ca0c7b0cc8c0da426e3ba9b0d82fd",
+      "bytes": 10696,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/VikashLoomba/copilot-mcp/blob/96c3ed5ca739a6bac928d2a735e20fb301baadfe/AGENTS.md",
+      "blob_api_url": "https://api.github.com/repositories/934139122/git/blobs/f6131da2973ca0c7b0cc8c0da426e3ba9b0d82fd",
+      "contents_api_url": "https://api.github.com/repositories/934139122/contents/AGENTS.md?ref=96c3ed5ca739a6bac928d2a735e20fb301baadfe"
+    },
+    {
+      "repository": "VikashLoomba/copilot-mcp",
+      "path": "llms.txt",
+      "commit_sha": "96c3ed5ca739a6bac928d2a735e20fb301baadfe",
+      "blob_sha": "863bc5f7241c26b7f4838a85432a81ebd858ebb6",
+      "bytes": 2834,
+      "matched_queries": [
+        "opencode provider registry"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/VikashLoomba/copilot-mcp/blob/96c3ed5ca739a6bac928d2a735e20fb301baadfe/llms.txt",
+      "blob_api_url": "https://api.github.com/repositories/934139122/git/blobs/863bc5f7241c26b7f4838a85432a81ebd858ebb6",
+      "contents_api_url": "https://api.github.com/repositories/934139122/contents/llms.txt?ref=96c3ed5ca739a6bac928d2a735e20fb301baadfe"
+    },
+    {
+      "repository": "wikieden/Freedom-To-Chatgpt-Claude-Agent",
+      "path": "README.md",
+      "commit_sha": "819a89ee775f617a57348536e49123634d3c52ee",
+      "blob_sha": "98b833d74c977a0ebcb05bbf72f5fd00c1d5fbc5",
+      "bytes": 233263,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "Qwen3.6"
+      ],
+      "immutable_url": "https://github.com/wikieden/Freedom-To-Chatgpt-Claude-Agent/blob/819a89ee775f617a57348536e49123634d3c52ee/README.md",
+      "blob_api_url": "https://api.github.com/repositories/600369478/git/blobs/98b833d74c977a0ebcb05bbf72f5fd00c1d5fbc5",
+      "contents_api_url": "https://api.github.com/repositories/600369478/contents/README.md?ref=819a89ee775f617a57348536e49123634d3c52ee"
+    },
+    {
+      "repository": "xenitV1/codex-anywhere-proxy",
+      "path": "README.md",
+      "commit_sha": "32a9210fbe5d9a7ad78dcdca8589381acb1e7e0c",
+      "blob_sha": "d199a8b17a31bfb0e59d19411437ac0d1f78e3d9",
+      "bytes": 7323,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/xenitV1/codex-anywhere-proxy/blob/32a9210fbe5d9a7ad78dcdca8589381acb1e7e0c/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1251608713/git/blobs/d199a8b17a31bfb0e59d19411437ac0d1f78e3d9",
+      "contents_api_url": "https://api.github.com/repositories/1251608713/contents/README.md?ref=32a9210fbe5d9a7ad78dcdca8589381acb1e7e0c"
+    },
+    {
+      "repository": "xianyu110/awesome-openclaw-tutorial",
+      "path": "README.md",
+      "commit_sha": "86b1a8d0148beac3beda10bdbd5dbff1bd8ca498",
+      "blob_sha": "304b8fc607b2069bfbdf4ab4c5e865f88bfa5a19",
+      "bytes": 21882,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/xianyu110/awesome-openclaw-tutorial/blob/86b1a8d0148beac3beda10bdbd5dbff1bd8ca498/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1154103908/git/blobs/304b8fc607b2069bfbdf4ab4c5e865f88bfa5a19",
+      "contents_api_url": "https://api.github.com/repositories/1154103908/contents/README.md?ref=86b1a8d0148beac3beda10bdbd5dbff1bd8ca498"
+    },
+    {
+      "repository": "Xuanwo/luban",
+      "path": "docs/provider-logos.md",
+      "commit_sha": "e30ba9f8ed91a067facd622c42c0e14a9d934531",
+      "blob_sha": "3c1ef0dbe258b91bc841be32ddadfd69f7d11172",
+      "bytes": 954,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Xuanwo/luban/blob/e30ba9f8ed91a067facd622c42c0e14a9d934531/docs/provider-logos.md",
+      "blob_api_url": "https://api.github.com/repositories/1125128073/git/blobs/3c1ef0dbe258b91bc841be32ddadfd69f7d11172",
+      "contents_api_url": "https://api.github.com/repositories/1125128073/contents/docs/provider-logos.md?ref=e30ba9f8ed91a067facd622c42c0e14a9d934531"
+    },
+    {
+      "repository": "y13sint/FreeQwenApi",
+      "path": "README.md",
+      "commit_sha": "50ce57d40cb9b019f90b890180c9855cacc11bf4",
+      "blob_sha": "b2f3a6b3409b0ec378a3ce2222fce6fa50956051",
+      "bytes": 12762,
+      "matched_queries": [
+        "Qwen3.6"
+      ],
+      "matched_terms": [
+        "Qwen3.6",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/y13sint/FreeQwenApi/blob/50ce57d40cb9b019f90b890180c9855cacc11bf4/README.md",
+      "blob_api_url": "https://api.github.com/repositories/985459062/git/blobs/b2f3a6b3409b0ec378a3ce2222fce6fa50956051",
+      "contents_api_url": "https://api.github.com/repositories/985459062/contents/README.md?ref=50ce57d40cb9b019f90b890180c9855cacc11bf4"
+    },
+    {
+      "repository": "yihong0618/tg_bot_collections",
+      "path": "README.md",
+      "commit_sha": "ace881f8cf9dcf981e4c23654b78b258116b5e74",
+      "blob_sha": "45e98ff27a061631bb1648fec54e0dc7878e033c",
+      "bytes": 6478,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/yihong0618/tg_bot_collections/blob/ace881f8cf9dcf981e4c23654b78b258116b5e74/README.md",
+      "blob_api_url": "https://api.github.com/repositories/730177927/git/blobs/45e98ff27a061631bb1648fec54e0dc7878e033c",
+      "contents_api_url": "https://api.github.com/repositories/730177927/contents/README.md?ref=ace881f8cf9dcf981e4c23654b78b258116b5e74"
+    },
+    {
+      "repository": "yihong0618/tg_bot_collections",
+      "path": "config.py",
+      "commit_sha": "ace881f8cf9dcf981e4c23654b78b258116b5e74",
+      "blob_sha": "e2d8a9ba39e962afd51d60242a50b54a6c2b8de7",
+      "bytes": 1275,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3"
+      ],
+      "immutable_url": "https://github.com/yihong0618/tg_bot_collections/blob/ace881f8cf9dcf981e4c23654b78b258116b5e74/config.py",
+      "blob_api_url": "https://api.github.com/repositories/730177927/git/blobs/e2d8a9ba39e962afd51d60242a50b54a6c2b8de7",
+      "contents_api_url": "https://api.github.com/repositories/730177927/contents/config.py?ref=ace881f8cf9dcf981e4c23654b78b258116b5e74"
+    },
+    {
+      "repository": "yusufkaraaslan/Skill_Seekers",
+      "path": "CLAUDE.md",
+      "commit_sha": "efb4c2eb25c06fc429cae9fb06209c7b5fb792c6",
+      "blob_sha": "ec090ea68e3679c83763fcc4737064a83e15b969",
+      "bytes": 21583,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/yusufkaraaslan/Skill_Seekers/blob/efb4c2eb25c06fc429cae9fb06209c7b5fb792c6/CLAUDE.md",
+      "blob_api_url": "https://api.github.com/repositories/1078319457/git/blobs/ec090ea68e3679c83763fcc4737064a83e15b969",
+      "contents_api_url": "https://api.github.com/repositories/1078319457/contents/CLAUDE.md?ref=efb4c2eb25c06fc429cae9fb06209c7b5fb792c6"
+    },
+    {
+      "repository": "yzfly/TokenCode",
+      "path": "STATUS.md",
+      "commit_sha": "79838fc0c66c38a875805edcc90c0ea95f5ae09b",
+      "blob_sha": "eea25cc9ff972fe15d7711d0f085ec9eb834bdf9",
+      "bytes": 25233,
+      "matched_queries": [
+        "models.dev provider"
+      ],
+      "matched_terms": [
+        "models.dev",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/yzfly/TokenCode/blob/79838fc0c66c38a875805edcc90c0ea95f5ae09b/STATUS.md",
+      "blob_api_url": "https://api.github.com/repositories/1263539330/git/blobs/eea25cc9ff972fe15d7711d0f085ec9eb834bdf9",
+      "contents_api_url": "https://api.github.com/repositories/1263539330/contents/STATUS.md?ref=79838fc0c66c38a875805edcc90c0ea95f5ae09b"
+    },
+    {
+      "repository": "zai-org/z-ai-sdk-java",
+      "path": "README.md",
+      "commit_sha": "21c13b12c27b431f98ca4a9601a6ac40b4ad4f74",
+      "blob_sha": "c4264c5a62ede7336e5758c4872531ceb079b22d",
+      "bytes": 10528,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/zai-org/z-ai-sdk-java/blob/21c13b12c27b431f98ca4a9601a6ac40b4ad4f74/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1011811454/git/blobs/c4264c5a62ede7336e5758c4872531ceb079b22d",
+      "contents_api_url": "https://api.github.com/repositories/1011811454/contents/README.md?ref=21c13b12c27b431f98ca4a9601a6ac40b4ad4f74"
+    },
+    {
+      "repository": "zai-org/z-ai-sdk-java",
+      "path": "README_CN.md",
+      "commit_sha": "21c13b12c27b431f98ca4a9601a6ac40b4ad4f74",
+      "blob_sha": "b84ec62bb7a1babe064133a7e14baf91138b7d97",
+      "bytes": 10013,
+      "matched_queries": [
+        "GLM-5.2"
+      ],
+      "matched_terms": [
+        "GLM-5.2"
+      ],
+      "immutable_url": "https://github.com/zai-org/z-ai-sdk-java/blob/21c13b12c27b431f98ca4a9601a6ac40b4ad4f74/README_CN.md",
+      "blob_api_url": "https://api.github.com/repositories/1011811454/git/blobs/b84ec62bb7a1babe064133a7e14baf91138b7d97",
+      "contents_api_url": "https://api.github.com/repositories/1011811454/contents/README_CN.md?ref=21c13b12c27b431f98ca4a9601a6ac40b4ad4f74"
+    },
+    {
+      "repository": "zamalali/DeepGit",
+      "path": "README.md",
+      "commit_sha": "940c14e1c1cb0a63a08d6f46feec728165868b39",
+      "blob_sha": "6a0e113986562609791e1aea7317c85ee332ee28",
+      "bytes": 6489,
+      "matched_queries": [
+        "MiniMax-M3"
+      ],
+      "matched_terms": [
+        "MiniMax-M3",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/zamalali/DeepGit/blob/940c14e1c1cb0a63a08d6f46feec728165868b39/README.md",
+      "blob_api_url": "https://api.github.com/repositories/904010974/git/blobs/6a0e113986562609791e1aea7317c85ee332ee28",
+      "contents_api_url": "https://api.github.com/repositories/904010974/contents/README.md?ref=940c14e1c1cb0a63a08d6f46feec728165868b39"
+    },
+    {
+      "repository": "Zzzia/opencode-openai-compatible-models",
+      "path": "README.md",
+      "commit_sha": "61356c05350d3e6b14c0af70846c3caa18e524bd",
+      "blob_sha": "5fc0a14ac96047107f04cc8ab8e6cf9e9c43661e",
+      "bytes": 3404,
+      "matched_queries": [
+        "opencode openai-compatible"
+      ],
+      "matched_terms": [
+        "opencode",
+        "provider"
+      ],
+      "immutable_url": "https://github.com/Zzzia/opencode-openai-compatible-models/blob/61356c05350d3e6b14c0af70846c3caa18e524bd/README.md",
+      "blob_api_url": "https://api.github.com/repositories/1277779028/git/blobs/5fc0a14ac96047107f04cc8ab8e6cf9e9c43661e",
+      "contents_api_url": "https://api.github.com/repositories/1277779028/contents/README.md?ref=61356c05350d3e6b14c0af70846c3caa18e524bd"
+    }
+  ],
+  "failures": []
+}

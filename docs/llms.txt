@@ -23,8 +23,9 @@
 - [Capacity & provider health](https://github.com/0xzr/freellmpool/blob/main/docs/CAPACITY.md): capacity status, health checks, key inventory, external catalog. Guide: https://0xzr.github.io/freellmpool/capacity-management.html
 - [CHANGELOG](https://github.com/0xzr/freellmpool/blob/main/CHANGELOG.md): release history.
 - [Integrations](https://github.com/0xzr/freellmpool/blob/main/docs/INTEGRATIONS.md): OpenCode, Hermes, metaswarm review adapter, aider, Continue, Cline, Cursor, Open WebUI, LangChain, LlamaIndex, and more.
-- [Run OpenCode on free models](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html): OpenCode setup with an embedded TUI dashboard, quality routing (spread/auto/fast/quality/fair), and usage tools.
+- [Run OpenCode on free models](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html): OpenCode setup with an embedded TUI dashboard, long-run agent routing (`freellmpool/agent`), raised stream timeouts, and usage tools.
 - [MCP server](https://github.com/0xzr/freellmpool/blob/main/docs/MCP.md): use free models from Claude Desktop/Code/Cursor.
+- [Frontier model source audit (2026-07-28)](https://github.com/0xzr/freellmpool/blob/main/docs/FRONTIER_MODEL_SOURCE_AUDIT_2026-07-28.md): 207 public immutable Git blob objects plus current first-party model/runtime sources checked before catalogue and agent-routing changes.
 
 ## Install
 - PyPI: `pip install freellmpool` (https://pypi.org/project/freellmpool/)

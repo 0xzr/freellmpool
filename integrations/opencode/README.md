@@ -13,7 +13,7 @@ It talks to a running [freellmpool](https://github.com/0xzr/freellmpool) proxy
   served provider+model. Pass `verbose: true` for per-model detail. Ask the agent
   things like *"check freellmpool status"* or *"how much quota is left?"*.
 - **`freellmpool_models` tool** — lists the model ids the proxy exposes (including the
-  routing aliases `auto` / `fast` / `quality` / `fair`).
+  routing aliases `agent` / `auto` / `spread` / `fast` / `quality` / `fair`).
 - **`freellmpool_tokenmax` tool** 🌈 — blast the same prompt to **every** free model at
   once, then the agent synthesizes them all. Ask *"tokenmax: &lt;hard question&gt;"*. While
   the swarm runs, the companion **embedded TUI dashboard** (`../opencode-tui`) throbs a live
@@ -29,17 +29,18 @@ Routing is chosen by the **model name** in OpenCode's model picker — no extra 
 
 | Model | Routing |
 | --- | --- |
-| `freellmpool/spread` | **best for agentic work** — spread across the *whole* pool (least-used tier first → no provider hits its rate limit), with a latency/health tie-break so it stays fast. Use this for long, multi-step loops. |
+| `freellmpool/agent` | **default for long agentic work** — stay in the strongest healthy benchmark tier, then spread quota and prefer fast targets inside that tier. |
+| `freellmpool/spread` | spread across the *whole* pool (least-used tier first), with a latency/health tie-break. Use when breadth and maximum aggregate quota matter more than capability. |
 | `freellmpool/auto` | proxy default (whatever `FREELLMPOOL_ROUTING` is set to) |
 | `freellmpool/fast` | lowest-latency provider first (concentrates load → can rate-limit under sustained loops) |
 | `freellmpool/quality` | match the model's capability to the prompt's difficulty |
 | `freellmpool/fair` | spread load across providers (preserve quota), latency-blind |
 
-**For agentic coding, pick `freellmpool/spread`.** `fast` keeps hitting the same few fast providers
-every turn, so they exhaust their free-tier limits first and you get a 429 storm; `spread` rotates
-across all of them while still preferring the quick/healthy ones.
+**For agentic coding, pick `freellmpool/agent`.** It prevents weak-model stalls while
+rotating among similarly capable targets. `spread` reaches deeper into the pool when
+aggregate quota matters more than keeping every turn in the strongest tier.
 
-(Advanced: send an `X-Freellmpool-Routing: spread|fast|quality|fair` header instead.)
+(Advanced: send an `X-Freellmpool-Routing: agent|spread|fast|quality|fair` header instead.)
 
 ## Install
 
@@ -74,8 +75,14 @@ routing aliases as models so you can pick them:
   "provider": {
     "freellmpool": {
       "npm": "@ai-sdk/openai-compatible",
-      "options": { "baseURL": "http://localhost:8080/v1" },
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "headerTimeout": 600000,
+        "timeout": 600000,
+        "chunkTimeout": 120000
+      },
       "models": {
+        "agent": {},
         "spread": {},
         "auto": {},
         "fast": {},

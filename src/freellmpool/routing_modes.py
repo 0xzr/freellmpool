@@ -7,8 +7,17 @@ falls back to the pool default, while public aliases such as ``auto`` mean
 
 from __future__ import annotations
 
-ROUTING_MODES = ("fair", "fast", "quality", "spread", "legacy", "model", "model-fast")
-PUBLIC_ROUTING_ALIASES = ("auto", "spread", "fast", "quality", "fair")
+ROUTING_MODES = (
+    "fair",
+    "fast",
+    "quality",
+    "agent",
+    "spread",
+    "legacy",
+    "model",
+    "model-fast",
+)
+PUBLIC_ROUTING_ALIASES = ("auto", "agent", "spread", "fast", "quality", "fair")
 _ROUTING_SET = frozenset(ROUTING_MODES)
 
 

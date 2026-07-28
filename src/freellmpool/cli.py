@@ -1555,12 +1555,13 @@ def cmd_jobs_run(args: argparse.Namespace) -> int:
         run_pending_jobs,
     )
 
-    # Validate --limit consistently for dry-run and real runs so a
-    # --limit < 1 fails the same way regardless of which path was taken.
-    # The real-run path would also raise the same error, but validating
-    # here lets us short-circuit before reading the store.
+    # Validate runner bounds before branching so dry-run and real execution
+    # reject the same invalid command line without reading the job store.
     if args.limit is not None and args.limit < 1:
         print("freellmpool jobs run: --limit must be >= 1", file=sys.stderr)
+        return 3
+    if args.max_failures is not None and args.max_failures < 1:
+        print("freellmpool jobs run: --max-failures must be >= 1", file=sys.stderr)
         return 3
 
     store = JobStore()

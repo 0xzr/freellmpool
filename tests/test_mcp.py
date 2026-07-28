@@ -84,7 +84,7 @@ def test_tool_schemas_expose_expected_fields(providers, env, quota):
         props = schema["properties"]
         assert props["n"]["type"] == "integer"
         assert "synthesize" in props
-        assert props["routing"]["enum"] == ["auto", "fast", "quality", "fair", "spread"]
+        assert props["routing"]["enum"] == ["auto", "agent", "spread", "fast", "quality", "fair"]
         assert props["max_tokens"]["type"] == "integer"
 
     # Recipe: bounded argument shape, no duplicate dispatch logic.

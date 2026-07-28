@@ -110,8 +110,9 @@ freellmpool profile doctor hermes --dry-run
 ```
 
 Use model alias `quality` in Hermes. For long OpenCode or other OpenAI-compatible
-agent loops, start with `freellmpool/spread` to rotate across the least-used
-provider tier before using latency/health as a tie-break.
+agent loops, start with `freellmpool/agent`: it stays in the strongest healthy
+benchmark tier, then spreads quota and uses latency/health as tie-breakers.
+Use `freellmpool/spread` when whole-pool breadth matters more than capability.
 
 ## Metaswarm external-tools review
 

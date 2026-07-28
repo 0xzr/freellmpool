@@ -5,6 +5,7 @@ from __future__ import annotations
 from helpers import make_post, make_stream_post
 
 from freellmpool import capability as _capability
+from freellmpool.client import HTTPResult
 from freellmpool.models import Model, Provider
 from freellmpool.router import Pool
 
@@ -158,6 +159,46 @@ def test_402_capability_error_not_health_failure(providers, env, quota):
     assert st is None or st.fail == 0
 
 
+def test_account_quota_exhaustion_deprioritizes_provider_on_later_requests(
+    providers, env, quota
+):
+    calls = []
+    clock = {"now": 0.0}
+
+    def post(url, headers, body, timeout):
+        calls.append(url)
+        if "alpha.test" in url:
+            return HTTPResult(
+                402,
+                {"error": "You have depleted your monthly included credits."},
+                "",
+            )
+        return HTTPResult(
+            200,
+            {"choices": [{"message": {"content": "ok"}}]},
+            "",
+        )
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+    )
+    assert pool.chat(_EASY).provider_id == "beta"
+    assert pool.cooldown_snapshot(clock["now"])["alpha"] >= 15 * 60
+    calls.clear()
+
+    assert pool.chat(_EASY).provider_id == "beta"
+    assert "beta.test" in calls[0]
+
+    clock["now"] += 15 * 60 + 1
+    calls.clear()
+    assert pool.chat(_EASY).provider_id == "beta"
+    assert "alpha.test" in calls[0]
+
+
 def test_quality_matches_difficulty_to_capability(tmp_path, monkeypatch, quota):
     pool = _quality_pool(
         tmp_path,
@@ -170,6 +211,65 @@ def test_quality_matches_difficulty_to_capability(tmp_path, monkeypatch, quota):
     # hard prompt → strong model first; easy prompt → light model first (rationing)
     assert pool._order(targets, difficulty=0.9)[0].model == "big"
     assert pool._order(targets, difficulty=0.1)[0].model == "small"
+
+
+def test_agent_stays_in_strongest_capability_tier_and_spreads_usage(
+    tmp_path, monkeypatch, quota
+):
+    from freellmpool.router import _SPREAD_BUCKET
+
+    pool = _quality_pool(
+        tmp_path,
+        monkeypatch,
+        quota,
+        scores={"frontier-a": 0.99, "frontier-b": 0.96, "medium": 0.91, "weak": 0.5},
+        models=[
+            Model("frontier-a"),
+            Model("frontier-b"),
+            Model("medium"),
+            Model("weak"),
+        ],
+    )
+    targets = pool._all_targets()
+
+    initial = [target.model for target in pool._order(targets, routing="agent")]
+    assert initial[:2] == ["frontier-a", "frontier-b"]
+    assert initial.index("frontier-b") < initial.index("medium")
+
+    quota.record("x", "frontier-a", _SPREAD_BUCKET)
+    spread = [target.model for target in pool._order(targets, routing="agent")]
+    assert spread[:2] == ["frontier-b", "frontier-a"]
+    assert spread.index("frontier-a") < spread.index("medium")
+
+
+def test_agent_spreads_by_provider_not_catalog_width(monkeypatch, quota):
+    """A provider must not earn extra traffic merely by listing more models."""
+    monkeypatch.setattr("freellmpool.router.capability_table", lambda: {})
+    monkeypatch.setattr("freellmpool.router.model_capability", lambda _name, _table: 0.99)
+    wide = Provider(
+        id="wide",
+        label="Wide",
+        adapter="openai",
+        base_url="https://wide.test/v1",
+        auth="none",
+        models=(Model("wide-a"), Model("wide-b"), Model("wide-c")),
+    )
+    narrow = Provider(
+        id="narrow",
+        label="Narrow",
+        adapter="openai",
+        base_url="https://narrow.test/v1",
+        auth="none",
+        models=(Model("narrow-a"),),
+    )
+    for model in wide.models:
+        quota.record("wide", model.name, 7)
+    quota.record("narrow", "narrow-a", 7)
+
+    pool = Pool([wide, narrow], quota=quota, env={})
+    order = pool._order(pool._all_targets(), routing="agent")
+
+    assert order[0].provider.id == "narrow"
 
 
 def test_quality_over_budget_model_sinks(tmp_path, monkeypatch, quota):

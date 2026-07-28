@@ -109,3 +109,18 @@ def test_batched_flush_failure_keeps_pending_visible(tmp_path, monkeypatch):
 
     s.flush()
     assert _store(tmp_path, 2).snapshot() == {"groq::m": 2}
+
+
+def test_batched_flush_persists_prior_day_pending_after_utc_midnight(tmp_path):
+    path = tmp_path / "q.json"
+    day2 = datetime(2026, 6, 2, 23, 59, tzinfo=UTC)
+    day3 = datetime(2026, 6, 3, 0, 1, tzinfo=UTC)
+    now = {"value": day2}
+    store = QuotaStore(path=path, clock=lambda: now["value"], flush_every=10)
+
+    store.record("groq", "m", 3)
+    now["value"] = day3
+    store.flush()
+
+    assert QuotaStore(path=path, clock=lambda: day2).used("groq", "m") == 3
+    assert QuotaStore(path=path, clock=lambda: day3).used("groq", "m") == 0

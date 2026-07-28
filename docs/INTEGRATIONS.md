@@ -89,18 +89,24 @@ snapshots and never live-probe an upstream provider.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "freellmpool/auto",
+  "model": "freellmpool/agent",
   "provider": {
     "freellmpool": {
       "npm": "@ai-sdk/openai-compatible",
-      "options": { "baseURL": "http://localhost:8080/v1" },
-      "models": { "spread": {}, "auto": {}, "fast": {}, "quality": {}, "fair": {} }
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "headerTimeout": 600000,
+        "timeout": 600000,
+        "chunkTimeout": 120000
+      },
+      "models": { "agent": {}, "spread": {}, "auto": {}, "fast": {}, "quality": {}, "fair": {} }
     }
   }
 }
 ```
-Pick `freellmpool/spread|auto|fast|quality|fair` in the model picker to control
-routing (`spread` = least-used tier first with a latency/health tie-break;
+Pick `freellmpool/agent|spread|auto|fast|quality|fair` in the model picker to control
+routing (`agent` = strongest healthy capability tier with quota spreading;
+`spread` = least-used tier first with a latency/health tie-break;
 `quality` = capability-matched + latency-aware; `fast` = lowest latency; `fair`
 = spread quota without the latency tie-break). Full guide:
 <https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html>.

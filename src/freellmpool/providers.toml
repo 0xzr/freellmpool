@@ -134,7 +134,7 @@ models = [
     { name = "Qwen/Qwen3.6-35B-A3B", rpd = 0 },
     { name = "XiaomiMiMo/MiMo-V2.5-Pro", rpd = 0 },
     { name = "google/gemma-4-31B-it", rpd = 0 },
-    { name = "moonshotai/Kimi-K2.7-Code", rpd = 0 },
+    { name = "moonshotai/Kimi-K2.7-Code", rpd = 0, context = 262144 },
     { name = "zai-org/GLM-5.2", rpd = 0 },
 ]
 
@@ -479,7 +479,7 @@ models = [
     { name = "@cf/meta/llama-3.1-8b-instruct-fp8", rpd = 0 },
     { name = "@cf/meta/llama-3.2-1b-instruct", rpd = 0 },
     { name = "@cf/moonshotai/kimi-k2.6", rpd = 0 },
-    { name = "@cf/moonshotai/kimi-k2.7-code", rpd = 0 },
+    { name = "@cf/moonshotai/kimi-k2.7-code", rpd = 0, context = 262144 },
     { name = "@cf/zai-org/glm-4.7-flash", rpd = 0 },
     { name = "@cf/meta-llama/llama-2-7b-chat-hf-lora", rpd = 0, enabled = false },
     { name = "@cf/ibm-granite/granite-4.0-h-micro", rpd = 0 },

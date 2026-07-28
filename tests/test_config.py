@@ -42,6 +42,12 @@ def test_packaged_catalog_loads():
         assert p.base_url.startswith("https://")
 
 
+def test_kimi_k27_catalog_entries_declare_verified_context_window():
+    providers = {provider.id: provider for provider in load_catalog()}
+    assert providers["cloudflare"].model("@cf/moonshotai/kimi-k2.7-code").context == 262_144
+    assert providers["huggingface"].model("moonshotai/Kimi-K2.7-Code").context == 262_144
+
+
 def test_packaged_catalog_reflects_july_live_model_audit():
     providers = {provider.id: provider for provider in load_catalog()}
     expected_enabled = {
@@ -338,3 +344,28 @@ def test_split_provider_model_guards_against_slash_model_names():
     # no slash, or no provider set → unchanged
     assert split_provider_model("gpt-4o-mini", pids) == (None, "gpt-4o-mini")
     assert split_provider_model("groq/x", None) == (None, "groq/x")
+
+
+def test_custom_provider_rejects_unsafe_environment_variable_names():
+    from freellmpool.config import _parse_rows
+
+    def row(provider_id, **fields):
+        return {
+            "id": provider_id,
+            "base_url": "https://provider.example/v1",
+            "models": [{"name": "model"}],
+            **fields,
+        }
+
+    providers = _parse_rows(
+        [
+            row("valid", key_env="PROVIDER_KEY", extra_env=["ACCOUNT_ID"]),
+            row("newline", key_env="BAD\nKEY"),
+            row("space", extra_env=["BAD NAME"]),
+            row("scalar-extra", extra_env="ACCOUNT_ID"),
+        ]
+    )
+
+    assert [provider.id for provider in providers] == ["valid"]
+    assert providers[0].key_env == "PROVIDER_KEY"
+    assert providers[0].extra_env == ("ACCOUNT_ID",)

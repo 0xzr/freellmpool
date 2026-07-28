@@ -149,6 +149,7 @@ def test_pages_describe_current_main_agent_and_operations_surfaces() -> None:
         assert marker in agents
 
     for text in (index, opencode, llms):
+        assert "freellmpool/agent" in text
         assert "spread" in text
 
     for text in (index, opencode):
@@ -161,10 +162,17 @@ def test_pages_dates_match_current_documentation_pass() -> None:
     sitemap = (ROOT / "docs" / "sitemap.xml").read_text(encoding="utf-8")
     for page in (
         "https://0xzr.github.io/freellmpool/",
-        "https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html",
         "https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html",
     ):
-        assert f"<loc>{page}</loc><lastmod>2026-07-19</lastmod>" in sitemap
+        assert f"<loc>{page}</loc><lastmod>2026-07-28</lastmod>" in sitemap
+
+
+def test_pages_expose_search_and_llm_discovery_metadata() -> None:
+    index = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+    assert '<meta name="robots" content="index,follow,max-image-preview:large">' in index
+    assert '<link rel="alternate" type="text/plain" href="llms.txt"' in index
+    assert '<meta name="twitter:title"' in index
+    assert '"@type": "WebSite"' in index
 
 
 def test_roadmap_reflects_kimi_m3_addendum() -> None:

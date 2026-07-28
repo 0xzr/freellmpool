@@ -193,5 +193,33 @@ def test_pool_transcribe_all_fail_raises():
     pool = Pool(
         [], env={"A_KEY": "a"}, transcribers=[_transcriber("alpha", "A_KEY")], transcribe_post=post
     )
-    with pytest.raises(AllProvidersExhausted):
+    with pytest.raises(AllProvidersExhausted) as exc_info:
         pool.transcribe(b"AUDIO", "a.wav")
+    assert exc_info.value.client_status is None
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "expected_client_status"),
+    [
+        (400, "bad audio input", 400),
+        (402, "You have depleted your monthly included credits", None),
+    ],
+)
+def test_pool_transcribe_classifies_nonretryable_error(
+    status, message, expected_client_status
+):
+    def post(url, headers, files, data, timeout):
+        return C.HTTPResult(status, {"error": {"message": message}}, "")
+
+    pool = Pool(
+        [],
+        env={"A_KEY": "a"},
+        transcribers=[_transcriber("alpha", "A_KEY")],
+        transcribe_post=post,
+    )
+    with pytest.raises(AllProvidersExhausted) as exc_info:
+        pool.transcribe(b"AUDIO", "a.wav")
+
+    assert exc_info.value.client_status == expected_client_status
+    if expected_client_status is not None:
+        assert message in (exc_info.value.client_message or "")

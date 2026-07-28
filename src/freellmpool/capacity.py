@@ -152,8 +152,15 @@ def _status_rank(status: str) -> int:
 
 
 def _soonest_expiry(records: list[KeyRecord]) -> str | None:
-    values = sorted(r.expires_at for r in records if r.expires_at)
-    return values[0] if values else None
+    values: list[date] = []
+    for record in records:
+        if not record.expires_at:
+            continue
+        try:
+            values.append(date.fromisoformat(record.expires_at))
+        except ValueError:
+            continue
+    return min(values).isoformat() if values else None
 
 
 def _is_expired_or_today(value: str) -> bool:

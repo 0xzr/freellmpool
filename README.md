@@ -171,7 +171,7 @@ Anthropic-compatible tools can use the experimental bridge with
 
 **OpenCode** gets a deeper integration on current `main`: a live in-editor **dashboard** (routing mode,
 estimated savings, tokens served free, provider race, latency), per-request
-**quality routing** via the model picker (`freellmpool/spread|auto|fast|quality|fair`), and `freellmpool_status`
+**agent routing** via the model picker (`freellmpool/agent|spread|auto|fast|quality|fair`), and `freellmpool_status`
 / `freellmpool_models` tools — see [integrations/opencode-tui](integrations/opencode-tui)
 and the [guide](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html).
 The package tarballs are validated in CI, but npm publication remains pending;

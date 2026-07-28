@@ -38,7 +38,7 @@ from .errors import (
 )
 from .models import Provider, Reply
 from .observe import emit
-from .router import Pool, _is_health_failure
+from .router import Pool, _is_account_quota_exhaustion, _is_health_failure
 from .routing_modes import normalize_routing_mode
 
 #: An async transport: ``await apost(url, headers, json_body, timeout) -> HTTPResult``.
@@ -370,7 +370,10 @@ class AsyncPool:
         tool_choice=None,
         routing: str | None = None,
     ) -> Reply:
-        """Async failover completion — same routing/cache/metrics as :meth:`Pool.chat`."""
+        """Async failover completion — same routing/cache/metrics as :meth:`Pool.chat`.
+
+        ``timeout`` is one overall deadline shared by every failover attempt.
+        """
         p = self._pool
         if not p.providers:
             raise NoProvidersConfigured("no provider has an API key set")
@@ -413,17 +416,26 @@ class AsyncPool:
             raise NoProvidersConfigured("no candidate (provider, model) matched the given filters")
 
         now = p._clock()
-        states = [(t, p._cooled(t.provider.id, now)) for t in targets]
+        deadline = now + max(0.0, timeout)
+        states = [
+            (
+                t,
+                p._cooled(t.provider.id, now)
+                or p._account_backed_off(t.provider.id, now),
+            )
+            for t in targets
+        ]
         sequence = [t for t, c in states if not c] + [t for t, c in states if c]
         attempts: list[tuple[str, str]] = []
-        rate_limited: set[str] = set()
+        unavailable_providers: set[str] = set()
+        client_error: ProviderHTTPError | None = None
         est_tokens = estimate_input_tokens(messages, tools)
         needed = est_tokens + max_tokens
         ctx_overflow = False
         non_ctx_failure = False
         for target in sequence:
-            if target.provider.id in rate_limited:
-                attempts.append((target.name, "skipped (provider rate-limited this request)"))
+            if target.provider.id in unavailable_providers:
+                attempts.append((target.name, "skipped (provider quota unavailable this request)"))
                 continue
             api_key = target.provider.api_key(self.env)
             if api_key is None and not target.provider.keyless:
@@ -438,8 +450,12 @@ class AsyncPool:
                 emit(p._on_event, "context_skip", target=target.name, context=cap, needed=needed)
                 ctx_overflow = True
                 continue
-            emit(p._on_event, "attempt", target=target.name, n=len(attempts) + 1)
             started = p._clock()
+            remaining = deadline - started
+            if remaining <= 0:
+                attempts.append((target.name, "skipped (overall request timeout exhausted)"))
+                break
+            emit(p._on_event, "attempt", target=target.name, n=len(attempts) + 1)
             try:
                 reply = await self._acall(
                     target.provider,
@@ -447,7 +463,7 @@ class AsyncPool:
                     messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    timeout=timeout,
+                    timeout=remaining,
                     tools=tools,
                     tool_choice=tool_choice,
                 )
@@ -464,11 +480,17 @@ class AsyncPool:
                     continue
                 if exc.status == 429:
                     p._mark_cooldown(target.provider.id, p._clock())
-                    rate_limited.add(target.provider.id)
+                    unavailable_providers.add(target.provider.id)
                     emit(p._on_event, "cooldown", target=target.name, status=429)
+                account_exhausted = _is_account_quota_exhaustion(exc)
+                if account_exhausted:
+                    p._mark_account_backoff(target.provider.id, p._clock())
+                    unavailable_providers.add(target.provider.id)
                 # Any non-context failure (incl. a rate-limit, which might have fit)
                 # means "too long" isn't provably the whole story — stay generic.
                 non_ctx_failure = True
+                if not exc.retryable and not account_exhausted and client_error is None:
+                    client_error = exc
                 if _is_health_failure(exc):
                     p.metrics.record_failure(target.name, str(exc))
                 emit(p._on_event, "error", target=target.name, reason=str(exc))
@@ -526,4 +548,8 @@ class AsyncPool:
         emit(p._on_event, "exhausted", attempts=len(attempts))
         if ctx_overflow and not non_ctx_failure:
             raise ContextWindowExceeded(attempts, est_tokens=est_tokens)
+        if client_error is not None:
+            raise AllProvidersExhausted(
+                attempts, client_status=client_error.status, client_message=str(client_error)
+            )
         raise AllProvidersExhausted(attempts)

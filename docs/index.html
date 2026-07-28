@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index,follow,max-image-preview:large">
 <title>freellmpool — keyless-capable OpenAI-compatible LLM API gateway</title>
 <meta name="description" content="freellmpool pools the free tiers of 24 cataloged LLM providers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Morph, Vercel and more) behind one OpenAI-compatible endpoint. Free, open-source, pip-installable; keyless start when routes are available. CLI, Python library, local proxy, and MCP server with automatic failover.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/">
+<link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable documentation">
 <meta property="og:title" content="freellmpool — keyless-capable OpenAI-compatible LLM API gateway">
 <meta property="og:description" content="Pool the free tiers of 24 cataloged LLM providers behind one OpenAI-compatible endpoint. Free, open-source, keyless start when routes are available.">
 <meta property="og:type" content="website">
@@ -35,6 +37,8 @@
  ul{padding-left:20px}
 </style>
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="freellmpool — free LLM API pool for agents">
+<meta name="twitter:description" content="Pool 24 providers' free LLM tiers behind one OpenAI-compatible API, with strongest-tier agent routing, failover, CLI, proxy, and MCP.">
 <meta property="og:image" content="https://0xzr.github.io/freellmpool/assets/social-preview.png">
 <meta name="twitter:image" content="https://0xzr.github.io/freellmpool/assets/social-preview.png">
 </head>
@@ -90,7 +94,7 @@ tiers — not a server you deploy and not a paid aggregator.</p>
 <li><strong>OpenAI-compatible proxy:</strong> point <code>OPENAI_BASE_URL</code> at <code>freellmpool proxy</code> for most text, embedding, and transcription calls.</li>
 <li><strong>Run coding agents for free:</strong> <code>freellmpool code claude</code> (also codex, aider, cline, continue, cursor, Hermes, and OpenCode) routes them to pooled free models — see the <a href="run-coding-agents-on-free-models.html">step-by-step guide</a>. The Hermes profile is currently main-only.</li>
 <li><strong>Automate proxy operations:</strong> current <code>main</code> adds public <code>/livez</code> and <code>/readyz</code> probes, authenticated <code>/v1/providers</code>, and <code>/v1/models?ready=true</code> for locally ready targets.</li>
-<li><strong>Use OpenCode deeply:</strong> choose <code>freellmpool/spread</code> for quota-aware agent loops and add the repository-local dashboard/tools plugins while npm publication is pending.</li>
+<li><strong>Use OpenCode deeply:</strong> choose <code>freellmpool/agent</code> for strongest-tier, quota-aware agent loops and add the repository-local dashboard/tools plugins while npm publication is pending.</li>
 <li><strong>Add model-pool review to metaswarm:</strong> use the experimental <a href="https://github.com/0xzr/freellmpool/tree/main/integrations/metaswarm">metaswarm adapter</a> as a review-only external tool.</li>
 <li><strong>Async + library:</strong> <code>from freellmpool import Pool, AsyncPool</code>.</li>
 <li><strong>MCP server:</strong> <code>freellmpool mcp</code> lets Claude Desktop/Code/Cursor offload subtasks to free models.</li>
@@ -181,7 +185,7 @@ for provider routing, ToS, and privacy notes.</p>
 
 </div>
 
-<p class="meta">Free and open source (MIT). Latest release: 0.11.4. Page updated 2026-07-19.
+<p class="meta">Free and open source (MIT). Latest release: 0.11.4. Page updated 2026-07-28.
 Project: <a href="https://github.com/0xzr/freellmpool">github.com/0xzr/freellmpool</a></p>
 
 </div>
@@ -200,6 +204,20 @@ Project: <a href="https://github.com/0xzr/freellmpool">github.com/0xzr/freellmpo
   "license": "https://opensource.org/licenses/MIT",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
   "author": {"@type": "Person", "name": "0xzr"}
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "freellmpool documentation",
+  "url": "https://0xzr.github.io/freellmpool/",
+  "inLanguage": "en",
+  "about": {
+    "@type": "SoftwareApplication",
+    "name": "freellmpool",
+    "url": "https://github.com/0xzr/freellmpool"
+  }
 }
 </script>
 </body>

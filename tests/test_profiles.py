@@ -67,6 +67,19 @@ def test_profile_install_prints_quickstart_and_snippets(capsys):
     assert '"freellmpool"' in out
 
 
+def test_opencode_profile_defaults_to_long_running_agent_route_and_timeouts():
+    profile = PROFILES["opencode"]
+    config = json.loads(profile.config_snippets["opencode.json"])
+    provider = config["provider"]["freellmpool"]
+
+    assert profile.model_family == "agent"
+    assert config["model"] == "freellmpool/agent"
+    assert "agent" in provider["models"]
+    assert provider["options"]["headerTimeout"] >= 600_000
+    assert provider["options"]["timeout"] >= 600_000
+    assert provider["options"]["chunkTimeout"] >= 60_000
+
+
 def test_hermes_profile_uses_supported_custom_endpoint(capsys):
     profile = PROFILES["hermes"]
     assert profile.client_kind == "openai"

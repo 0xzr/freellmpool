@@ -55,6 +55,11 @@ _MAX_BODY = 16 * 1024 * 1024  # 16 MB cap on request bodies
 # Audio uploads are larger than JSON; Groq's free tier accepts up to 25 MB, so cap audio
 # multipart bodies there rather than at the JSON limit (a valid 20 MB clip must not 413).
 _MAX_AUDIO_BODY = 25 * 1024 * 1024
+# Long-running agent loops regularly spend several minutes in tool-aware reasoning.
+# The OpenCode profile uses the ``agent`` routing alias and a matching ten-minute
+# client deadline; carry that intent through to the actual provider request rather
+# than silently falling back to Pool's generic 90-second default.
+_AGENT_UPSTREAM_TIMEOUT = 540.0  # leave one minute for proxy/client handoff
 # response_format values we forward. srt/vtt aren't accepted by Groq/Mistral's transcription
 # endpoints (they'd fail upstream and surface as a confusing 502), so reject them up front.
 _TRANSCRIPTION_FORMATS = ("json", "text", "verbose_json")
@@ -624,7 +629,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._anthropic_error(413, str(exc), "context_length_exceeded")
                 return
             except AllProvidersExhausted as exc:
-                self._anthropic_error(502, str(exc), "all_providers_exhausted")
+                client_status = getattr(exc, "client_status", None)
+                if isinstance(client_status, int) and 400 <= client_status < 500:
+                    self._anthropic_error(
+                        client_status,
+                        getattr(exc, "client_message", None) or str(exc),
+                        "invalid_request_error",
+                    )
+                else:
+                    self._anthropic_error(502, str(exc), "all_providers_exhausted")
                 return
             # Record recent served
             record_recent(
@@ -662,7 +675,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._error(503, str(exc), "no_providers")
                 return
             except AllProvidersExhausted as exc:
-                self._error(502, str(exc), "all_providers_exhausted")
+                client_status = getattr(exc, "client_status", None)
+                if isinstance(client_status, int) and 400 <= client_status < 500:
+                    self._error(
+                        client_status,
+                        getattr(exc, "client_message", None) or str(exc),
+                        "invalid_request_error",
+                    )
+                else:
+                    self._error(502, str(exc), "all_providers_exhausted")
                 return
             self._send(200, _to_embeddings_response(reply))
 
@@ -716,7 +737,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._error(503, str(exc), "no_providers")
                 return
             except AllProvidersExhausted as exc:
-                self._error(502, str(exc), "all_providers_exhausted")
+                client_status = getattr(exc, "client_status", None)
+                if isinstance(client_status, int) and 400 <= client_status < 500:
+                    self._error(
+                        client_status,
+                        getattr(exc, "client_message", None) or str(exc),
+                        "invalid_request_error",
+                    )
+                else:
+                    self._error(502, str(exc), "all_providers_exhausted")
                 return
             if response_format == "text":
                 payload = reply.text.encode("utf-8")
@@ -728,7 +757,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
             else:
                 self._send(200, _to_transcription_response(reply))
 
-        def _resolve(self, req: dict, messages: list[dict], *, tools=None, tool_choice=None):
+        def _resolve(
+            self,
+            req: dict,
+            messages: list[dict],
+            *,
+            tools=None,
+            tool_choice=None,
+            timeout: float | None = None,
+        ):
             """Shared: resolve model/params and call the pool. Returns a Reply or
             sends an error response and returns None."""
             requested = req.get("model") or "auto"
@@ -747,6 +784,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     400, "'max_tokens'/'temperature' must be numbers", "invalid_request_error"
                 )
                 return None
+            upstream_timeout = (
+                timeout
+                if timeout is not None
+                else (
+                    _AGENT_UPSTREAM_TIMEOUT
+                    if (routing_override or pool.routing) == "agent"
+                    else 90.0
+                )
+            )
             try:
                 return pool.chat(
                     messages,
@@ -754,6 +800,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     providers=provider_filter,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    timeout=max(0.0, upstream_timeout),
                     tools=tools,
                     tool_choice=tool_choice,
                     routing=routing_override,
@@ -823,6 +870,12 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     400, "'max_tokens'/'temperature' must be numbers", "invalid_request_error"
                 )
                 return
+            upstream_timeout = (
+                _AGENT_UPSTREAM_TIMEOUT
+                if (routing_override or pool.routing) == "agent"
+                else 90.0
+            )
+            deadline = pool._clock() + upstream_timeout
             try:
                 gen = pool.stream_chat(
                     norm,
@@ -830,6 +883,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     providers=provider_filter,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    timeout=upstream_timeout,
                     routing=routing_override,
                 )
                 meta = next(gen)  # provider/model chosen, or raises before any bytes
@@ -840,9 +894,22 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 # input is too long for every model — fail loudly, don't retry buffered.
                 self._error(413, str(exc), "context_length_exceeded")
                 return
-            except (AllProvidersExhausted, StopIteration):
+            except (AllProvidersExhausted, StopIteration) as exc:
+                if isinstance(exc, AllProvidersExhausted):
+                    client_status = getattr(exc, "client_status", None)
+                    if isinstance(client_status, int) and 400 <= client_status < 500:
+                        self._error(
+                            client_status,
+                            getattr(exc, "client_message", None) or str(exc),
+                            "invalid_request_error",
+                        )
+                        return
                 # nothing streamable succeeded — fall back to a buffered completion
-                reply = self._resolve(req, norm)
+                reply = self._resolve(
+                    req,
+                    norm,
+                    timeout=max(0.0, deadline - pool._clock()),
+                )
                 if reply is not None:
                     record_recent(
                         {

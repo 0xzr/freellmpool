@@ -112,5 +112,26 @@ def test_pool_embed_all_fail_raises():
         return C.HTTPResult(500, {}, "")
 
     pool = Pool([], env={"A_KEY": "a"}, post=post, embedders=[_embedder("alpha", "A_KEY")])
-    with pytest.raises(AllProvidersExhausted):
+    with pytest.raises(AllProvidersExhausted) as exc_info:
         pool.embed("hi")
+    assert exc_info.value.client_status is None
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "expected_client_status"),
+    [
+        (400, "bad embedding input", 400),
+        (402, "You have depleted your monthly included credits", None),
+    ],
+)
+def test_pool_embed_classifies_nonretryable_error(status, message, expected_client_status):
+    def post(url, headers, body, timeout):
+        return C.HTTPResult(status, {"error": {"message": message}}, "")
+
+    pool = Pool([], env={"A_KEY": "a"}, post=post, embedders=[_embedder("alpha", "A_KEY")])
+    with pytest.raises(AllProvidersExhausted) as exc_info:
+        pool.embed("hi")
+
+    assert exc_info.value.client_status == expected_client_status
+    if expected_client_status is not None:
+        assert message in (exc_info.value.client_message or "")

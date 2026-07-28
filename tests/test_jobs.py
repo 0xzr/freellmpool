@@ -1113,6 +1113,16 @@ def test_cli_jobs_run_dry_run_with_limit_one_prints_only_first_job(monkeypatch, 
     )
 
 
+def test_cli_jobs_run_dry_run_rejects_invalid_max_failures(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("FREELLMPOOL_JOBS_PATH", str(tmp_path / "jobs.jsonl"))
+    from freellmpool.cli import main
+
+    for bad in ("0", "-1"):
+        capsys.readouterr()
+        assert main(["jobs", "run", "--dry-run", "--max-failures", bad]) == 3
+        assert "--max-failures" in capsys.readouterr().err
+
+
 def test_stranded_started_job_is_resumed_and_completed(tmp_path):
     """A queue with ``queued`` + ``started`` but no terminal event must be
     retryable after replay.

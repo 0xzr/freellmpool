@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import threading
+import urllib.error
 import urllib.request
 
+import pytest
 from helpers import make_post, make_stream_post
 
 from freellmpool.anthropic_shim import (
@@ -167,6 +169,37 @@ def test_proxy_messages_route(providers, env, quota):
         assert body["type"] == "message"
         assert body["content"][0]["text"] == "ok"
         assert body["role"] == "assistant"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_proxy_messages_preserves_upstream_client_error_status(providers, env, quota):
+    from freellmpool.proxy import serve
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=make_post({"test": (400, {"error": {"message": "bad request"}})}),
+    )
+    httpd = serve(pool, host="127.0.0.1", port=0)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            _post(
+                base + "/v1/messages",
+                {
+                    "model": "auto",
+                    "max_tokens": 20,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+            )
+        assert exc_info.value.code == 400
+        body = json.load(exc_info.value)
+        assert body["error"]["type"] == "invalid_request_error"
+        assert "bad request" in body["error"]["message"]
     finally:
         httpd.shutdown()
         httpd.server_close()

@@ -9,8 +9,8 @@
 //     the real target is read back from the proxy's /status `recent` buffer).
 //
 // Quality/routing control is done through OpenCode's own model picker: switch the
-// model to `freellmpool/fast`, `/quality`, or `/fair` (the proxy maps the name to a
-// routing mode). `freellmpool/auto` uses the proxy's default routing.
+// model to `freellmpool/agent`, `/fast`, `/quality`, or `/fair` (the proxy maps the
+// name to a routing mode). `freellmpool/auto` uses the proxy's default routing.
 //
 // Zero build step, zero extra deps: drop this file in ~/.config/opencode/plugin/ or
 // reference it from opencode.json `plugin`. Config:
@@ -189,7 +189,7 @@ export const FreellmpoolPlugin = async ({ client }) => {
       freellmpool_models: {
         description:
           "List the model ids the freellmpool proxy currently exposes (including the " +
-          "routing aliases auto/fast/quality/fair). Use to discover what to set as the model.",
+          "routing aliases agent/auto/spread/fast/quality/fair). Use to discover what to set as the model.",
         args: {},
         async execute() {
           const { ok, data, error } = await getJSON("/v1/models");

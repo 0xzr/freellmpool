@@ -16,6 +16,7 @@ from helpers import gemini_body, make_post, make_stream_post, openai_body
 
 from freellmpool import __version__
 from freellmpool.client import HTTPResult
+from freellmpool.errors import AllProvidersExhausted
 from freellmpool.proxy import (
     _MAX_BODY,
     _MAX_CONNECTIONS,
@@ -56,6 +57,142 @@ def test_chat_completions_shape(server):
     assert body["object"] == "chat.completion"
     assert body["choices"][0]["message"]["content"] == "ok"
     assert "x_freellmpool" in body
+
+
+@pytest.mark.parametrize(
+    ("request_model", "pool_routing"),
+    [("agent", "fair"), ("auto", "agent")],
+)
+def test_effective_agent_route_leaves_client_deadline_margin_for_buffered_and_streaming(
+    providers, env, quota, request_model, pool_routing
+):
+    seen: list[tuple[str, float]] = []
+
+    def post(url, headers, body, timeout):
+        seen.append(("buffered", timeout))
+        return HTTPResult(200, openai_body("ok"), "ok")
+
+    canned_stream = make_stream_post({})
+
+    def stream_post(url, headers, body, timeout):
+        seen.append(("stream", timeout))
+        return canned_stream(url, headers, body, timeout)
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=post,
+        stream_post=stream_post,
+        routing=pool_routing,
+    )
+    httpd, base = _serve(pool)
+    try:
+        payload = {
+            "model": request_model,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        assert _post_json(base + "/v1/chat/completions", payload)[0] == 200
+
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps({**payload, "stream": True}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310 (localhost test)
+            assert resp.status == 200
+            resp.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    by_kind = {kind: timeout for kind, timeout in seen}
+    assert by_kind["buffered"] == pytest.approx(540.0, abs=0.1)
+    assert by_kind["stream"] == pytest.approx(540.0, abs=0.1)
+
+
+def test_agent_route_enforces_one_overall_failover_budget(providers, env, quota):
+    clock = {"now": 0.0}
+    seen_timeouts: list[float] = []
+
+    def post(url, headers, body, timeout):
+        seen_timeouts.append(timeout)
+        clock["now"] += 300.0
+        return HTTPResult(503, {"error": "down"}, "down")
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+    )
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(
+                {
+                    "model": "agent",
+                    "messages": [{"role": "user", "content": "hi"}],
+                }
+            ).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)  # noqa: S310 (localhost test)
+        assert exc_info.value.code == 502
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert seen_timeouts == [540.0, 240.0]
+
+
+def test_agent_stream_fallback_shares_one_overall_budget(providers, env, quota):
+    clock = {"now": 0.0}
+    seen: list[tuple[str, float]] = []
+
+    def stream_chat(*args, timeout, **kwargs):
+        seen.append(("stream", timeout))
+        clock["now"] += 300.0
+        if False:
+            yield None
+        raise AllProvidersExhausted([("alpha/alpha-small", "down")])
+
+    def post(url, headers, body, timeout):
+        seen.append(("buffered", timeout))
+        return HTTPResult(200, openai_body("ok"), "ok")
+
+    pool = Pool(
+        providers[:1],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+        routing="agent",
+    )
+    pool.stream_chat = stream_chat
+    httpd, base = _serve(pool)
+    try:
+        payload = {
+            "model": "auto",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310 (localhost test)
+            assert resp.status == 200
+            resp.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert seen == [("stream", 540.0), ("buffered", 240.0)]
 
 
 def test_proxy_server_header_uses_package_version(server):
@@ -702,6 +839,44 @@ def test_proxy_auth(providers, env, quota):
         httpd.server_close()
 
 
+@pytest.mark.parametrize(
+    ("upstream_status", "message", "expected_status"),
+    [
+        (400, "bad embedding input", 400),
+        (402, "You have depleted your monthly included credits", 502),
+    ],
+)
+def test_embeddings_classify_upstream_error_status(
+    env, quota, upstream_status, message, expected_status
+):
+    from freellmpool.models import Model, Provider
+
+    embedder = Provider(
+        id="embed",
+        label="Embed",
+        adapter="openai",
+        base_url="https://embed.test/v1",
+        auth="none",
+        models=(Model("emb-1"),),
+    )
+    post = make_post({"embed.test": (upstream_status, {"error": {"message": message}})})
+    pool = Pool([], quota=quota, env=env, post=post, embedders=[embedder])
+    httpd, base = _serve(pool)
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            _post_json(base + "/v1/embeddings", {"model": "auto", "input": ["hello"]})
+        assert exc_info.value.code == expected_status
+        body = json.load(exc_info.value)
+        expected_type = (
+            "invalid_request_error" if expected_status == 400 else "all_providers_exhausted"
+        )
+        assert body["error"]["type"] == expected_type
+        assert message in body["error"]["message"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_responses_shim_nonstream(server):
     status, body = _post_json(
         server + "/v1/responses",
@@ -1016,13 +1191,20 @@ def test_status_records_served_target(server):
 def test_models_route_includes_routing_aliases(server):
     with urllib.request.urlopen(server + "/v1/models") as resp:  # noqa: S310
         ids = {m["id"] for m in json.load(resp)["data"]}
-    assert {"auto", "fast", "quality", "fair", "spread"} <= ids  # spread discoverable
+    assert {"auto", "agent", "fast", "quality", "fair", "spread"} <= ids
 
 
 def test_spread_alias_routes(server):
     # bare + provider-qualified aliases all route and serve (incl. freellmpool/auto, which
     # must NOT be treated as a literal provider filter → 503)
-    for name in ("spread", "freellmpool/spread", "freellmpool/auto", "auto"):
+    for name in (
+        "agent",
+        "freellmpool/agent",
+        "spread",
+        "freellmpool/spread",
+        "freellmpool/auto",
+        "auto",
+    ):
         status, body = _post_json(
             server + "/v1/chat/completions",
             {"model": name, "messages": [{"role": "user", "content": "hi"}]},
@@ -1123,7 +1305,7 @@ def _multipart_audio(boundary, audio, model="whisper-large-v3-turbo", with_file=
     return b"".join(parts)
 
 
-def _transcribe_server(providers, env, quota, text="the transcript"):
+def _transcribe_server(providers, env, quota, text="the transcript", status=200):
     from freellmpool.client import HTTPResult
     from freellmpool.models import Model, Provider
 
@@ -1141,7 +1323,8 @@ def _transcribe_server(providers, env, quota, text="the transcript"):
     def fake_mp(url, headers, files, data, timeout):
         assert url.endswith("/audio/transcriptions")
         assert files["file"][0] == "a.wav"
-        return HTTPResult(status=200, body={"text": text}, text=text)
+        body = {"text": text} if status == 200 else {"error": {"message": text}}
+        return HTTPResult(status=status, body=body, text=text)
 
     pool = Pool(
         providers,
@@ -1171,6 +1354,38 @@ def test_audio_transcription_route(providers, env, quota):
             d = json.load(resp)
         assert d["text"] == "the transcript"
         assert d["x_freellmpool"]["provider"] == "groq"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+@pytest.mark.parametrize(
+    ("upstream_status", "message", "expected_status"),
+    [
+        (400, "bad audio input", 400),
+        (402, "You have depleted your monthly included credits", 502),
+    ],
+)
+def test_audio_transcription_classifies_upstream_error_status(
+    providers, env, quota, upstream_status, message, expected_status
+):
+    httpd, base = _transcribe_server(providers, env, quota, text=message, status=upstream_status)
+    try:
+        body = _multipart_audio("BOUND1", b"RIFF\x00fakeaudio")
+        req = urllib.request.Request(
+            base + "/v1/audio/transcriptions",
+            data=body,
+            headers={"Content-Type": "multipart/form-data; boundary=BOUND1"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)  # noqa: S310
+        assert exc_info.value.code == expected_status
+        payload = json.load(exc_info.value)
+        expected_type = (
+            "invalid_request_error" if expected_status == 400 else "all_providers_exhausted"
+        )
+        assert payload["error"]["type"] == expected_type
+        assert message in payload["error"]["message"]
     finally:
         httpd.shutdown()
         httpd.server_close()
