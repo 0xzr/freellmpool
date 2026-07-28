@@ -76,7 +76,7 @@ def test_ci_validates_opencode_packages_with_current_runtimes() -> None:
     )[0]
     for required in (
         "permissions:\n      contents: read",
-        "actions/setup-node@v6",
+        "actions/setup-node@v7",
         'node-version: "24"',
         "oven-sh/setup-bun@v2",
         "npm@11.5.1",
@@ -112,7 +112,7 @@ def test_opencode_publish_workflow_is_manual_protected_and_exact_sha() -> None:
         "id-token: write",
         "runs-on: ubuntu-latest",
         "actions/checkout@v7",
-        "actions/setup-node@v6",
+        "actions/setup-node@v7",
         'node-version: "24"',
         "oven-sh/setup-bun@v2",
         "npm@11.5.1",
