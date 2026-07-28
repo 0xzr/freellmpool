@@ -32,6 +32,7 @@ _log = logging.getLogger("freellmpool")
 # or model name — they enable response-header injection (those values are echoed
 # into X-Freellmpool-* headers) and request smuggling.
 _CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_ENV_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
 def _allow_local_providers() -> bool:
@@ -311,17 +312,28 @@ def _parse_rows(rows: list) -> list[Provider]:
                     context=_maybe_int(m.get("context"), positive=True),
                 )
             )
+        key_env = row.get("key_env")
+        extra_env = row.get("extra_env", [])
+        env_names = ([key_env] if key_env is not None else []) + (
+            list(extra_env) if isinstance(extra_env, (list, tuple)) else []
+        )
+        if not isinstance(extra_env, (list, tuple)) or any(
+            not isinstance(name, str) or _ENV_NAME_RE.fullmatch(name) is None
+            for name in env_names
+        ):
+            _log.warning("skipping provider %s: unsafe environment variable name", provider_id)
+            continue
         providers.append(
             Provider(
                 id=provider_id,
                 label=str(row.get("label", row["id"])),
                 adapter=str(row.get("adapter", "openai")),
                 base_url=base_url,
-                key_env=row.get("key_env"),
+                key_env=key_env,
                 auth=str(row.get("auth", "bearer")),
                 key_optional=bool(row.get("key_optional", False)),
                 models=tuple(models),
-                extra_env=tuple(row.get("extra_env", [])),
+                extra_env=tuple(extra_env),
             )
         )
     return providers
