@@ -205,6 +205,7 @@ freellmpool providers        # which providers are configured
 freellmpool models           # every provider/model id
 freellmpool stats            # lifetime tokens served free + estimated cost avoided
 freellmpool badge -o badge.svg   # a shareable SVG badge of that total
+freellmpool badge --summary -o summary.svg   # a larger usage summary card
 ```
 
 `freellmpool tokenmax` is the tongue-in-cheek maximum-effort mode: it fans your
@@ -214,8 +215,11 @@ returns the model answers for the calling agent to synthesize. (See
 [docs/MCP.md](docs/MCP.md).)
 
 `freellmpool stats` is a running, **persistent** lifetime total (it survives restarts
-and upgrades). Embed `freellmpool badge` in a README, or serve it live from the proxy
-at `/badge.svg` (set `FREELLMPOOL_PUBLIC_BADGE=1` to make it publicly embeddable).
+and upgrades). Embed `freellmpool badge` in a README, or use
+`freellmpool badge --summary -o summary.svg` for a larger card with tokens,
+requests, estimated savings, and provider mix. The proxy can serve both
+`/badge.svg` and `/summary.svg` live when `FREELLMPOOL_PUBLIC_BADGE=1` makes
+public badges embeddable.
 
 Pin a provider or model; common OpenAI/Anthropic model names are mapped to a free
 equivalent so existing scripts keep working:
@@ -299,7 +303,7 @@ Current `main` proxy surfaces (the readiness/provider additions are unreleased):
 - `/healthz` and `/livez` — public process liveness aliases.
 - `/readyz` — public advisory local-capacity readiness (200 when at least one
   provider is ready, otherwise 503); it never live-probes an upstream.
-- `/dashboard`, `/status`, and `/badge.svg` — local operations surfaces.
+- `/dashboard`, `/status`, `/badge.svg`, and `/summary.svg` — local operations surfaces.
 
 `/playground`, `/v1/providers`, and model inventory are auth-protected when
 the proxy key is set. Liveness/readiness stay public for orchestrator probes;
