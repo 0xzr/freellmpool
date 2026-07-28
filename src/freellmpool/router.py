@@ -383,6 +383,7 @@ class Pool:
             )
         include = {p.strip() for p in providers} if providers else None
         attempts: list[tuple[str, str]] = []
+        client_error: ProviderHTTPError | None = None
         for emb in self.embedders:
             if include is not None and emb.id not in include:
                 continue
@@ -403,6 +404,13 @@ class Pool:
                     )
                 except Exception as exc:  # noqa: BLE001 — try the next embedder
                     attempts.append((f"{emb.id}/{m.name}", f"{type(exc).__name__}: {exc}"))
+                    if (
+                        isinstance(exc, ProviderHTTPError)
+                        and not exc.retryable
+                        and not _is_account_quota_exhaustion(exc)
+                        and client_error is None
+                    ):
+                        client_error = exc
                     continue
                 # Account for embeddings like chat: per-day quota + lifetime stats, so
                 # a heavy embedding workload doesn't bypass RPD pacing / usage totals.
@@ -411,6 +419,12 @@ class Pool:
                 return reply
         if not attempts:  # provider/model pins matched no configured embedder
             raise NoProvidersConfigured("no candidate embedder/model matched the given filters")
+        if client_error is not None:
+            raise AllProvidersExhausted(
+                attempts,
+                client_status=client_error.status,
+                client_message=str(client_error),
+            )
         raise AllProvidersExhausted(attempts)
 
     def transcribe(
@@ -431,6 +445,7 @@ class Pool:
             )
         include = {p.strip() for p in providers} if providers else None
         attempts: list[tuple[str, str]] = []
+        client_error: ProviderHTTPError | None = None
         for tr in self.transcribers:
             if include is not None and tr.id not in include:
                 continue
@@ -454,12 +469,25 @@ class Pool:
                     )
                 except Exception as exc:  # noqa: BLE001 — try the next transcriber
                     attempts.append((f"{tr.id}/{m.name}", f"{type(exc).__name__}: {exc}"))
+                    if (
+                        isinstance(exc, ProviderHTTPError)
+                        and not exc.retryable
+                        and not _is_account_quota_exhaustion(exc)
+                        and client_error is None
+                    ):
+                        client_error = exc
                     continue
                 self.quota.record(tr.id, m.name)
                 self._bump_stats(requests=1, prompt_tokens=reply.prompt_tokens or 0)
                 return reply
         if not attempts:  # provider/model pins matched no configured transcriber
             raise NoProvidersConfigured("no candidate transcriber/model matched the given filters")
+        if client_error is not None:
+            raise AllProvidersExhausted(
+                attempts,
+                client_status=client_error.status,
+                client_message=str(client_error),
+            )
         raise AllProvidersExhausted(attempts)
 
     # ---- candidate ordering -------------------------------------------

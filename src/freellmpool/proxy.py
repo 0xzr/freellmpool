@@ -675,7 +675,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._error(503, str(exc), "no_providers")
                 return
             except AllProvidersExhausted as exc:
-                self._error(502, str(exc), "all_providers_exhausted")
+                client_status = getattr(exc, "client_status", None)
+                if isinstance(client_status, int) and 400 <= client_status < 500:
+                    self._error(
+                        client_status,
+                        getattr(exc, "client_message", None) or str(exc),
+                        "invalid_request_error",
+                    )
+                else:
+                    self._error(502, str(exc), "all_providers_exhausted")
                 return
             self._send(200, _to_embeddings_response(reply))
 
@@ -729,7 +737,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._error(503, str(exc), "no_providers")
                 return
             except AllProvidersExhausted as exc:
-                self._error(502, str(exc), "all_providers_exhausted")
+                client_status = getattr(exc, "client_status", None)
+                if isinstance(client_status, int) and 400 <= client_status < 500:
+                    self._error(
+                        client_status,
+                        getattr(exc, "client_message", None) or str(exc),
+                        "invalid_request_error",
+                    )
+                else:
+                    self._error(502, str(exc), "all_providers_exhausted")
                 return
             if response_format == "text":
                 payload = reply.text.encode("utf-8")

@@ -787,6 +787,44 @@ def test_proxy_auth(providers, env, quota):
         httpd.server_close()
 
 
+@pytest.mark.parametrize(
+    ("upstream_status", "message", "expected_status"),
+    [
+        (400, "bad embedding input", 400),
+        (402, "You have depleted your monthly included credits", 502),
+    ],
+)
+def test_embeddings_classify_upstream_error_status(
+    env, quota, upstream_status, message, expected_status
+):
+    from freellmpool.models import Model, Provider
+
+    embedder = Provider(
+        id="embed",
+        label="Embed",
+        adapter="openai",
+        base_url="https://embed.test/v1",
+        auth="none",
+        models=(Model("emb-1"),),
+    )
+    post = make_post({"embed.test": (upstream_status, {"error": {"message": message}})})
+    pool = Pool([], quota=quota, env=env, post=post, embedders=[embedder])
+    httpd, base = _serve(pool)
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            _post_json(base + "/v1/embeddings", {"model": "auto", "input": ["hello"]})
+        assert exc_info.value.code == expected_status
+        body = json.load(exc_info.value)
+        expected_type = (
+            "invalid_request_error" if expected_status == 400 else "all_providers_exhausted"
+        )
+        assert body["error"]["type"] == expected_type
+        assert message in body["error"]["message"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_responses_shim_nonstream(server):
     status, body = _post_json(
         server + "/v1/responses",
@@ -1215,7 +1253,7 @@ def _multipart_audio(boundary, audio, model="whisper-large-v3-turbo", with_file=
     return b"".join(parts)
 
 
-def _transcribe_server(providers, env, quota, text="the transcript"):
+def _transcribe_server(providers, env, quota, text="the transcript", status=200):
     from freellmpool.client import HTTPResult
     from freellmpool.models import Model, Provider
 
@@ -1233,7 +1271,8 @@ def _transcribe_server(providers, env, quota, text="the transcript"):
     def fake_mp(url, headers, files, data, timeout):
         assert url.endswith("/audio/transcriptions")
         assert files["file"][0] == "a.wav"
-        return HTTPResult(status=200, body={"text": text}, text=text)
+        body = {"text": text} if status == 200 else {"error": {"message": text}}
+        return HTTPResult(status=status, body=body, text=text)
 
     pool = Pool(
         providers,
@@ -1263,6 +1302,38 @@ def test_audio_transcription_route(providers, env, quota):
             d = json.load(resp)
         assert d["text"] == "the transcript"
         assert d["x_freellmpool"]["provider"] == "groq"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+@pytest.mark.parametrize(
+    ("upstream_status", "message", "expected_status"),
+    [
+        (400, "bad audio input", 400),
+        (402, "You have depleted your monthly included credits", 502),
+    ],
+)
+def test_audio_transcription_classifies_upstream_error_status(
+    providers, env, quota, upstream_status, message, expected_status
+):
+    httpd, base = _transcribe_server(providers, env, quota, text=message, status=upstream_status)
+    try:
+        body = _multipart_audio("BOUND1", b"RIFF\x00fakeaudio")
+        req = urllib.request.Request(
+            base + "/v1/audio/transcriptions",
+            data=body,
+            headers={"Content-Type": "multipart/form-data; boundary=BOUND1"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)  # noqa: S310
+        assert exc_info.value.code == expected_status
+        payload = json.load(exc_info.value)
+        expected_type = (
+            "invalid_request_error" if expected_status == 400 else "all_providers_exhausted"
+        )
+        assert payload["error"]["type"] == expected_type
+        assert message in payload["error"]["message"]
     finally:
         httpd.shutdown()
         httpd.server_close()
