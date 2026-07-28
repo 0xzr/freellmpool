@@ -98,7 +98,7 @@ _PROFILES: tuple[Profile, ...] = (
         label="opencode",
         client_kind="openai",
         base_url=f"{_DEFAULT_PROXY}/v1",
-        model_family="auto",
+        model_family="agent",
         cost_class="free",
         role_map={
             "coder": "default free worker lane; uses pool routing and avoids 429 storms",
@@ -108,12 +108,18 @@ _PROFILES: tuple[Profile, ...] = (
             "opencode.json": json.dumps(
                 {
                     "$schema": "https://opencode.ai/config.json",
-                    "model": "freellmpool/auto",
+                    "model": "freellmpool/agent",
                     "provider": {
                         "freellmpool": {
                             "npm": "@ai-sdk/openai-compatible",
-                            "options": {"baseURL": f"{_DEFAULT_PROXY}/v1"},
+                            "options": {
+                                "baseURL": f"{_DEFAULT_PROXY}/v1",
+                                "headerTimeout": 60_000,
+                                "timeout": 600_000,
+                                "chunkTimeout": 120_000,
+                            },
                             "models": {
+                                "agent": {},
                                 "spread": {},
                                 "auto": {},
                                 "fast": {},
@@ -135,7 +141,10 @@ _PROFILES: tuple[Profile, ...] = (
             DoctorCheck("binary", "freellmpool CLI", "freellmpool"),
             DoctorCheck("url", "proxy /v1/models", _DEFAULT_PROXY, path="/v1/models"),
         ],
-        notes="Pick freellmpool/spread for agentic work — it fans requests across the whole pool.",
+        notes=(
+            "Use freellmpool/agent for long-running tool work: it stays on the "
+            "strongest benchmark tier and spreads usage within that tier."
+        ),
     ),
     Profile(
         name="hermes",

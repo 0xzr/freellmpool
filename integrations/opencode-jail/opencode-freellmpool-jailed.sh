@@ -26,7 +26,8 @@
 #         opencode-freellmpool-jailed.sh --serve     # opencode serve (basic-auth)
 #         opencode-freellmpool-jailed.sh --selftest  # prove containment + stealth, exit
 #
-# ENV KNOBS: OPENCODE_FP_MODEL (default freellmpool/spread — full-pool breadth + fast; best agentic;
+# ENV KNOBS: OPENCODE_FP_MODEL (default freellmpool/agent — strongest healthy capability tier
+#   with quota spreading for long tool loops;
 #   models), OPENCODE_FP_PROJECT (in-jail project basename, default "project"),
 #   OPENCODE_FP_PROXY_URL, OPENCODE_FP_CPUS/MEM/DISK (default 1 / 6G / 12G),
 #   OPENCODE_FP_PORT (--serve), OPENCODE_FP_ALLOW_UNCAPPED=1 (run without the disk image —
@@ -46,9 +47,8 @@ esac
 
 # ── tunables ────────────────────────────────────────────────────────────────────────
 PROXY_URL="${OPENCODE_FP_PROXY_URL:-http://127.0.0.1:8080}"
-MODEL="${OPENCODE_FP_MODEL:-freellmpool/spread}"  # spread = full-pool breadth (least-used tier first,
-                                                  # anti-429) WITH a latency/health tie-break — the best
-                                                  # mode for sustained agentic loops on free tiers
+MODEL="${OPENCODE_FP_MODEL:-freellmpool/agent}"  # agent = strongest healthy capability tier,
+                                                 # spreading quota inside the tier to avoid stalls
 PROJECT="${OPENCODE_FP_PROJECT:-project}"         # in-jail cwd basename — NOT "sandbox"
 PORT="${OPENCODE_FP_PORT:-4099}"
 HOSTBIND="127.0.0.1"
@@ -200,8 +200,12 @@ cat > "$IMG_CFG/opencode.jsonc" <<JSON
     "freellmpool": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "freellmpool (free pool)",
-      "options": { "baseURL": "$PROXY_URL/v1", "apiKey": "unused" },
+      "options": {
+        "baseURL": "$PROXY_URL/v1", "apiKey": "unused",
+        "headerTimeout": 60000, "timeout": 600000, "chunkTimeout": 120000
+      },
       "models": {
+        "agent":   { "name": "agent (strongest tier + spread)", "tool_call": true, "structured_output": true, "limit": { "context": 128000, "output": 8192 } },
         "spread":  { "name": "spread (all providers + fast)", "tool_call": true, "structured_output": true, "limit": { "context": 128000, "output": 8192 } },
         "auto":    { "name": "auto",    "tool_call": true, "structured_output": true, "limit": { "context": 128000, "output": 8192 } },
         "fast":    { "name": "fast",    "tool_call": true, "structured_output": true, "limit": { "context": 128000, "output": 8192 } },

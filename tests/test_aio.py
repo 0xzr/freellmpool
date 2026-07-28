@@ -12,7 +12,7 @@ from helpers import gemini_body, make_post
 
 from freellmpool import client as sync_client
 from freellmpool.aio import AsyncPool
-from freellmpool.errors import ProviderHTTPError
+from freellmpool.errors import AllProvidersExhausted, ProviderHTTPError
 from freellmpool.router import Pool
 
 
@@ -43,6 +43,42 @@ def test_async_failover_skips_500(providers, env, quota):
     assert reply.provider_id == "beta"  # alpha 500'd, failed over to beta
     assert pool.metrics.get("alpha/alpha-small").fail >= 1
     assert pool.metrics.get("beta/beta-1").ok == 1
+
+
+def test_async_account_quota_exhaustion_deprioritizes_provider(providers, env, quota):
+    calls = []
+
+    async def apost(url, headers, body, timeout):
+        calls.append(url)
+        if "alpha.test" in url:
+            return sync_client.HTTPResult(
+                402,
+                {"error": "You have depleted your monthly included credits."},
+                "",
+            )
+        return sync_client.HTTPResult(
+            200,
+            {"choices": [{"message": {"content": "ok"}}]},
+            "",
+        )
+
+    pool = AsyncPool(Pool(providers[:2], quota=quota, env=env), apost=apost)
+    assert asyncio.run(pool.aask("first")).provider_id == "beta"
+    calls.clear()
+
+    assert asyncio.run(pool.aask("second")).provider_id == "beta"
+    assert "beta.test" in calls[0]
+
+
+def test_async_surfaces_nonretryable_client_error(providers, env, quota):
+    apost = _async_post({"test": (400, {"error": {"message": "bad request"}})})
+    pool = AsyncPool(Pool(providers, quota=quota, env=env), apost=apost)
+
+    with pytest.raises(AllProvidersExhausted) as exc_info:
+        asyncio.run(pool.achat([{"role": "user", "content": "hi"}], providers=["alpha", "beta"]))
+
+    assert exc_info.value.client_status == 400
+    assert "bad request" in (exc_info.value.client_message or "")
 
 
 def test_async_gemini_shape(providers, env, quota):

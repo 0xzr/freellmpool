@@ -42,6 +42,12 @@ def test_packaged_catalog_loads():
         assert p.base_url.startswith("https://")
 
 
+def test_kimi_k27_catalog_entries_declare_verified_context_window():
+    providers = {provider.id: provider for provider in load_catalog()}
+    assert providers["cloudflare"].model("@cf/moonshotai/kimi-k2.7-code").context == 262_144
+    assert providers["huggingface"].model("moonshotai/Kimi-K2.7-Code").context == 262_144
+
+
 def test_packaged_catalog_reflects_july_live_model_audit():
     providers = {provider.id: provider for provider in load_catalog()}
     expected_enabled = {

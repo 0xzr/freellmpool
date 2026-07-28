@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Run OpenCode on free LLM models (no API bill) — with a live in-editor dashboard</title>
-<meta name="description" content="Run the OpenCode coding agent on free LLM tiers with freellmpool — a local OpenAI-compatible proxy that pools 24 free providers. Includes an embedded TUI dashboard, per-request quality routing, and usage tools. Keyless start when routes are available.">
+<title>Run OpenCode agentically on free LLM models — long sessions without stalls</title>
+<meta name="description" content="Run the OpenCode coding agent on strong free LLMs with freellmpool, which pools 24 free providers with strongest-tier agent routing, 10-minute request timeouts, failover, and an embedded TUI dashboard.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html">
-<meta property="og:title" content="Run OpenCode on free LLM models — with a live dashboard">
-<meta property="og:description" content="Point OpenCode at one local proxy and code on pooled free LLM tiers — with an embedded dashboard, quality routing, and usage tools. Keyless start when routes are available.">
+<meta property="og:title" content="Run OpenCode agentically on strong free LLMs">
+<meta property="og:description" content="Strongest-tier agent routing, long stream timeouts, automatic failover, and a live dashboard for sustained OpenCode sessions.">
 <meta property="og:type" content="article">
 <style>
  :root{--bg:#0b0e14;--fg:#e6e6e6;--mut:#8a93a2;--card:#141925;--bd:#232a39;--ac:#6ea8ff}
@@ -67,13 +67,18 @@ rate-limited.</p>
 freellmpool provider and set it as your model. The routing aliases let you pick how each prompt is
 routed:</p>
 <pre><code>{
-  "model": "freellmpool/auto",
+  "model": "freellmpool/agent",
   "provider": {
     "freellmpool": {
       "npm": "@ai-sdk/openai-compatible",
-      "options": { "baseURL": "http://localhost:8080/v1" },
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "headerTimeout": 60000,
+        "timeout": 600000,
+        "chunkTimeout": 120000
+      },
       "models": {
-        "spread": {}, "auto": {}, "fast": {}, "quality": {}, "fair": {}
+        "agent": {}, "spread": {}, "auto": {}, "fast": {}, "quality": {}, "fair": {}
       }
     }
   }
@@ -83,8 +88,10 @@ routed:</p>
 <h2>3. Control routing quality from the model picker</h2>
 <p>Switch the model in OpenCode's picker to choose how freellmpool routes — no extra config:</p>
 <ul>
-<li><code>freellmpool/spread</code> — best starting point for long agent loops: use the least-used
-provider tier first, then prefer the faster/healthier target within that tier.</li>
+<li><code>freellmpool/agent</code> — best starting point for long agent loops: stay in the
+strongest healthy benchmark tier, then spread quota and prefer faster targets within it.</li>
+<li><code>freellmpool/spread</code> — rotate across the whole pool when aggregate quota and
+breadth matter more than keeping every turn in the strongest tier.</li>
 <li><code>freellmpool/auto</code> — the proxy's default routing.</li>
 <li><code>freellmpool/quality</code> — match each prompt's difficulty to the best <em>and fastest</em>
 capable free model (benchmark-scored, latency-aware).</li>

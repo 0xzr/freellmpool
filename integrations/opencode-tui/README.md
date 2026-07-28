@@ -79,7 +79,7 @@ To remove it, delete the entry from `~/.config/opencode/tui.json`.
 
 ## Controlling routing
 
-Switch OpenCode's model to `freellmpool/spread`, `/fast`, `/quality`, or `/fair` to change routing;
+Switch OpenCode's model to `freellmpool/agent`, `/spread`, `/fast`, `/quality`, or `/fair` to change routing;
 the dashboard's `routing` line reflects the active mode. See the proxy README for what each
 mode does.
 

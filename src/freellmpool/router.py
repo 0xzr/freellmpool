@@ -69,6 +69,8 @@ _QUALITY_UNKNOWN_LAT = 0.34
 # Small bucket => stronger spread; large => more latency-greedy. 8 balances both for
 # sustained agentic loops on free tiers.
 _SPREAD_BUCKET = 8
+_AGENT_CAPABILITY_TIER = 0.05
+_ACCOUNT_BACKOFF_SECONDS = 15 * 60
 
 
 def _is_health_failure(exc: Exception) -> bool:
@@ -84,6 +86,24 @@ def _is_health_failure(exc: Exception) -> bool:
     if isinstance(exc, ProviderHTTPError):
         return exc.status in (429, 408) or exc.status >= 500
     return True  # connection error, timeout, etc.
+
+
+def _is_account_quota_exhaustion(exc: ProviderHTTPError) -> bool:
+    """Recognize provider-wide credit exhaustion, not model/request errors."""
+    if exc.status not in (402, 429):
+        return False
+    message = str(exc).lower()
+    return any(
+        marker in message
+        for marker in (
+            "depleted your monthly",
+            "used up your daily free allocation",
+            "insufficient credits",
+            "quota exhausted",
+            "quota has been exhausted",
+            "credit balance",
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -175,6 +195,10 @@ class Pool:
         # provider_id -> monotonic time until which to deprioritize after a 429
         self._cooldown_until: dict[str, float] = {}
         self._cooldown_lock = threading.Lock()
+        # Provider-account quota failures apply to every model on that account.
+        # Remember them longer than a transient 429 so sustained agent loops do
+        # not retry a known-depleted catalog on every turn.
+        self._account_backoff_until: dict[str, float] = {}
         # cumulative usage for the estimated-cost metric. `self.stats` is the
         # in-memory session counter; `_stats_store` (optional) persists lifetime
         # totals across restarts so the served-free / estimated-cost number grows.
@@ -246,6 +270,17 @@ class Pool:
     def _cooled(self, provider_id: str, now: float) -> bool:
         with self._cooldown_lock:
             return self._cooldown_until.get(provider_id, 0.0) > now
+
+    def _mark_account_backoff(self, provider_id: str, now: float) -> None:
+        until = now + max(_ACCOUNT_BACKOFF_SECONDS, self.cooldown_seconds)
+        with self._cooldown_lock:
+            self._account_backoff_until[provider_id] = max(
+                self._account_backoff_until.get(provider_id, 0.0), until
+            )
+
+    def _account_backed_off(self, provider_id: str, now: float) -> bool:
+        with self._cooldown_lock:
+            return self._account_backoff_until.get(provider_id, 0.0) > now
 
     # ---- context-window awareness -------------------------------------
 
@@ -454,6 +489,11 @@ class Pool:
         for easy ones (rationing scarce strong-model quota). Ordered globally, not
         provider-grouped, since capability match is the opted-in intent.
 
+        ``agent``: keep every turn on the strongest available benchmark capability
+        tier, then spread usage and prefer healthy/fast targets within that tier.
+        This avoids weak-model stalls in long tool loops without parking on one
+        provider until its free quota is exhausted.
+
         ``legacy``/``model`` preserve the previous per-target balancing. Either way
         the ordering is a hint — failover still reaches all.
         """
@@ -480,6 +520,24 @@ class Pool:
 
         def score_of(t: Target) -> float:
             return score_stat(stat_of(t))
+
+        if mode == "agent":
+            table = capability_table()
+
+            def agent_key(t: Target) -> tuple[int, int, int, int, float, float, int]:
+                capability = model_capability(t.model, table)
+                tier = int((capability + 1e-9) / _AGENT_CAPABILITY_TIER)
+                return (
+                    over_of(t),
+                    1 if failing_of(t) else 0,
+                    -tier,
+                    used_of(t) // _SPREAD_BUCKET,
+                    score_of(t),
+                    -capability,
+                    used_of(t),
+                )
+
+            return sorted(targets, key=agent_key)
 
         if mode == "quality":
             table = capability_table()
@@ -688,7 +746,14 @@ class Pool:
         # target's cooldown state exactly once so a concurrent 429 can't place the
         # same target in both buckets.
         now = self._clock()
-        states = [(t, self._cooled(t.provider.id, now)) for t in targets]
+        states = [
+            (
+                t,
+                self._cooled(t.provider.id, now)
+                or self._account_backed_off(t.provider.id, now),
+            )
+            for t in targets
+        ]
         sequence = [t for t, c in states if not c] + [t for t, c in states if c]
 
         attempts: list[tuple[str, str]] = []
@@ -749,6 +814,9 @@ class Pool:
                     self._mark_cooldown(target.provider.id, self._clock())
                     rate_limited.add(target.provider.id)
                     emit(self._on_event, "cooldown", target=target.name, status=429)
+                if _is_account_quota_exhaustion(exc):
+                    self._mark_account_backoff(target.provider.id, self._clock())
+                    rate_limited.add(target.provider.id)
                 # Any non-context failure (incl. a rate-limit, which might have fit)
                 # means "too long" isn't provably the whole story — stay generic.
                 non_ctx_failure = True

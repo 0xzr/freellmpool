@@ -1,0 +1,75 @@
+# Frontier model and agent-runtime source audit — 2026-07-28
+
+This pass checked current model availability, capability placement, context
+windows, tool use, and long-running OpenCode failure modes before changing the
+packaged catalogue or routing defaults.
+
+## Scope and method
+
+- **123 immutable GitHub blobs were fetched and inspected**, not merely returned
+  by search: 88 distinct files matching `GLM-5.2`, `Kimi-K2.7`,
+  `MiniMax-M3`, or `Qwen3.6`, plus 35 distinct files matching OpenCode
+  `headerTimeout`/`chunkTimeout` and provider-registry terms.
+- Four current primary documentation/benchmark pages and the live
+  freellmpool MCP catalogue were checked separately.
+- Every GitHub blob was pinned to a commit SHA. The audit recorded blob SHA,
+  byte size, matched model/runtime terms, and immutable URL. Duplicate URLs
+  were removed before fetching.
+- Search noise was intentionally counted as **screened**, not evidence. Only
+  first-party provider/model documentation, official repositories, and
+  independent benchmark/runtime implementations influenced changes.
+
+Reproducible GitHub queries used 30 results each for the four model identifiers
+and 20 results each for five runtime/catalogue queries. Content was then fetched
+through GitHub's Contents API, base64-decoded, term-checked, and deduplicated.
+The authenticated API rate limit was exhausted only after the 123 successful
+blob reads; later failed requests were excluded from the count.
+
+## Decisions
+
+1. **Kimi K2.7 Code is an agent model, not an unknown neutral model.**
+   Cloudflare documents the exact route
+   `@cf/moonshotai/kimi-k2.7-code`, 262,144-token context, multi-turn tool
+   calling, reasoning, structured output, and vision. Its context is now
+   declared for both Cloudflare and Hugging Face catalogue entries.
+2. **Capability placement remains conservative and redistributable.**
+   Artificial Analysis currently places Kimi K2.7 Code close to K2.6, but its
+   API terms prohibit repackaging raw score data. The normalizer therefore maps
+   K2.7 Code to the existing K2.6 comparison tier rather than copying a raw
+   proprietary score. Qwen3.6 27B/35B-A3B similarly map to the existing
+   size-comparable Qwen3 30B-A3B tier.
+3. **Long tool loops need a distinct route.** `agent` keeps requests in the
+   strongest healthy 0.05 capability tier, then spreads quota and prefers
+   healthy/fast targets inside that tier. This avoids both weak-model stalls
+   and exhausting one high-quality provider.
+4. **OpenCode timeouts must exceed free-tier cold starts and reasoning gaps.**
+   Generated profiles now use 60s header, 10-minute request, and 2-minute
+   stream-chunk timeouts. These directly address documented header-timeout and
+   stream-idle failure modes without disabling timeouts entirely.
+
+## High-signal sources
+
+Primary model/provider sources:
+
+- [Cloudflare Kimi K2.7 Code model card](https://developers.cloudflare.com/workers-ai/models/kimi-k2.7-code/)
+- [Cloudflare Kimi K2.7 launch note](https://developers.cloudflare.com/changelog/post/2026-06-12-kimi-k2-7-code-workers-ai/)
+- [MiniMax M3 official repository](https://github.com/MiniMax-AI/MiniMax-M3)
+- [Z.ai Java SDK GLM-5.2 example](https://github.com/zai-org/z-ai-sdk-java/blob/21c13b12c27b431f98ca4a9601a6ac40b4ad4f74/README.md)
+- [Artificial Analysis Kimi K2.7 vs K2.6](https://artificialanalysis.ai/models/comparisons/kimi-k2-7-code-vs-kimi-k2-6)
+
+Independent registry/runtime cross-checks:
+
+- [Cloudflare Agents Kimi codemode example](https://github.com/cloudflare/agents/blob/f089c5b6a13f98ad728f9c9cb9d729469b945233/docs/agents/codemode.md)
+- [MiniMax M3 official README blob](https://github.com/MiniMax-AI/MiniMax-M3/blob/79882a353ea7d8b3b52ecaf6523ba7ab2a6fb6e5/README.md)
+- [Kilo/OpenCode timeout changelog](https://github.com/Kilo-Org/kilocode/blob/fb5f5ae31b69924cc7c963467c166b8dd5f52a81/packages/opencode/CHANGELOG.md)
+- [MiMo OpenCode provider implementation](https://github.com/XiaomiMiMo/MiMo-Code/blob/60af8f1ff73272f830d327b4e1a0794c7a67eefe/packages/opencode/src/provider/provider.ts)
+- [OpenCode-compatible timeout schema](https://github.com/samk1/nvim-opencode/blob/bce0fddbc37b907776b7e6455e4685918c7c783f/lua/opencode_client/model/provider_config_options.lua)
+- [Independent multi-model registry](https://github.com/routatic/proxy/blob/f4616cc9f78ab3417537a5bc39be3eede65d4b3b/MODELS.md)
+- [Independent Kimi K2.7 evaluation artifact](https://github.com/spullara/models/blob/32b212b7d0e48bc524ba62486bd8d82363efd1e6/evals/eval-kimi-k2.7-code.txt)
+- [Independent frontier model tracker: GLM-5.2](https://github.com/startakovsky/llm-model-tracker/blob/4f383187570d2097f810fc4bd0ecaee845daca89/glm-5.2.md)
+- [Independent frontier model tracker: MiniMax M3](https://github.com/startakovsky/llm-model-tracker/blob/4f383187570d2097f810fc4bd0ecaee845daca89/minimax-m3.md)
+- [Independent frontier model tracker: Kimi K2.7](https://github.com/startakovsky/llm-model-tracker/blob/4f383187570d2097f810fc4bd0ecaee845daca89/kimi-k2.7-code.md)
+
+The broad GitHub screen was used to detect naming drift and implementation
+practice. It was not treated as a popularity vote and did not override a
+first-party model card or a reproducible benchmark.

@@ -163,16 +163,10 @@ class QuotaStore:
     def _flush_locked(self) -> None:
         if not self._pending_counts:
             return
-        current_day = _utc_day(self._clock())
         with self._file_lock():
             merged = self._load()
-            bucket = merged.get(current_day)
-            if bucket is None:
-                merged = {current_day: {}}
-                bucket = merged[current_day]
             for day, changes in self._pending_counts.items():
-                if day != current_day:
-                    continue
+                bucket = merged.setdefault(day, {})
                 for key, amount in changes.items():
                     bucket[key] = int(bucket.get(key, 0)) + amount
             old_data = self._data

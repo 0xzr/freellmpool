@@ -73,6 +73,12 @@ _MODEL_NAME_ALIASES = {
     "morph-glm52-744b": "glm-5.2",
     "morph-minimax3-428b": "minimax-m3",
     "morph-dsv4flash": "deepseek-v4-flash",
+    # Current frontier/catalog models without redistributable benchmark rows.
+    # Keep them in conservative, already-published comparison tiers rather than
+    # letting the name-only fallback rate a frontier coding model as neutral.
+    "kimi-k2.7-code": "kimi-k2.6",
+    "qwen3.6-27b": "qwen3-30b-a3b",
+    "qwen3.6-35b-a3b": "qwen3-30b-a3b",
 }
 
 

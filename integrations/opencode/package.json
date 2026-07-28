@@ -1,7 +1,7 @@
 {
   "name": "opencode-freellmpool",
   "version": "0.1.0",
-  "description": "OpenCode plugin for freellmpool: see the serving provider/model, usage & rate-limits, and control routing quality.",
+  "description": "OpenCode plugin for freellmpool: inspect the serving model, usage, and route long agent loops across strong free models.",
   "private": false,
   "type": "module",
   "main": "freellmpool.js",

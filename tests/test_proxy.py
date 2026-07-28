@@ -1016,13 +1016,20 @@ def test_status_records_served_target(server):
 def test_models_route_includes_routing_aliases(server):
     with urllib.request.urlopen(server + "/v1/models") as resp:  # noqa: S310
         ids = {m["id"] for m in json.load(resp)["data"]}
-    assert {"auto", "fast", "quality", "fair", "spread"} <= ids  # spread discoverable
+    assert {"auto", "agent", "fast", "quality", "fair", "spread"} <= ids
 
 
 def test_spread_alias_routes(server):
     # bare + provider-qualified aliases all route and serve (incl. freellmpool/auto, which
     # must NOT be treated as a literal provider filter → 503)
-    for name in ("spread", "freellmpool/spread", "freellmpool/auto", "auto"):
+    for name in (
+        "agent",
+        "freellmpool/agent",
+        "spread",
+        "freellmpool/spread",
+        "freellmpool/auto",
+        "auto",
+    ):
         status, body = _post_json(
             server + "/v1/chat/completions",
             {"model": name, "messages": [{"role": "user", "content": "hi"}]},

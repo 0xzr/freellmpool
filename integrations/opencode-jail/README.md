@@ -32,9 +32,15 @@ tmpfs prefixes). Nothing is labelled "sandbox"/"jail" — no obvious tell.
   symlink/TOCTOU-hardened host-side setup (reviewed across 10 adversarial Codex passes).
 
 ## Routing
-Defaults to `freellmpool/fast` (lowest-latency provider first) — best for interactive agentic
-loops. `quality` routing picks the most *capable* models, which are often slow and can stall a turn.
-Override with `OPENCODE_FP_MODEL=freellmpool/quality` (etc.).
+Defaults to `freellmpool/agent`: the strongest healthy benchmark-capability tier, with
+quota spreading and latency preference inside that tier. This keeps long tool loops away
+from weak models without exhausting one provider. Override with
+`OPENCODE_FP_MODEL=freellmpool/spread` (whole-pool breadth), `freellmpool/quality`
+(prompt-matched capability), or another routing alias.
+
+The generated OpenCode provider also raises header, total-request, and stream-chunk
+timeouts to 60 seconds, 10 minutes, and 2 minutes respectively so a slow free-model
+stream is not mistaken for a dead session.
 
 ## Known residuals (by design)
 - **Network egress is open.** Free models + webfetch need the internet, and `--unshare-net` would

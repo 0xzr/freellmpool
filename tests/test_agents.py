@@ -75,6 +75,7 @@ def test_agents_guide_tracks_current_release_and_main_surfaces():
     assert "Registry publication status: pending" in guide
     for marker in (
         "Hermes",
+        "freellmpool/agent",
         "freellmpool/spread",
         "/livez",
         "/readyz",
