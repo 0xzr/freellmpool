@@ -20,7 +20,16 @@ const packages = [
   {
     directory: "opencode",
     name: "opencode-freellmpool",
-    files: ["LICENSE", "README.md", "freellmpool.js", "package.json"],
+    files: [
+      "LICENSE",
+      "README.md",
+      "freellmpool.js",
+      "package.json",
+      "plugin/freellmpool.js",
+      "tools/freellmpool_models.js",
+      "tools/freellmpool_status.js",
+      "tools/freellmpool_tokenmax.js",
+    ],
   },
   {
     directory: "opencode-tui",
@@ -60,11 +69,11 @@ function smokeServer(installDir) {
     installDir,
     "@opencode-ai/plugin",
     [
-      "const chain = new Proxy(function () { return chain }, {",
-      "  get() { return chain },",
-      "  apply() { return chain },",
+      "const schema = new Proxy(function () { return schema }, {",
+      "  get() { return schema },",
+      "  apply() { return schema },",
       "})",
-      "export const tool = { schema: chain }",
+      "export const tool = Object.assign((definition) => definition, { schema })",
     ].join("\n"),
   )
   run(
@@ -75,7 +84,13 @@ function smokeServer(installDir) {
       [
         'const mod = await import("opencode-freellmpool")',
         "const loaded = await mod.default({ client: { tui: { showToast: async () => {} } } })",
-        'if (!loaded?.tool?.freellmpool_status) throw new Error("server plugin did not load")',
+        'if (loaded?.tool?.freellmpool_status?.description === undefined) throw new Error("server plugin did not register tools")',
+        'const localPlugin = await import("opencode-freellmpool/plugin/freellmpool.js")',
+        'if (typeof localPlugin.default !== "function") throw new Error("local plugin shim did not load")',
+        'for (const name of ["freellmpool_status", "freellmpool_models", "freellmpool_tokenmax"]) {',
+        '  const custom = await import(`opencode-freellmpool/tools/${name}.js`)',
+        '  if (custom.default?.description === undefined) throw new Error(`${name} custom tool did not load`)',
+        '}',
       ].join(";"),
     ],
     { cwd: installDir },

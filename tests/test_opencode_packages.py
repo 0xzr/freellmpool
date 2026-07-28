@@ -8,7 +8,7 @@ PACKAGES = {
     "opencode": {
         "name": "opencode-freellmpool",
         "entry": "freellmpool.js",
-        "files": {"freellmpool.js", "README.md", "LICENSE"},
+        "files": {"freellmpool.js", "README.md", "LICENSE", "plugin", "tools"},
     },
     "opencode-tui": {
         "name": "opencode-freellmpool-tui",
@@ -114,6 +114,42 @@ def test_package_smoke_script_checks_tarballs_clean_installs_and_loads() -> None
         "LICENSE",
     ):
         assert required in script
+
+
+def test_opencode_server_plugin_registers_tools_with_sdk_helper() -> None:
+    source = (
+        ROOT / "integrations" / "opencode" / "freellmpool.js"
+    ).read_text(encoding="utf-8")
+    for name in (
+        "freellmpool_status",
+        "freellmpool_models",
+        "freellmpool_tokenmax",
+    ):
+        assert f"{name}: tool({{" in source
+
+    smoke = (ROOT / "scripts" / "check_opencode_packages.mjs").read_text(
+        encoding="utf-8"
+    )
+    assert "Object.assign((definition) => definition, { schema })" in smoke
+    assert "server plugin did not register tools" in smoke
+    assert "local plugin shim did not load" in smoke
+    assert "custom tool did not load" in smoke
+
+    for name in (
+        "freellmpool_status",
+        "freellmpool_models",
+        "freellmpool_tokenmax",
+    ):
+        shim = (
+            ROOT / "integrations" / "opencode" / "tools" / f"{name}.js"
+        ).read_text(encoding="utf-8")
+        assert 'import plugin from "opencode-freellmpool"' in shim
+        assert f"export default loaded.tool.{name}" in shim
+
+    plugin_shim = (
+        ROOT / "integrations" / "opencode" / "plugin" / "freellmpool.js"
+    ).read_text(encoding="utf-8")
+    assert plugin_shim.strip() == 'export { default } from "opencode-freellmpool"'
 
 
 def test_unpublished_registry_install_is_labelled_pending_everywhere() -> None:
