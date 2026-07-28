@@ -80,6 +80,50 @@ def test_inventory_expiry_marks_invalid_key():
     assert report.providers[0].status == "invalid_key"
 
 
+def test_malformed_inventory_expiry_does_not_mask_expired_date():
+    report = build_capacity_report(
+        target=1,
+        env={"NEEDS_KEY": "value"},
+        quota=FakeQuota({}),
+        catalog=[_catalog()[1]],
+        inventory=[
+            KeyRecord(provider="needskey", env_var="OLD_KEY", expires_at="2000-01-01"),
+            KeyRecord(provider="needskey", env_var="NEEDS_KEY", expires_at="!garbage"),
+        ],
+    )
+    assert report.providers[0].expires_at == "2000-01-01"
+    assert report.providers[0].status == "invalid_key"
+
+
+def test_inventory_expiry_compares_parsed_iso_dates():
+    report = build_capacity_report(
+        target=1,
+        env={"NEEDS_KEY": "value"},
+        quota=FakeQuota({}),
+        catalog=[_catalog()[1]],
+        inventory=[
+            KeyRecord(provider="needskey", env_var="OLD_KEY", expires_at="20000101"),
+            KeyRecord(provider="needskey", env_var="NEEDS_KEY", expires_at="2030-12-31"),
+        ],
+    )
+    assert report.providers[0].expires_at == "2000-01-01"
+    assert report.providers[0].status == "invalid_key"
+
+
+def test_inventory_with_only_malformed_expiry_has_no_expiry():
+    report = build_capacity_report(
+        target=1,
+        env={"NEEDS_KEY": "value"},
+        quota=FakeQuota({}),
+        catalog=[_catalog()[1]],
+        inventory=[
+            KeyRecord(provider="needskey", env_var="NEEDS_KEY", expires_at="!garbage")
+        ],
+    )
+    assert report.providers[0].expires_at is None
+    assert report.providers[0].status == "healthy"
+
+
 def test_capacity_sorts_by_generosity_within_status():
     catalog = [
         Provider(
