@@ -55,6 +55,31 @@ def test_provider_account_quota_is_not_surfaced_as_client_error(providers, env, 
     assert ei.value.client_status is None
 
 
+def test_stream_chat_surfaces_nonretryable_client_error(providers, env, quota):
+    def stream_post(url, headers, body, timeout):
+        return 400, iter(['{"error":{"message":"bad request"}}'])
+
+    pool = Pool(providers[:2], quota=quota, env=env, stream_post=stream_post)
+    gen = pool.stream_chat([{"role": "user", "content": "hi"}])
+
+    with pytest.raises(AllProvidersExhausted) as ei:
+        next(gen)
+    assert ei.value.client_status == 400
+    assert "bad request" in (ei.value.client_message or "")
+
+
+def test_stream_account_quota_is_not_surfaced_as_client_error(providers, env, quota):
+    def stream_post(url, headers, body, timeout):
+        return 402, iter(['{"error":"You have depleted your monthly included credits."}'])
+
+    pool = Pool(providers[:2], quota=quota, env=env, stream_post=stream_post)
+    gen = pool.stream_chat([{"role": "user", "content": "hi"}])
+
+    with pytest.raises(AllProvidersExhausted) as ei:
+        next(gen)
+    assert ei.value.client_status is None
+
+
 def test_proxy_surfaces_client_error_status(providers, env, quota):
     post = make_post({"test": (400, {"error": {"message": "bad request"}})})
     pool = Pool(providers, quota=quota, env=env, post=post, stream_post=make_stream_post({}))
@@ -70,6 +95,44 @@ def test_proxy_surfaces_client_error_status(providers, env, quota):
         with pytest.raises(urllib.error.HTTPError) as ei:
             urllib.request.urlopen(req)  # noqa: S310
         assert ei.value.code == 400  # the real client error, not a generic 502
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_proxy_stream_surfaces_client_error_without_buffered_retry(providers, env, quota):
+    buffered = make_post({})
+
+    def stream_post(url, headers, body, timeout):
+        return 400, iter(['{"error":{"message":"bad stream request"}}'])
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=buffered,
+        stream_post=stream_post,
+    )
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(
+                {
+                    "model": "auto",
+                    "stream": True,
+                    "messages": [{"role": "user", "content": "hi"}],
+                }
+            ).encode(),
+            headers={"content-type": "application/json"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)  # noqa: S310
+        assert exc_info.value.code == 400
+        body = json.load(exc_info.value)
+        assert body["error"]["type"] == "invalid_request_error"
+        assert "bad stream request" in body["error"]["message"]
+        assert buffered.calls == []
     finally:
         httpd.shutdown()
         httpd.server_close()

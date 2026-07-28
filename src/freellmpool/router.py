@@ -958,6 +958,7 @@ class Pool:
         sequence = [t for t, c in states if not c] + [t for t, c in states if c]
         attempts: list[tuple[str, str]] = []
         unavailable_providers: set[str] = set()
+        client_error: ProviderHTTPError | None = None
         est_tokens = estimate_input_tokens(messages)
         needed = est_tokens + max_tokens
         ctx_overflow = False
@@ -1019,12 +1020,15 @@ class Pool:
                     self._mark_cooldown(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)
                     emit(self._on_event, "cooldown", target=target.name, status=429)
-                if _is_account_quota_exhaustion(exc):
+                account_exhausted = _is_account_quota_exhaustion(exc)
+                if account_exhausted:
                     self._mark_account_backoff(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)
                 # Any non-context failure (incl. a rate-limit, which might have fit)
                 # means "too long" isn't provably the whole story — stay generic.
                 non_ctx_failure = True
+                if not exc.retryable and not account_exhausted and client_error is None:
+                    client_error = exc
                 if _is_health_failure(exc):
                     self.metrics.record_failure(target.name, str(exc))
                 emit(self._on_event, "error", target=target.name, reason=str(exc))
@@ -1083,4 +1087,8 @@ class Pool:
         emit(self._on_event, "exhausted", attempts=len(attempts))
         if ctx_overflow and not non_ctx_failure:
             raise ContextWindowExceeded(attempts, est_tokens=est_tokens)
+        if client_error is not None:
+            raise AllProvidersExhausted(
+                attempts, client_status=client_error.status, client_message=str(client_error)
+            )
         raise AllProvidersExhausted(attempts)

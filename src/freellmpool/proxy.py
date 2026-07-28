@@ -629,7 +629,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._anthropic_error(413, str(exc), "context_length_exceeded")
                 return
             except AllProvidersExhausted as exc:
-                self._anthropic_error(502, str(exc), "all_providers_exhausted")
+                client_status = getattr(exc, "client_status", None)
+                if isinstance(client_status, int) and 400 <= client_status < 500:
+                    self._anthropic_error(
+                        client_status,
+                        getattr(exc, "client_message", None) or str(exc),
+                        "invalid_request_error",
+                    )
+                else:
+                    self._anthropic_error(502, str(exc), "all_providers_exhausted")
                 return
             # Record recent served
             record_recent(
@@ -851,7 +859,16 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 # input is too long for every model — fail loudly, don't retry buffered.
                 self._error(413, str(exc), "context_length_exceeded")
                 return
-            except (AllProvidersExhausted, StopIteration):
+            except (AllProvidersExhausted, StopIteration) as exc:
+                if isinstance(exc, AllProvidersExhausted):
+                    client_status = getattr(exc, "client_status", None)
+                    if isinstance(client_status, int) and 400 <= client_status < 500:
+                        self._error(
+                            client_status,
+                            getattr(exc, "client_message", None) or str(exc),
+                            "invalid_request_error",
+                        )
+                        return
                 # nothing streamable succeeded — fall back to a buffered completion
                 reply = self._resolve(req, norm)
                 if reply is not None:
