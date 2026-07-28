@@ -757,7 +757,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
             else:
                 self._send(200, _to_transcription_response(reply))
 
-        def _resolve(self, req: dict, messages: list[dict], *, tools=None, tool_choice=None):
+        def _resolve(
+            self,
+            req: dict,
+            messages: list[dict],
+            *,
+            tools=None,
+            tool_choice=None,
+            timeout: float | None = None,
+        ):
             """Shared: resolve model/params and call the pool. Returns a Reply or
             sends an error response and returns None."""
             requested = req.get("model") or "auto"
@@ -776,6 +784,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     400, "'max_tokens'/'temperature' must be numbers", "invalid_request_error"
                 )
                 return None
+            upstream_timeout = (
+                timeout
+                if timeout is not None
+                else (
+                    _AGENT_UPSTREAM_TIMEOUT
+                    if (routing_override or pool.routing) == "agent"
+                    else 90.0
+                )
+            )
             try:
                 return pool.chat(
                     messages,
@@ -783,9 +800,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     providers=provider_filter,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    timeout=(
-                        _AGENT_UPSTREAM_TIMEOUT if routing_override == "agent" else 90.0
-                    ),
+                    timeout=max(0.0, upstream_timeout),
                     tools=tools,
                     tool_choice=tool_choice,
                     routing=routing_override,
@@ -855,6 +870,12 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     400, "'max_tokens'/'temperature' must be numbers", "invalid_request_error"
                 )
                 return
+            upstream_timeout = (
+                _AGENT_UPSTREAM_TIMEOUT
+                if (routing_override or pool.routing) == "agent"
+                else 90.0
+            )
+            deadline = pool._clock() + upstream_timeout
             try:
                 gen = pool.stream_chat(
                     norm,
@@ -862,9 +883,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     providers=provider_filter,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    timeout=(
-                        _AGENT_UPSTREAM_TIMEOUT if routing_override == "agent" else 90.0
-                    ),
+                    timeout=upstream_timeout,
                     routing=routing_override,
                 )
                 meta = next(gen)  # provider/model chosen, or raises before any bytes
@@ -886,7 +905,11 @@ def make_handler(pool: Pool, api_key: str | None = None):
                         )
                         return
                 # nothing streamable succeeded — fall back to a buffered completion
-                reply = self._resolve(req, norm)
+                reply = self._resolve(
+                    req,
+                    norm,
+                    timeout=max(0.0, deadline - pool._clock()),
+                )
                 if reply is not None:
                     record_recent(
                         {

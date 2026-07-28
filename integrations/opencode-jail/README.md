@@ -39,7 +39,7 @@ from weak models without exhausting one provider. Override with
 (prompt-matched capability), or another routing alias.
 
 The generated OpenCode provider also raises header, total-request, and stream-chunk
-timeouts to 60 seconds, 10 minutes, and 2 minutes respectively so a slow free-model
+timeouts to 10 minutes, 10 minutes, and 2 minutes respectively so a slow free-model
 stream is not mistaken for a dead session.
 
 ## Known residuals (by design)

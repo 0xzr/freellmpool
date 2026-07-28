@@ -16,6 +16,7 @@ from helpers import gemini_body, make_post, make_stream_post, openai_body
 
 from freellmpool import __version__
 from freellmpool.client import HTTPResult
+from freellmpool.errors import AllProvidersExhausted
 from freellmpool.proxy import (
     _MAX_BODY,
     _MAX_CONNECTIONS,
@@ -58,8 +59,12 @@ def test_chat_completions_shape(server):
     assert "x_freellmpool" in body
 
 
-def test_agent_route_leaves_client_deadline_margin_for_buffered_and_streaming(
-    providers, env, quota
+@pytest.mark.parametrize(
+    ("request_model", "pool_routing"),
+    [("agent", "fair"), ("auto", "agent")],
+)
+def test_effective_agent_route_leaves_client_deadline_margin_for_buffered_and_streaming(
+    providers, env, quota, request_model, pool_routing
 ):
     seen: list[tuple[str, float]] = []
 
@@ -79,11 +84,12 @@ def test_agent_route_leaves_client_deadline_margin_for_buffered_and_streaming(
         env=env,
         post=post,
         stream_post=stream_post,
+        routing=pool_routing,
     )
     httpd, base = _serve(pool)
     try:
         payload = {
-            "model": "agent",
+            "model": request_model,
             "messages": [{"role": "user", "content": "hi"}],
         }
         assert _post_json(base + "/v1/chat/completions", payload)[0] == 200
@@ -141,6 +147,52 @@ def test_agent_route_enforces_one_overall_failover_budget(providers, env, quota)
         httpd.server_close()
 
     assert seen_timeouts == [540.0, 240.0]
+
+
+def test_agent_stream_fallback_shares_one_overall_budget(providers, env, quota):
+    clock = {"now": 0.0}
+    seen: list[tuple[str, float]] = []
+
+    def stream_chat(*args, timeout, **kwargs):
+        seen.append(("stream", timeout))
+        clock["now"] += 300.0
+        if False:
+            yield None
+        raise AllProvidersExhausted([("alpha/alpha-small", "down")])
+
+    def post(url, headers, body, timeout):
+        seen.append(("buffered", timeout))
+        return HTTPResult(200, openai_body("ok"), "ok")
+
+    pool = Pool(
+        providers[:1],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+        routing="agent",
+    )
+    pool.stream_chat = stream_chat
+    httpd, base = _serve(pool)
+    try:
+        payload = {
+            "model": "auto",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310 (localhost test)
+            assert resp.status == 200
+            resp.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert seen == [("stream", 540.0), ("buffered", 240.0)]
 
 
 def test_proxy_server_header_uses_package_version(server):
