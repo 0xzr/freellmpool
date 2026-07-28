@@ -228,9 +228,17 @@ class Pool:
             return dict(self.stats)
 
     def cooldown_snapshot(self, now: float) -> dict[str, float]:
-        """provider_id -> seconds remaining on cooldown, read under the lock."""
+        """Provider -> seconds remaining for transient or account-quota backoff."""
         with self._cooldown_lock:
-            return {pid: max(0.0, until - now) for pid, until in self._cooldown_until.items()}
+            provider_ids = self._cooldown_until.keys() | self._account_backoff_until.keys()
+            return {
+                provider_id: max(
+                    0.0,
+                    self._cooldown_until.get(provider_id, 0.0) - now,
+                    self._account_backoff_until.get(provider_id, 0.0) - now,
+                )
+                for provider_id in provider_ids
+            }
 
     def lifetime_stats(self) -> dict:
         """Persistent lifetime totals (+ first_seen), or the in-memory session

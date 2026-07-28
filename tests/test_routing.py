@@ -163,6 +163,7 @@ def test_account_quota_exhaustion_deprioritizes_provider_on_later_requests(
     providers, env, quota
 ):
     calls = []
+    clock = {"now": 0.0}
 
     def post(url, headers, body, timeout):
         calls.append(url)
@@ -178,12 +179,24 @@ def test_account_quota_exhaustion_deprioritizes_provider_on_later_requests(
             "",
         )
 
-    pool = Pool(providers[:2], quota=quota, env=env, post=post)
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+    )
     assert pool.chat(_EASY).provider_id == "beta"
+    assert pool.cooldown_snapshot(clock["now"])["alpha"] >= 15 * 60
     calls.clear()
 
     assert pool.chat(_EASY).provider_id == "beta"
     assert "beta.test" in calls[0]
+
+    clock["now"] += 15 * 60 + 1
+    calls.clear()
+    assert pool.chat(_EASY).provider_id == "beta"
+    assert "alpha.test" in calls[0]
 
 
 def test_quality_matches_difficulty_to_capability(tmp_path, monkeypatch, quota):
