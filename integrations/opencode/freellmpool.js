@@ -167,7 +167,7 @@ export const FreellmpoolPlugin = async ({ client }) => {
 
   return {
     tool: {
-      freellmpool_status: {
+      freellmpool_status: tool({
         description:
           "Show freellmpool proxy status: usage, estimated $ saved, per-provider " +
           "quota/rate-limits/cooldown/latency, current routing mode, and the most " +
@@ -184,9 +184,9 @@ export const FreellmpoolPlugin = async ({ client }) => {
           if (!ok) return `freellmpool status unavailable: ${error}`;
           return renderStatus(data, { verbose: !!args.verbose });
         },
-      },
+      }),
 
-      freellmpool_models: {
+      freellmpool_models: tool({
         description:
           "List the model ids the freellmpool proxy currently exposes (including the " +
           "routing aliases agent/auto/spread/fast/quality/fair). Use to discover what to set as the model.",
@@ -198,9 +198,9 @@ export const FreellmpoolPlugin = async ({ client }) => {
           if (!ids.length) return "freellmpool: no models reported.";
           return `freellmpool exposes ${ids.length} models:\n` + ids.map((id) => `  ${id}`).join("\n");
         },
-      },
+      }),
 
-      freellmpool_tokenmax: {
+      freellmpool_tokenmax: tool({
         description:
           "🌈 TOKENMAX: blast the SAME prompt to EVERY free model the proxy can reach at " +
           "once, then YOU synthesize the single best answer from all of them. While it runs, " +
@@ -239,7 +239,7 @@ export const FreellmpoolPlugin = async ({ client }) => {
           }
           return lines.join("\n");
         },
-      },
+      }),
     },
 
     // Best-effort: when an assistant reply completes, read which provider+model the

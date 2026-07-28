@@ -51,20 +51,23 @@ aggregate quota matters more than keeping every turn in the strongest tier.
 > and corrected defaults. Use the local-file path below until verified registry
 > versions exist.
 
-**Option A — drop-in (no build):**
+**Option A — local package (recommended until registry publication):**
 
 ```sh
-mkdir -p ~/.config/opencode/plugin
-cp freellmpool.js ~/.config/opencode/plugin/
+cd /absolute/path/to/integrations/opencode
+npm pack
+npm install --prefix ~/.config/opencode ./opencode-freellmpool-0.1.0.tgz
+mkdir -p ~/.config/opencode/plugin ~/.config/opencode/tools
+cp plugin/freellmpool.js ~/.config/opencode/plugin/
+cp tools/*.js ~/.config/opencode/tools/
 ```
 
-**Option B — reference from your `opencode.json` / `opencode.jsonc`:**
-
-```jsonc
-{
-  "plugin": ["/absolute/path/to/integrations/opencode/freellmpool.js"]
-}
-```
+OpenCode auto-discovers the shim in `~/.config/opencode/plugin`; do not add the
+unpublished package name to the `plugin` array, because that can trigger a
+registry lookup. The files copied into `~/.config/opencode/tools` are required for OpenCode
+versions that discover custom tools from that directory rather than from a
+plugin's `tool` hook. Keeping both paths configured preserves the served-model
+toast and exposes all three tools across supported OpenCode versions.
 
 Then make sure the proxy is running (`freellmpool proxy`) and that OpenCode has a
 `freellmpool` provider pointed at it (`baseURL: http://localhost:8080/v1`). Add the

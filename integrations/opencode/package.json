@@ -6,7 +6,9 @@
   "type": "module",
   "main": "freellmpool.js",
   "exports": {
-    ".": "./freellmpool.js"
+    ".": "./freellmpool.js",
+    "./plugin/*": "./plugin/*",
+    "./tools/*": "./tools/*"
   },
   "keywords": ["opencode", "opencode-plugin", "freellmpool", "llm", "proxy"],
   "license": "MIT",
@@ -25,5 +27,5 @@
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.14.0"
   },
-  "files": ["LICENSE", "README.md", "freellmpool.js"]
+  "files": ["LICENSE", "README.md", "freellmpool.js", "plugin", "tools"]
 }
