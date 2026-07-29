@@ -26,6 +26,55 @@ const BASE_URL = (
 const PROXY_KEY = process.env.FREELLMPOOL_PROXY_KEY || "";
 const TOAST = !/^(0|false|off|no)$/i.test(process.env.FREELLMPOOL_TOAST || "");
 const TIMEOUT_MS = 5000;
+const PROVIDER_MODELS = {
+  agent: { name: "Agent — strongest healthy tier" },
+  spread: { name: "Spread — maximum pool breadth" },
+  auto: { name: "Auto — proxy default routing" },
+  fast: { name: "Fast — lowest latency" },
+  quality: { name: "Quality — capability matched" },
+  fair: { name: "Fair — provider quota spread" },
+};
+
+function installProvider(config) {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return;
+  if (
+    Array.isArray(config.disabled_providers) &&
+    config.disabled_providers.includes("freellmpool")
+  ) {
+    return;
+  }
+  if (
+    Array.isArray(config.enabled_providers) &&
+    !config.enabled_providers.includes("freellmpool")
+  ) {
+    config.enabled_providers.push("freellmpool");
+  }
+
+  config.provider ||= {};
+  if (!config.provider || typeof config.provider !== "object") return;
+  config.provider.freellmpool ||= {};
+  const provider = config.provider.freellmpool;
+  if (!provider || typeof provider !== "object") return;
+
+  provider.name ||= "freellmpool (free pool)";
+  provider.npm ||= "@ai-sdk/openai-compatible";
+  provider.options ||= {};
+  if (provider.options && typeof provider.options === "object") {
+    provider.options.baseURL ||= `${BASE_URL}/v1`;
+    if (PROXY_KEY) provider.options.apiKey ||= PROXY_KEY;
+    provider.options.headerTimeout ??= 600000;
+    provider.options.timeout ??= 600000;
+    provider.options.chunkTimeout ??= 120000;
+  }
+
+  provider.models ||= {};
+  if (!provider.models || typeof provider.models !== "object") return;
+  for (const [id, defaults] of Object.entries(PROVIDER_MODELS)) {
+    provider.models[id] ||= {};
+    const model = provider.models[id];
+    if (model && typeof model === "object") model.name ||= defaults.name;
+  }
+}
 
 function authHeaders() {
   return PROXY_KEY ? { Authorization: `Bearer ${PROXY_KEY}` } : {};
@@ -166,6 +215,13 @@ export const FreellmpoolPlugin = async ({ client }) => {
   let lastSeenMsg = null; // dedupe message.updated (it fires repeatedly per message)
 
   return {
+    // OpenCode model-picker entries come from provider config, not tool hooks.
+    // Register the routing aliases whenever this plugin loads while preserving
+    // user-defined provider options, model entries, and the selected default.
+    config: async (config) => {
+      installProvider(config);
+    },
+
     tool: {
       freellmpool_status: tool({
         description:

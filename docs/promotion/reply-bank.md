@@ -78,7 +78,10 @@ Then add a custom OpenAI-compatible provider in `opencode.json`:
   "provider": {
     "freellmpool": {
       "npm": "@ai-sdk/openai-compatible",
-      "options": { "baseURL": "http://localhost:8080/v1" },
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "apiKey": "{env:FREELLMPOOL_PROXY_KEY}"
+      },
       "models": { "auto": {}, "fast": {}, "quality": {}, "fair": {} }
     }
   }
