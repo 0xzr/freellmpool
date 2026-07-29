@@ -59,6 +59,81 @@ def test_non_thinking_model_keeps_max_tokens():
     assert seen["max_tokens"] == 512
 
 
+def test_http_error_preserves_retry_after_for_circuit_breaker():
+    def post(url, headers, body, timeout):
+        return C.HTTPResult(
+            429,
+            {"error": {"message": "slow down"}},
+            "",
+            headers={"Retry-After": "75"},
+        )
+
+    with pytest.raises(ProviderHTTPError) as exc_info:
+        C.call(
+            P,
+            "zai-glm-4.7",
+            [{"role": "user", "content": "hi"}],
+            api_key="k",
+            env={},
+            max_tokens=512,
+            post=post,
+        )
+
+    assert exc_info.value.retry_after == 75.0
+
+
+def test_retry_after_parser_supports_standard_and_legacy_reset_headers(monkeypatch):
+    monkeypatch.setattr(C.time, "time", lambda: 1_700_000_000.0)
+
+    assert C._retry_after_seconds({"RateLimit-Reset": "45"}) == 45.0
+    assert C._retry_after_seconds({"X-RateLimit-Reset": "1700000075"}) == 75.0
+    # Retry-After is authoritative when a provider returns both.
+    assert (
+        C._retry_after_seconds(
+            {"Retry-After": "12", "X-RateLimit-Reset": "1700000075"}
+        )
+        == 12.0
+    )
+
+
+def test_stream_http_error_preserves_retry_after():
+    def stream_post(url, headers, body, timeout):
+        return 429, {"Retry-After": "80"}, iter(("rate limited",))
+
+    with pytest.raises(ProviderHTTPError) as exc_info:
+        list(
+            C.stream_call(
+                P,
+                "zai-glm-4.7",
+                [{"role": "user", "content": "hi"}],
+                api_key="k",
+                env={},
+                stream_post=stream_post,
+            )
+        )
+
+    assert exc_info.value.retry_after == 80.0
+
+
+def test_stream_rejects_clean_truncation_without_done_marker():
+    def stream_post(url, headers, body, timeout):
+        return 200, iter(
+            ('data: {"choices":[{"delta":{"content":"partial"}}]}',)
+        )
+
+    stream = C.stream_call(
+        P,
+        "zai-glm-4.7",
+        [{"role": "user", "content": "hi"}],
+        api_key="k",
+        env={},
+        stream_post=stream_post,
+    )
+    assert next(stream) == "partial"
+    with pytest.raises(ProviderHTTPError, match="before.*DONE"):
+        next(stream)
+
+
 def test_tools_forwarded_and_tool_calls_preserved():
     tc = [{"id": "call_1", "type": "function", "function": {"name": "f", "arguments": "{}"}}]
     seen = {}

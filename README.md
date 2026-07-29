@@ -519,14 +519,23 @@ batches up to `N` successful requests before flushing. Shutdown paths and
 `quota.snapshot()` flush pending counts, so dashboards and process exits still
 see current totals.
 
+Recent per-route health is persisted at
+`~/.config/freellmpool/route_health.json` (override with
+`FREELLMPOOL_HEALTH_FILE`). The bounded, atomic state contains route names,
+timings, counters, and normalized failure classes only—never prompts, responses,
+headers, or credentials. `/status` reports circuit state, sample age, and reset
+time for each enabled route.
+
 ## How routing works
 
 For each request, freellmpool builds the list of `(provider, model)` pairs you
 have access to, then orders providers least-used-first and picks a least-used
 model inside that provider. This keeps providers with large catalogs, like
 NVIDIA, from receiving more traffic only because they expose more models. A
-provider that returns a 429 is set aside for a cooldown window. Daily counts are
-kept in `~/.config/freellmpool/quota.json` and reset at UTC midnight.
+provider that returns a 429 is set aside for its advertised `Retry-After` or
+rate-limit reset window. Repeated availability failures open a per-route circuit;
+after cooldown, one half-open probe can restore the route. Daily counts are kept
+in `~/.config/freellmpool/quota.json` and reset at UTC midnight.
 
 Every call records latency and success per model target. A provider whose targets
 are currently failing sinks to the back automatically; with
