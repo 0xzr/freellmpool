@@ -17,10 +17,24 @@ from pathlib import Path
 from . import __version__
 from .config import (
     configured_providers,
+    effective_env,
     load_catalog,
     resolve_alias,
     settings,
     split_provider_model,
+)
+from .conformance import (
+    FEATURE_ANTHROPIC_MESSAGES,
+    FEATURE_CHAT,
+    FEATURE_JSON,
+    FEATURE_JSON_SCHEMA,
+    FEATURE_RESPONSES,
+    FEATURE_STREAMING,
+    FEATURE_TOOLS,
+    FEATURE_VISION,
+    FEATURES,
+    ConformanceStore,
+    run_target_canaries,
 )
 from .errors import AllProvidersExhausted, NoProvidersConfigured
 from .mode import (
@@ -47,6 +61,17 @@ def _read_stdin() -> str:
     if sys.stdin is None or sys.stdin.isatty():
         return ""
     return sys.stdin.read()
+
+
+def _runtime_catalog():
+    """Built-in plus registered/entry-point providers, merged by provider id."""
+
+    from .plugins import registered_providers
+
+    by_id = {provider.id: provider for provider in load_catalog()}
+    for provider in registered_providers():
+        by_id[provider.id] = provider
+    return list(by_id.values())
 
 
 def cmd_ask(args: argparse.Namespace) -> int:
@@ -337,7 +362,7 @@ def _strip_fences(text: str) -> str:
 
 
 def cmd_providers(args: argparse.Namespace) -> int:
-    catalog = load_catalog()
+    catalog = _runtime_catalog()
     configured = {p.id for p in configured_providers(catalog)}
     n_models = sum(1 for p in catalog for m in p.models if m.enabled)
     print(f"freellmpool catalog: {len(catalog)} providers, {n_models} models\n")
@@ -371,23 +396,40 @@ def cmd_providers_health(args: argparse.Namespace) -> int:
 def cmd_models(args: argparse.Namespace) -> int:
     import json
 
-    catalog = load_catalog()
+    catalog = _runtime_catalog()
     configured = {p.id for p in configured_providers(catalog)}
+    conformance = ConformanceStore()
+    conformance_snapshot = conformance.snapshot()
     only = set(args.providers.split(",")) if args.providers else None
     if args.json:
-        rows = [
-            {
-                "provider": provider.id,
-                "model": model.name,
-                "enabled": model.enabled,
-                "configured": provider.id in configured,
-            }
-            for provider in catalog
-            if (only is None or provider.id in only)
-            and (not args.configured_only or provider.id in configured)
-            for model in provider.models
-            if model.enabled or args.all
-        ]
+        rows = []
+        for provider in catalog:
+            if (only is not None and provider.id not in only) or (
+                args.configured_only and provider.id not in configured
+            ):
+                continue
+            for model in provider.models:
+                if not model.enabled and not args.all:
+                    continue
+                evidence = conformance.evidence(
+                    provider,
+                    model.name,
+                    snapshot=conformance_snapshot,
+                )
+                rows.append(
+                    {
+                        "provider": provider.id,
+                        "model": model.name,
+                        "enabled": model.enabled,
+                        "configured": provider.id in configured,
+                        "capabilities": evidence,
+                        "verified_features": sorted(
+                            feature
+                            for feature, result in evidence.items()
+                            if result.get("status") == "pass"
+                        ),
+                    }
+                )
         print(json.dumps(rows, separators=(",", ":")))
         return 0
 
@@ -900,6 +942,130 @@ def cmd_capability_status(args: argparse.Namespace) -> int:
     print(f"  top {args.limit} catalog models by capability:")
     for cap, name in scored[: args.limit]:
         print(f"    {cap:.3f}  {name}")
+    return 0
+
+
+def cmd_conformance_run(args: argparse.Namespace) -> int:
+    """Run a bounded deterministic feature matrix and persist sanitized evidence."""
+
+    import json
+
+    features = tuple(part.strip() for part in args.features.split(",") if part.strip())
+    unknown = sorted(set(features) - set(FEATURES))
+    if not features or unknown or len(set(features)) != len(features):
+        detail = f": {', '.join(unknown)}" if unknown else ""
+        print(f"freellmpool: invalid conformance feature selection{detail}", file=sys.stderr)
+        return 2
+    catalog = _runtime_catalog()
+    try:
+        env = _conformance_env(catalog)
+    except ValueError:
+        print(
+            "freellmpool: invalid bounded conformance key map",
+            file=sys.stderr,
+        )
+        return 2
+    configured = configured_providers(catalog, env)
+    only = {part.strip() for part in args.providers.split(",")} if args.providers else None
+    targets = []
+    for provider in configured:
+        if only is not None and provider.id not in only:
+            continue
+        models = [
+            model
+            for model in provider.models
+            if model.enabled and (args.model is None or model.name == args.model)
+        ]
+        if not args.all_models:
+            models = models[:1]
+        targets.extend((provider, model.name) for model in models)
+    targets = targets[: args.max_targets]
+    if not targets:
+        print("freellmpool: no configured provider/model matched the conformance filters", file=sys.stderr)
+        return 3
+
+    store = ConformanceStore()
+    rows = []
+    for provider, model in targets:
+        results = run_target_canaries(
+            provider,
+            model,
+            env=env,
+            features=features,
+            timeout=args.timeout,
+        )
+        for feature, result in results.items():
+            store.record(
+                provider,
+                model,
+                feature,
+                status=result["status"],
+                classification=result["classification"],
+            )
+        rows.append({"provider": provider.id, "model": model, "features": results})
+    if args.json:
+        print(json.dumps(rows, separators=(",", ":"), sort_keys=True))
+    else:
+        for row in rows:
+            print(f"{row['provider']}/{row['model']}")
+            for feature, result in row["features"].items():
+                print(f"  {feature:<20} {result['status']:<12} {result['classification']}")
+    return 0
+
+
+def _conformance_env(catalog) -> dict[str, str]:
+    """Merge a bounded workflow secret map, restricted to catalog-declared names."""
+
+    import json
+
+    env = effective_env()
+    raw = os.environ.get("FREELLMPOOL_CONFORMANCE_KEYS_JSON")
+    env.pop("FREELLMPOOL_CONFORMANCE_KEYS_JSON", None)
+    if not raw:
+        return env
+    if len(raw) > 65_536:
+        raise ValueError("conformance key map exceeds size limit")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("conformance key map must be JSON") from exc
+    if not isinstance(payload, dict) or len(payload) > 256:
+        raise ValueError("conformance key map must be a bounded object")
+    allowed = {
+        name
+        for provider in catalog
+        for name in ((provider.key_env,) + tuple(provider.extra_env))
+        if name
+    }
+    for name, value in payload.items():
+        if name not in allowed:
+            continue
+        if not isinstance(value, str) or len(value) > 8_192:
+            raise ValueError("conformance credential values must be bounded strings")
+        env[name] = value
+    return env
+
+
+def cmd_conformance_status(args: argparse.Namespace) -> int:
+    """Show the sanitized local protocol evidence store."""
+
+    import json
+
+    state = ConformanceStore().snapshot()
+    if args.json:
+        print(json.dumps(state, separators=(",", ":"), sort_keys=True))
+        return 0
+    targets = state.get("targets", {})
+    if not targets:
+        print("No protocol conformance evidence yet. Run `freellmpool conformance run`.")
+        return 0
+    for target, row in sorted(targets.items()):
+        print(target)
+        for feature, result in sorted(row.get("features", {}).items()):
+            print(
+                f"  {feature:<20} {result['status']:<12} "
+                f"{result['classification']}  {result['verified_at']}"
+            )
     return 0
 
 
@@ -2159,6 +2325,65 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_cap_status.add_argument("--limit", type=int, default=15, help="number of models to show")
     p_cap_status.set_defaults(func=cmd_capability_status)
+
+    p_conformance = sub.add_parser(
+        "conformance",
+        help="run and inspect deterministic per-model protocol feature canaries",
+    )
+    conformance_sub = p_conformance.add_subparsers(
+        dest="conformance_command",
+        required=True,
+    )
+    p_conf_run = conformance_sub.add_parser(
+        "run",
+        help="probe a bounded provider/model feature matrix",
+    )
+    default_features = ",".join(
+        (
+            FEATURE_CHAT,
+            FEATURE_STREAMING,
+            FEATURE_TOOLS,
+            FEATURE_JSON,
+            FEATURE_JSON_SCHEMA,
+            FEATURE_VISION,
+            FEATURE_RESPONSES,
+            FEATURE_ANTHROPIC_MESSAGES,
+        )
+    )
+    p_conf_run.add_argument(
+        "--features",
+        default=default_features,
+        help=f"comma-separated features ({', '.join(FEATURES)})",
+    )
+    p_conf_run.add_argument("--providers", help="comma-separated configured provider ids")
+    p_conf_run.add_argument("--model", help="exact model name to probe")
+    p_conf_run.add_argument(
+        "--all-models",
+        action="store_true",
+        help="probe every matching enabled model (still bounded by --max-targets)",
+    )
+    p_conf_run.add_argument(
+        "--max-targets",
+        type=int,
+        choices=range(1, 65),
+        default=8,
+        metavar="1..64",
+        help="maximum exact provider/model targets (default: 8)",
+    )
+    p_conf_run.add_argument(
+        "--timeout",
+        type=float,
+        default=20.0,
+        help="per-feature timeout seconds, clamped to 0.1..60",
+    )
+    p_conf_run.add_argument("--json", action="store_true", help="emit sanitized JSON results")
+    p_conf_run.set_defaults(func=cmd_conformance_run)
+    p_conf_status = conformance_sub.add_parser(
+        "status",
+        help="show cached per-model feature evidence",
+    )
+    p_conf_status.add_argument("--json", action="store_true", help="emit the sanitized state JSON")
+    p_conf_status.set_defaults(func=cmd_conformance_status)
 
     p_capacity = sub.add_parser("capacity", help="summarize legitimate LLM capacity")
     capacity_sub = p_capacity.add_subparsers(dest="capacity_command", required=True)

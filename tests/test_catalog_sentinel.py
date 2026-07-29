@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import socketserver
 import sys
 import threading
@@ -706,9 +707,43 @@ def test_workflow_is_advisory_least_privilege_and_fork_safe():
     assert "--body-file" in workflow
     assert "scripts/catalog_sentinel.py discover" in workflow
     assert "scripts/catalog_sentinel.py probe" in workflow
+    assert "freellmpool conformance run" in workflow
+    assert "FREELLMPOOL_CONFORMANCE_KEYS_JSON" in workflow
+    assert ".sentinel-state/conformance.json" in workflow
+    assert ".sentinel-artifacts/conformance.json" in workflow
     assert "--previous" in workflow
     assert "FREELLMPOOL_SENTINEL_KEYS_JSON" in workflow
     assert "Never mutates providers.toml" in workflow
+
+
+def test_authenticated_workflow_timeout_covers_declared_probe_budget():
+    workflow = (ROOT / ".github" / "workflows" / "catalog-sentinel.yml").read_text(
+        encoding="utf-8"
+    )
+    protected = workflow.split("  authenticated-probes:", 1)[1]
+    timeout_minutes = int(re.search(r"timeout-minutes:\s*(\d+)", protected).group(1))
+
+    probe = protected.split("python scripts/catalog_sentinel.py probe", 1)[1].split(
+        "cp .sentinel-artifacts/probe.json", 1
+    )[0]
+    probe_timeout = int(re.search(r"--timeout\s+(\d+)", probe).group(1))
+    max_providers = int(re.search(r"--max-providers\s+(\d+)", probe).group(1))
+    max_models = int(
+        re.search(r"--max-models-per-provider\s+(\d+)", probe).group(1)
+    )
+
+    canaries = protected.split("freellmpool conformance run", 1)[1].split(
+        "cp .sentinel-state/conformance.json", 1
+    )[0]
+    conformance_timeout = int(re.search(r"--timeout\s+(\d+)", canaries).group(1))
+    max_targets = int(re.search(r"--max-targets\s+(\d+)", canaries).group(1))
+    features = re.search(r"--features\s+([a-z_,]+)", canaries).group(1).split(",")
+
+    network_budget_seconds = (
+        probe_timeout * max_providers * max_models
+        + conformance_timeout * max_targets * len(features)
+    )
+    assert timeout_minutes * 60 >= network_budget_seconds + 600
 
 
 def test_catalog_sentinel_operator_contract_is_documented():

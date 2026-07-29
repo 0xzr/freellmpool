@@ -13,6 +13,7 @@ import threading
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from typing import Any
 
 from . import client as _client
 from .cache import Cache
@@ -35,6 +36,7 @@ from .config import (
     load_transcribers,
     settings,
 )
+from .conformance import ConformanceStore, default_conformance_path, required_features
 from .context import context_limit_from_error, estimate_input_tokens
 from .errors import (
     AllProvidersExhausted,
@@ -181,6 +183,7 @@ class Pool:
         on_event: EventHook | None = None,
         stats_store: StatsStore | None = None,
         route_health: RouteHealthStore | None = None,
+        conformance: ConformanceStore | None = None,
     ):
         self.providers = providers
         targets: list[Target] = []
@@ -217,6 +220,7 @@ class Pool:
         self._clock = clock or time.monotonic
         self.metrics = metrics or Metrics()
         self.route_health = route_health
+        self.conformance = conformance
         # "fair"   — least-used provider first, then least-used model in provider.
         # "fast"   — lowest measured provider latency / failure penalty first.
         # "quality"— match prompt difficulty to model capability (benchmark-scored),
@@ -291,6 +295,14 @@ class Pool:
         """Persistent per-model circuit reset times for readiness surfaces."""
         return self.route_health.route_cooldowns() if self.route_health is not None else {}
 
+    def conformance_snapshot(self) -> dict:
+        """Sanitized per-model protocol evidence for status/model surfaces."""
+
+        return self.conformance.snapshot() if self.conformance is not None else {
+            "version": 1,
+            "targets": {},
+        }
+
     def _acquire_route(self, target: Target) -> HealthLease | None:
         if self.route_health is None:
             return HealthLease(started_at=time.time(), generations={})
@@ -364,7 +376,7 @@ class Pool:
 
     def rank_targets(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         routing: str | None = None,
         model: str | None = None,
@@ -483,6 +495,7 @@ class Pool:
                 path=default_route_health_path(env),
                 base_cooldown=cooldown,
             ),
+            conformance=ConformanceStore(default_conformance_path(env)),
         )
 
     def embed(
@@ -645,6 +658,20 @@ class Pool:
         if include_set is None:
             return list(source)
         return [target for target in source if target.provider.id in include_set]
+
+    def _feature_targets(
+        self,
+        targets: list[Target],
+        features: Iterable[str],
+        *,
+        exact_pin: bool,
+    ) -> list[Target]:
+        """Restrict feature requests to verified targets while preserving exact pins."""
+
+        wanted = frozenset(features)
+        if not wanted or exact_pin or self.conformance is None:
+            return targets
+        return self.conformance.verified_targets(targets, wanted)
 
     def _order(
         self, targets: list[Target], difficulty: float | None = None, routing: str | None = None
@@ -897,7 +924,7 @@ class Pool:
 
     def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         model: str | None = None,
         providers: Iterable[str] | None = None,
@@ -906,6 +933,8 @@ class Pool:
         timeout: float = 90.0,
         tools: list | None = None,
         tool_choice=None,
+        response_format=None,
+        protocol: str | None = None,
         routing: str | None = None,
     ) -> Reply:
         """Like :meth:`ask` but takes raw OpenAI-style ``messages``.
@@ -918,6 +947,20 @@ class Pool:
             )
 
         provider_list = list(providers) if providers else None
+        features = required_features(
+            messages,
+            tools=tools,
+            response_format=response_format,
+            protocol=protocol,
+        )
+        exact_pin = (
+            model is not None and provider_list is not None and len(provider_list) == 1
+        )
+        candidates = self._feature_targets(
+            self._all_targets(include=provider_list, model=model),
+            features,
+            exact_pin=exact_pin,
+        )
         # Resolve the effective routing mode *before* the cache key so that a
         # per-request override (fast/quality/fair/…) keys its own cache bucket and
         # never serves a reply produced under a different mode's intent.
@@ -925,10 +968,32 @@ class Pool:
         cache_key = None
         if self._cache is not None:
             cache_key = self._cache.make_key(
-                messages, model, provider_list, max_tokens, temperature, tools, tool_choice, eff
+                messages,
+                model,
+                provider_list,
+                max_tokens,
+                temperature,
+                tools,
+                tool_choice,
+                eff,
+                response_format=response_format,
+                protocol=protocol,
             )
             hit = self._cache.get(cache_key)
-            if hit is not None:
+            feature_cache_eligible = (
+                hit is not None
+                and (
+                    not features
+                    or exact_pin
+                    or self.conformance is None
+                    or any(
+                        target.provider.id == hit.get("provider_id")
+                        and target.model == hit.get("model")
+                        for target in candidates
+                    )
+                )
+            )
+            if hit is not None and feature_cache_eligible:
                 emit(self._on_event, "cache_hit", key=cache_key)
                 self._bump_stats(cache_hits=1)
                 return Reply(
@@ -945,7 +1010,7 @@ class Pool:
 
         difficulty = prompt_difficulty(messages, max_tokens, tools) if eff == "quality" else None
         targets = self._order(
-            self._all_targets(include=provider_list, model=model),
+            candidates,
             difficulty=difficulty,
             routing=eff,
         )
@@ -1020,6 +1085,7 @@ class Pool:
                     timeout=remaining,
                     tools=tools,
                     tool_choice=tool_choice,
+                    response_format=response_format,
                     post=self._post,
                 )
             except ProviderHTTPError as exc:
@@ -1138,8 +1204,15 @@ class Pool:
             raise NoProvidersConfigured("no provider has an API key set")
         eff = normalize_routing_mode(routing, self.routing)
         difficulty = prompt_difficulty(messages, max_tokens) if eff == "quality" else None
+        provider_list = list(providers) if providers else None
+        candidates = self._all_targets(include=provider_list, model=model)
+        candidates = self._feature_targets(
+            candidates,
+            required_features(messages, stream=True),
+            exact_pin=model is not None and provider_list is not None and len(provider_list) == 1,
+        )
         targets = self._order(
-            self._all_targets(include=providers, model=model),
+            candidates,
             difficulty=difficulty,
             routing=eff,
         )

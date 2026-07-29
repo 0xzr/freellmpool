@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 import threading
 
+import pytest
 from helpers import make_post, make_stream_post
 
 from freellmpool.cache import Cache
@@ -82,6 +84,20 @@ def test_make_key_includes_routing():
     assert Cache.make_key(*args, routing="fair") == Cache.make_key(*args, routing="fair")
 
 
+def test_make_key_includes_response_format_and_protocol():
+    args = ([{"role": "user", "content": "hi"}], None, None, 1024, 0.0, None, None)
+    plain = Cache.make_key(*args, routing="fair")
+    structured = Cache.make_key(
+        *args,
+        routing="fair",
+        response_format={"type": "json_object"},
+    )
+    responses = Cache.make_key(*args, routing="fair", protocol="responses")
+    messages = Cache.make_key(*args, routing="fair", protocol="anthropic_messages")
+
+    assert len({plain, structured, responses, messages}) == 4
+
+
 def test_pool_uses_cache(providers, env, quota, tmp_path):
     cache = Cache(ttl=999.0, path=tmp_path / "c.db")
     post = make_post({})  # returns "ok", counts calls
@@ -96,6 +112,119 @@ def test_pool_uses_cache(providers, env, quota, tmp_path):
     assert r2.provider_id == r1.provider_id  # cached reply preserves the original provider
     assert len(post.calls) == n_after_first  # no extra network call
     assert pool.stats["cache_hits"] == 1
+
+
+def test_feature_cache_hit_is_rejected_after_conformance_regression(
+    providers, env, quota, tmp_path
+):
+    from freellmpool.conformance import (
+        FEATURE_TOOLS,
+        STATUS_PASS,
+        STATUS_UNSUPPORTED,
+        ConformanceStore,
+    )
+    alpha, beta = providers[:2]
+    alpha_model = next(model for model in alpha.models if model.enabled)
+    beta_model = next(model for model in beta.models if model.enabled)
+    store = ConformanceStore(tmp_path / "conformance.json")
+    for provider, model in ((alpha, alpha_model), (beta, beta_model)):
+        store.record(
+            provider,
+            model.name,
+            FEATURE_TOOLS,
+            status=STATUS_PASS,
+            classification="verified",
+        )
+    cache = Cache(ttl=999.0, path=tmp_path / "c.db")
+    post = make_post({})
+    pool = Pool(
+        [alpha, beta],
+        quota=quota,
+        env=env,
+        post=post,
+        cache=cache,
+        conformance=store,
+    )
+    tools = [{"type": "function", "function": {"name": "answer", "parameters": {}}}]
+
+    assert pool.chat([{"role": "user", "content": "answer"}], tools=tools).cached is False
+    assert post.calls[0]["url"].startswith("https://alpha.test/")
+    assert len(post.calls) == 1
+    store.record(
+        alpha,
+        alpha_model.name,
+        FEATURE_TOOLS,
+        status=STATUS_UNSUPPORTED,
+        classification="unsupported",
+    )
+
+    reply = pool.chat([{"role": "user", "content": "answer"}], tools=tools)
+    assert reply.cached is False
+    assert reply.provider_id == "beta"
+    assert len(post.calls) == 2
+
+
+def test_async_feature_cache_hit_is_rejected_after_conformance_regression(
+    providers, env, quota, tmp_path
+):
+    from freellmpool.aio import AsyncPool
+    from freellmpool.client import HTTPResult
+    from freellmpool.conformance import (
+        FEATURE_TOOLS,
+        STATUS_PASS,
+        STATUS_UNSUPPORTED,
+        ConformanceStore,
+    )
+    from freellmpool.errors import NoProvidersConfigured
+
+    provider = providers[0]
+    model = next(model for model in provider.models if model.enabled)
+    store = ConformanceStore(tmp_path / "conformance.json")
+    store.record(
+        provider,
+        model.name,
+        FEATURE_TOOLS,
+        status=STATUS_PASS,
+        classification="verified",
+    )
+    cache = Cache(ttl=999.0, path=tmp_path / "c.db")
+    calls = []
+
+    async def apost(url, headers, body, timeout):
+        calls.append(url)
+        return HTTPResult(
+            200,
+            {"choices": [{"message": {"role": "assistant", "content": "ok"}}]},
+            "",
+        )
+
+    pool = AsyncPool(
+        Pool(
+            [provider],
+            quota=quota,
+            env=env,
+            cache=cache,
+            conformance=store,
+        ),
+        apost=apost,
+    )
+    tools = [{"type": "function", "function": {"name": "answer", "parameters": {}}}]
+
+    first = asyncio.run(
+        pool.achat([{"role": "user", "content": "answer"}], tools=tools)
+    )
+    assert first.cached is False
+    store.record(
+        provider,
+        model.name,
+        FEATURE_TOOLS,
+        status=STATUS_UNSUPPORTED,
+        classification="unsupported",
+    )
+
+    with pytest.raises(NoProvidersConfigured):
+        asyncio.run(pool.achat([{"role": "user", "content": "answer"}], tools=tools))
+    assert len(calls) == 1
 
 
 def test_cache_preserves_tool_calls(providers, env, quota, tmp_path):

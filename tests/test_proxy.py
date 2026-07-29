@@ -903,6 +903,46 @@ def test_responses_shim_input_items(server):
     assert body["output_text"] == "ok"
 
 
+def _responses_stream_events(raw):
+    return [
+        json.loads(line.removeprefix("data: "))
+        for line in raw.splitlines()
+        if line.startswith("data: ")
+    ]
+
+
+def _assert_responses_stream_accumulates(raw):
+    """Replay the SDK's output accumulation invariants over a Responses stream."""
+
+    events = _responses_stream_events(raw)
+    assert [event["sequence_number"] for event in events] == list(range(len(events)))
+    current = json.loads(json.dumps(events[0]["response"]))
+    assert current["output"] == []
+    for event in events[1:]:
+        kind = event["type"]
+        if kind == "response.output_item.added":
+            current["output"].append(event["item"])
+        elif kind == "response.content_part.added":
+            current["output"][event["output_index"]]["content"].append(event["part"])
+        elif kind == "response.output_text.delta":
+            current["output"][event["output_index"]]["content"][event["content_index"]][
+                "text"
+            ] += event["delta"]
+        elif kind == "response.output_text.done":
+            current["output"][event["output_index"]]["content"][event["content_index"]][
+                "text"
+            ] = event["text"]
+        elif kind == "response.content_part.done":
+            current["output"][event["output_index"]]["content"][event["content_index"]] = (
+                event["part"]
+            )
+        elif kind == "response.output_item.done":
+            current["output"][event["output_index"]] = event["item"]
+        elif kind == "response.completed":
+            assert current["output"] == event["response"]["output"]
+    return events
+
+
 def test_responses_shim_streaming(server):
     req = urllib.request.Request(
         server + "/v1/responses",
@@ -914,6 +954,190 @@ def test_responses_shim_streaming(server):
     assert "event: response.created" in raw
     assert "event: response.output_text.delta" in raw
     assert "event: response.completed" in raw
+    _assert_responses_stream_accumulates(raw)
+
+
+def test_responses_tools_are_forwarded_and_return_function_call_output(providers, env, quota):
+    tool_calls = [
+        {
+            "id": "call_weather",
+            "type": "function",
+            "function": {"name": "weather", "arguments": '{"city":"Dublin"}'},
+        }
+    ]
+    post = make_post(
+        {
+            "alpha.test": (
+                200,
+                {"choices": [{"message": {"content": None, "tool_calls": tool_calls}}]},
+            )
+        }
+    )
+    pool = Pool(providers[:1], quota=quota, env=env, post=post)
+    httpd, base = _serve(pool)
+    try:
+        status, body = _post_json(
+            base + "/v1/responses",
+            {
+                "model": "auto",
+                "input": "What is the weather?",
+                "tools": [
+                    {
+                        "type": "function",
+                        "name": "weather",
+                        "description": "Look up weather",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"city": {"type": "string"}},
+                            "required": ["city"],
+                        },
+                        "strict": True,
+                    }
+                ],
+                "tool_choice": {"type": "function", "name": "weather"},
+            },
+        )
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert status == 200
+    upstream = post.calls[0]["body"]
+    assert upstream["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "weather",
+                "description": "Look up weather",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                    "required": ["city"],
+                },
+                "strict": True,
+            },
+        }
+    ]
+    assert upstream["tool_choice"] == {
+        "type": "function",
+        "function": {"name": "weather"},
+    }
+    assert body["output_text"] == ""
+    assert body["output"] == [
+        {
+            "type": "function_call",
+            "id": "fc-call_weather",
+            "call_id": "call_weather",
+            "name": "weather",
+            "arguments": '{"city":"Dublin"}',
+            "status": "completed",
+        }
+    ]
+
+
+def test_responses_stream_includes_function_call_events(providers, env, quota):
+    tool_calls = [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": '{"q":"answer"}'},
+        }
+    ]
+    post = make_post(
+        {
+            "alpha.test": (
+                200,
+                {"choices": [{"message": {"content": None, "tool_calls": tool_calls}}]},
+            )
+        }
+    )
+    pool = Pool(providers[:1], quota=quota, env=env, post=post)
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + "/v1/responses",
+            data=json.dumps(
+                {
+                    "model": "auto",
+                    "stream": True,
+                    "input": "Use the lookup tool",
+                    "tools": [
+                        {
+                            "type": "function",
+                            "name": "lookup",
+                            "parameters": {"type": "object"},
+                        }
+                    ],
+                }
+            ).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            raw = resp.read().decode()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    events = _assert_responses_stream_accumulates(raw)
+    arguments_done = next(
+        event
+        for event in events
+        if event["type"] == "response.function_call_arguments.done"
+    )
+    assert arguments_done["name"] == "lookup"
+    assert isinstance(arguments_done["sequence_number"], int)
+    completed = next(event for event in events if event["type"] == "response.completed")
+    assert completed["response"]["output"][0]["type"] == "function_call"
+    assert completed["response"]["output"][0]["call_id"] == "call_1"
+
+
+def test_responses_function_call_history_translates_to_chat_messages():
+    from freellmpool.proxy import _responses_input_to_messages
+
+    assert _responses_input_to_messages(
+        {
+            "input": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "lookup",
+                    "arguments": '{"q":"answer"}',
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "42",
+                },
+            ]
+        }
+    ) == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "lookup", "arguments": '{"q":"answer"}'},
+                }
+            ],
+        },
+        {"role": "tool", "content": "42", "tool_call_id": "call_1"},
+    ]
+
+
+def test_responses_rejects_non_function_tools_instead_of_silently_dropping(server):
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        _post_json(
+            server + "/v1/responses",
+            {
+                "model": "auto",
+                "input": "search",
+                "tools": [{"type": "web_search_preview"}],
+            },
+        )
+    assert exc_info.value.code == 400
+    assert json.load(exc_info.value)["error"]["type"] == "invalid_request_error"
 
 
 def test_responses_missing_input_400(server):
@@ -1152,6 +1376,19 @@ def test_null_assistant_content_not_stringified():
     out = _normalize_messages([{"role": "assistant", "content": None, "tool_calls": [{"id": "x"}]}])
     assert out[0]["content"] == ""
     assert out[0]["tool_calls"] == [{"id": "x"}]
+
+
+def test_multimodal_content_is_preserved_for_vision_routing():
+    from freellmpool.proxy import _normalize_messages
+
+    content = [
+        {"type": "text", "text": "What color is this?"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+    ]
+
+    assert _normalize_messages([{"role": "user", "content": content}]) == [
+        {"role": "user", "content": content}
+    ]
 
 
 # ---- JSON /status endpoint + per-request routing control ----

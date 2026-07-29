@@ -485,6 +485,7 @@ def _adapter_openai(
     timeout,
     tools,
     tool_choice,
+    response_format,
     post,
 ) -> Reply:
     return _call_openai(
@@ -498,6 +499,7 @@ def _adapter_openai(
         timeout=timeout,
         tools=tools,
         tool_choice=tool_choice,
+        response_format=response_format,
         post=post,
     )
 
@@ -514,12 +516,19 @@ def _adapter_gemini(
     timeout,
     tools,
     tool_choice,
+    response_format,
     post,
 ) -> Reply:
     # Gemini uses a different tool schema; skip tools for now (the router will
     # fail over to an openai-shape provider that supports them).
     if tools:
         raise ProviderHTTPError(400, "gemini adapter does not support tools", retryable=True)
+    if response_format is not None:
+        raise ProviderHTTPError(
+            400,
+            "gemini adapter does not support OpenAI response_format",
+            retryable=True,
+        )
     return _call_gemini(
         provider,
         model,
@@ -562,6 +571,7 @@ def call(
     timeout: float = 90.0,
     tools: list | None = None,
     tool_choice=None,
+    response_format=None,
     enforce_thinking_floor: bool = True,
     post: PostFn = default_post,
 ) -> Reply:
@@ -577,18 +587,26 @@ def call(
         # budget and return empty content.
         max_tokens = _THINKING_FLOOR
     adapter = _resolve_adapter(provider.adapter)
+    kwargs = {
+        "api_key": api_key,
+        "env": env,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "timeout": timeout,
+        "tools": tools,
+        "tool_choice": tool_choice,
+        "post": post,
+    }
+    # Keep custom adapters source-compatible for ordinary calls. A structured-output
+    # request opts into the new adapter keyword and cleanly fails over if an older
+    # custom adapter does not support it.
+    if response_format is not None or adapter in _BUILTIN_ADAPTERS.values():
+        kwargs["response_format"] = response_format
     return adapter(
         provider,
         model,
         messages,
-        api_key=api_key,
-        env=env,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        timeout=timeout,
-        tools=tools,
-        tool_choice=tool_choice,
-        post=post,
+        **kwargs,
     )
 
 
@@ -604,6 +622,7 @@ def _call_openai(
     timeout: float,
     tools: list | None = None,
     tool_choice=None,
+    response_format=None,
     post: PostFn,
 ) -> Reply:
     base_url = provider.base_url
@@ -626,6 +645,8 @@ def _call_openai(
         body["tools"] = tools
         if tool_choice is not None:
             body["tool_choice"] = tool_choice
+    if response_format is not None:
+        body["response_format"] = response_format
     result = post(url, headers, body, timeout)
     if result.status != 200:
         raise _provider_http_error(result)

@@ -28,6 +28,7 @@ from .client import (
     _strip_think,
     _to_gemini_contents,
 )
+from .conformance import required_features
 from .context import context_limit_from_error, estimate_input_tokens
 from .errors import (
     AllProvidersExhausted,
@@ -208,6 +209,7 @@ class AsyncPool:
         timeout: float,
         tools,
         tool_choice,
+        response_format,
     ) -> Reply:
         if _is_thinking(model) and max_tokens < _THINKING_FLOOR:
             max_tokens = _THINKING_FLOOR
@@ -216,6 +218,12 @@ class AsyncPool:
             if tools:
                 raise ProviderHTTPError(
                     400, "gemini adapter does not support tools", retryable=True
+                )
+            if response_format is not None:
+                raise ProviderHTTPError(
+                    400,
+                    "gemini adapter does not support OpenAI response_format",
+                    retryable=True,
                 )
             return await self._acall_gemini(
                 provider,
@@ -245,6 +253,7 @@ class AsyncPool:
                     timeout=timeout,
                     tools=tools,
                     tool_choice=tool_choice,
+                    response_format=response_format,
                     post=self._pool._post,
                 )
         return await self._acall_openai(
@@ -257,6 +266,7 @@ class AsyncPool:
             timeout=timeout,
             tools=tools,
             tool_choice=tool_choice,
+            response_format=response_format,
         )
 
     async def _acall_openai(
@@ -271,6 +281,7 @@ class AsyncPool:
         timeout,
         tools,
         tool_choice,
+        response_format,
     ) -> Reply:
         base_url = provider.base_url
         if provider.adapter == "cloudflare":
@@ -290,6 +301,8 @@ class AsyncPool:
             body["tools"] = tools
             if tool_choice is not None:
                 body["tool_choice"] = tool_choice
+        if response_format is not None:
+            body["response_format"] = response_format
         result = await self._apost(url, headers, body, timeout)
         if result.status != 200:
             raise _client._provider_http_error(result)
@@ -366,6 +379,8 @@ class AsyncPool:
         timeout: float = 90.0,
         tools: list | None = None,
         tool_choice=None,
+        response_format=None,
+        protocol: str | None = None,
         routing: str | None = None,
     ) -> Reply:
         """Async failover completion — same routing/cache/metrics as :meth:`Pool.chat`.
@@ -377,6 +392,21 @@ class AsyncPool:
             raise NoProvidersConfigured("no provider has an API key set")
         provider_list = list(providers) if providers else None
         eff = normalize_routing_mode(routing, p.routing)
+        features = required_features(
+            messages,
+            tools=tools,
+            response_format=response_format,
+            protocol=protocol,
+        )
+        exact_pin = (
+            model is not None and provider_list is not None and len(provider_list) == 1
+        )
+        candidates = await asyncio.to_thread(
+            p._feature_targets,
+            p._all_targets(include=provider_list, model=model),
+            features,
+            exact_pin=exact_pin,
+        )
 
         cache_key = None
         if p._cache is not None:
@@ -389,9 +419,24 @@ class AsyncPool:
                 tools,
                 tool_choice,
                 eff,
+                response_format=response_format,
+                protocol=protocol,
             )
             hit = await asyncio.to_thread(p._cache.get, cache_key)  # blocking sqlite off-loop
-            if hit is not None:
+            feature_cache_eligible = (
+                hit is not None
+                and (
+                    not features
+                    or exact_pin
+                    or p.conformance is None
+                    or any(
+                        target.provider.id == hit.get("provider_id")
+                        and target.model == hit.get("model")
+                        for target in candidates
+                    )
+                )
+            )
+            if hit is not None and feature_cache_eligible:
                 emit(p._on_event, "cache_hit", key=cache_key)
                 p._bump_stats(cache_hits=1)
                 return Reply(
@@ -409,7 +454,7 @@ class AsyncPool:
         difficulty = prompt_difficulty(messages, max_tokens, tools) if eff == "quality" else None
         targets = await asyncio.to_thread(
             p._order,
-            p._all_targets(include=provider_list, model=model),
+            candidates,
             difficulty,
             eff,
         )
@@ -473,6 +518,7 @@ class AsyncPool:
                     timeout=remaining,
                     tools=tools,
                     tool_choice=tool_choice,
+                    response_format=response_format,
                 )
             except ProviderHTTPError as exc:
                 is_ctx, limit = context_limit_from_error(exc.status, str(exc))

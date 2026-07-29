@@ -65,7 +65,16 @@ class Cache:
 
     @staticmethod
     def make_key(
-        messages, model, providers, max_tokens, temperature, tools, tool_choice=None, routing=None
+        messages,
+        model,
+        providers,
+        max_tokens,
+        temperature,
+        tools,
+        tool_choice=None,
+        routing=None,
+        response_format=None,
+        protocol=None,
     ) -> str | None:
         try:
             payload = json.dumps(
@@ -80,6 +89,8 @@ class Cache:
                     # routing mode expresses an intent about answer source/quality, so
                     # a quality request must not be served a cached fast-routed answer.
                     "routing": routing,
+                    "response_format": response_format,
+                    "protocol": protocol,
                 },
                 sort_keys=True,
             )
