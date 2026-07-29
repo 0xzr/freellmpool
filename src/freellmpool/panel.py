@@ -96,6 +96,7 @@ def select_panel_targets(
     routing: str | None = DEFAULT_ROUTING,
     model: str | None = None,
     providers: Iterable[str] | None = None,
+    task: str | None = None,
 ) -> list[Any]:
     """Pick a small, diverse set of targets for a second-opinion panel.
 
@@ -106,7 +107,13 @@ def select_panel_targets(
     """
 
     limit = clamp_panel_count(n)
-    candidates = pool.rank_targets(messages, routing=routing, model=model, providers=providers)
+    candidates = pool.rank_targets(
+        messages,
+        routing=routing,
+        model=model,
+        providers=providers,
+        task=task,
+    )
     if not candidates:
         return []
 
@@ -165,6 +172,7 @@ def run_panel(
     max_tokens: object = DEFAULT_MAX_TOKENS,
     timeout: float = DEFAULT_TIMEOUT,
     synthesize: bool = False,
+    task: str | None = None,
 ) -> PanelResult:
     requested_count = _int_or_default(n, DEFAULT_PANEL_COUNT)
     selected_count = clamp_panel_count(n)
@@ -178,6 +186,7 @@ def run_panel(
         routing=routing,
         model=model,
         providers=providers,
+        task=task,
     )
     if not picks:
         return PanelResult(
@@ -200,6 +209,7 @@ def run_panel(
                 providers=[provider_id],
                 max_tokens=token_limit,
                 timeout=timeout,
+                task=task,
             )
             latency_ms = round((time.monotonic() - started) * 1000)
             label = f"{reply.provider_id}/{reply.model}"

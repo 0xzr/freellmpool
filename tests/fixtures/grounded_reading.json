@@ -1,0 +1,19 @@
+{
+  "name": "lunar-finch-api-guide",
+  "prompt": "Read this Markdown document and tell me what it contains. Stay faithful to the document.",
+  "document": "# Lunar Finch Search API\n\nThe base URL is `https://api.lunarfinch.example/v2`.\n\n## Authentication\n\nSend the API key in the `X-Finch-Token` header. Keys are created in the web dashboard.\n\n## Search modes\n\n| Mode | Purpose |\n| --- | --- |\n| `precise` | Exact factual lookup |\n| `broad` | Exploratory discovery |\n\nThe `max_results` parameter defaults to **17** and cannot exceed **80**.\n\n## Python example\n\n```python\nresponse = client.search(query=\"ice shelf\", mode=\"precise\", max_results=17)\n```\n\n## Troubleshooting\n\nA `429` response means the recurring free allowance is exhausted. Wait **23 seconds** before retrying. The client never writes credentials to disk.",
+  "must_include": [
+    "X-Finch-Token",
+    "precise",
+    "broad",
+    "17",
+    "80",
+    "23 seconds"
+  ],
+  "must_not_invent": [
+    "npm package",
+    "interactive API key prompt",
+    "generates an API key with curl",
+    "writes credentials to .env"
+  ]
+}

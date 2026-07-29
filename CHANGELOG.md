@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Provider-neutral task-aware quality routing for grounded Markdown reading,
+  including a local classifier, explicit CLI/MCP/proxy task hints, a faithful
+  reader role, sanitized versioned regression fixture, and exact-identity
+  multi-trial evidence that preserves existing ordering when no candidate is
+  measured.
 - Deterministic, quota-bounded per-model protocol conformance canaries for
   chat, streaming, tools, JSON object/schema, vision, Responses, and Anthropic Messages,
   with sanitized persisted evidence, model/status visibility, protected

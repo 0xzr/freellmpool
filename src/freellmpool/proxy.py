@@ -53,6 +53,7 @@ from .readiness import ReadinessSnapshot, readiness_snapshot
 from .router import Pool
 from .routing_modes import PUBLIC_ROUTING_ALIASES, routing_override
 from .savings import usd_saved
+from .task_quality import task_resolution
 
 _MAX_BODY = 16 * 1024 * 1024  # 16 MB cap on request bodies
 # Audio uploads are larger than JSON; Groq's free tier accepts up to 25 MB, so cap audio
@@ -394,6 +395,12 @@ def _routing_and_model(headers, requested: str) -> tuple[str | None, str]:
         elif alias == "auto":
             requested = "auto"  # 'auto' / 'freellmpool/auto' → default routing, no provider filter
     return override, requested
+
+
+def _task_hint(headers, req: dict) -> object:
+    """Header intent wins over an optional OpenAI-compatible body extension."""
+    header = headers.get("X-Freellmpool-Task")
+    return header if header is not None else req.get("task")
 
 
 def make_handler(pool: Pool, api_key: str | None = None):
@@ -782,6 +789,9 @@ def make_handler(pool: Pool, api_key: str | None = None):
             resolved = resolve_alias(model_str, pool.env)
             provider_filter, model_filter = _parse_model(resolved, {p.id for p in pool.providers})
             try:
+                task = task_resolution(
+                    chat["messages"], _task_hint(self.headers, req)
+                ).task
                 reply = pool.chat(
                     chat["messages"],
                     model=model_filter,
@@ -792,7 +802,11 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     tool_choice=chat["tool_choice"],
                     protocol="anthropic_messages",
                     routing=routing_override,
+                    task=task,
                 )
+            except ValueError as exc:
+                self._anthropic_error(400, str(exc))
+                return
             except NoProvidersConfigured as exc:
                 self._anthropic_error(503, str(exc), "no_providers")
                 return
@@ -952,11 +966,14 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 max_tokens = int(_max_tokens_value(req, 1024))
                 temp_raw = req.get("temperature")
                 temperature = 0.0 if temp_raw is None else float(temp_raw)
+                task = task_resolution(
+                    messages, _task_hint(self.headers, req)
+                ).task
             except (TypeError, ValueError):
                 self._error(
                     400,
                     "'max_tokens'/'max_completion_tokens'/'max_output_tokens'/"
-                    "'temperature' must be numbers",
+                    "'temperature' must be numbers and 'task' must be valid",
                     "invalid_request_error",
                 )
                 return None
@@ -982,6 +999,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     response_format=response_format,
                     protocol=protocol,
                     routing=routing_override,
+                    task=task,
                 )
             except NoProvidersConfigured as exc:
                 self._error(503, str(exc), "no_providers")
@@ -1057,11 +1075,12 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 max_tokens = int(_max_tokens_value(req, 1024))
                 temp_raw = req.get("temperature")
                 temperature = 0.0 if temp_raw is None else float(temp_raw)
+                task = task_resolution(norm, _task_hint(self.headers, req)).task
             except (TypeError, ValueError):
                 self._error(
                     400,
                     "'max_tokens'/'max_completion_tokens'/'max_output_tokens'/"
-                    "'temperature' must be numbers",
+                    "'temperature' must be numbers and 'task' must be valid",
                     "invalid_request_error",
                 )
                 return
@@ -1080,6 +1099,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     temperature=temperature,
                     timeout=upstream_timeout,
                     routing=routing_override,
+                    task=task,
                 )
                 meta = next(gen)  # provider/model chosen, or raises before any bytes
             except NoProvidersConfigured as exc:

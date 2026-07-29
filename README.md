@@ -236,13 +236,15 @@ freellmpool ask -m gpt-4o-mini "hi"      # routed to a free model
 ### Roles
 
 `freellmpool roles` lists ask-role presets (`coder`, `critic`, `summarizer`,
-`long-context`, `cheap`, `fast`, `second-opinion`, ...). Each role sets routing,
-token budget, temperature, and system-prompt hints without inventing a second
-routing engine. Explicit flags (`--model`, `--providers`, `--routing`, `--max-tokens`)
-win over role defaults, and the verbose output shows when an override happened.
+`grounded-reader`, `long-context`, `cheap`, `fast`, `second-opinion`, ...). Each
+role sets routing, token budget, temperature, task intent, and system-prompt hints
+without inventing a second routing engine. Explicit flags (`--model`, `--providers`,
+`--routing`, `--task`, `--max-tokens`) win over role defaults.
 
 ```bash
 freellmpool ask --role coder "write a pytest for this function"
+freellmpool ask --role grounded-reader "read this Markdown file"
+freellmpool ask --routing quality --task general "ignore automatic task classification"
 FREELLMPOOL_MODE=wise freellmpool ask --role cheap "summarize this patch"
 ```
 
@@ -562,9 +564,21 @@ have the smallest daily caps, so a naive pool gets weaker as the day fills. Qual
 routing matches each prompt's *difficulty* to each model's *capability*: hard
 prompts (long input, code, reasoning cues) go to the strongest available model, and
 easy ones go to lightweight models — which rations scarce strong-model quota so the
-pool stays sharp for longer. Capability is grounded in real benchmark data, not
-guessed from names; models that no benchmark lists cover fall back to a name
-heuristic.
+pool stays sharp for longer. It also recognizes high-confidence grounded Markdown
+reading/extraction requests locally. When repeated evidence from the versioned,
+sanitized fixture exists for a candidate's exact model identity, a bounded task-fit
+term influences quality ordering. Unmeasured models remain reachable, and if no
+candidate has current evidence the ordering is unchanged. Capability is grounded in
+real benchmark data, not guessed from names; models that no benchmark lists cover
+fall back to a name heuristic.
+
+Use `--task grounded-reading` to declare that intent, `--task general` to suppress
+automatic classification, or `--task auto` to classify locally. OpenAI-compatible,
+Responses, and Anthropic proxy clients can send the body extension
+`"task": "grounded-reading"` or the `X-Freellmpool-Task` header. Explicit intent
+wins over automatic classification. Task evidence stores aggregate pass counts,
+fixture hashes, and scores only—never prompts, documents, responses, or provider
+secrets.
 
 The bundled, offline scores come from [LMArena](https://lmarena.ai/) Elo (an
 MIT-licensed snapshot) and the [Aider](https://aider.chat/) code-editing

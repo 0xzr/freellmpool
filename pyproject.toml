@@ -89,6 +89,7 @@ packages = ["src/freellmpool"]
 [tool.hatch.build.targets.wheel.force-include]
 "src/freellmpool/providers.toml" = "freellmpool/providers.toml"
 "src/freellmpool/capability_scores.json" = "freellmpool/capability_scores.json"
+"src/freellmpool/task_evidence.json" = "freellmpool/task_evidence.json"
 "src/freellmpool/recipes/second-opinion.json" = "freellmpool/recipes/second-opinion.json"
 "src/freellmpool/recipes/pr-review.json" = "freellmpool/recipes/pr-review.json"
 "src/freellmpool/recipes/repo-summary.json" = "freellmpool/recipes/repo-summary.json"

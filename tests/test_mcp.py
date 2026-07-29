@@ -6,6 +6,7 @@ import pytest
 from helpers import make_post, openai_body
 
 from freellmpool.mcp_server import handle_message
+from freellmpool.models import Reply
 from freellmpool.router import Pool
 
 
@@ -76,6 +77,10 @@ def test_tool_schemas_expose_expected_fields(providers, env, quota):
     pool = _pool(providers, env, quota)
     resp = handle_message(pool, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     by_name = {t["name"]: t for t in resp["result"]["tools"]}
+    ask_props = by_name["free_llm_ask"]["inputSchema"]["properties"]
+    assert ask_props["task"]["enum"] == ["auto", "general", "grounded-reading"]
+    route_props = by_name["free_llm_route"]["inputSchema"]["properties"]
+    assert route_props["task"]["enum"] == ["auto", "general", "grounded-reading"]
 
     # Panel-style tools share the same shape (n clamp 2-5, max_tokens, synthesize, routing enum).
     for tool_name in ("free_llm_panel", "free_llm_second_opinion", "free_llm_battle"):
@@ -137,6 +142,32 @@ def test_tools_call_ask(providers, env, quota):
     assert text.startswith("ok")
     assert "via alpha/" in text  # provenance footer names the serving model
     assert resp["result"]["isError"] is False
+
+
+def test_tools_call_ask_forwards_task_hint(providers, env, quota, monkeypatch):
+    pool = _pool(providers, env, quota)
+    captured = {}
+
+    def fake_chat(messages, **kwargs):
+        captured.update(kwargs)
+        return Reply(text="ok", provider_id="alpha", model="alpha-small", raw={})
+
+    monkeypatch.setattr(pool, "chat", fake_chat)
+    resp = handle_message(
+        pool,
+        {
+            "jsonrpc": "2.0",
+            "id": 31,
+            "method": "tools/call",
+            "params": {
+                "name": "free_llm_ask",
+                "arguments": {"prompt": "read this", "task": "grounded-reading"},
+            },
+        },
+    )
+
+    assert resp["result"]["isError"] is False
+    assert captured["task"] == "grounded-reading"
 
 
 def test_tools_call_panel(providers, env, quota):
@@ -352,6 +383,7 @@ def test_tools_call_route_is_zero_token(providers, env, quota):
     )
     text = resp["result"]["content"][0]["text"]
     assert "difficulty" in text.lower()
+    assert "resolved task: general (auto)" in text.lower()
     assert "alpha/" in text  # a ranked candidate
     assert pool.stats_snapshot()["requests"] == 0  # explained without spending a token
 

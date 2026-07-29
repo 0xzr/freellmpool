@@ -154,7 +154,9 @@ freellmpool profile doctor metaswarm --dry-run
 ## Workflows that help agents
 
 - `freellmpool roles` shows role presets (`coder`, `critic`, `summarizer`,
-  `second-opinion`, ...).
+  `grounded-reader`, `second-opinion`, ...).
+- `freellmpool ask --role grounded-reader` requests faithful extraction, while
+  explicit `--task general` suppresses automatic grounded-reading classification.
 - `freellmpool ask --role coder --second-opinion` can review an implementation
   plan before a long agent run.
 - `freellmpool battle "which prompt version is clearer?"` compares model answers
