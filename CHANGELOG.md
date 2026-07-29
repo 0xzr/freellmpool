@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- A weekly, manually dispatchable catalog sentinel with bounded public
+  discovery, environment-protected completion probes, sanitized lifecycle
+  artifacts, and advisory drift issues that never mutate routing.
 - Advisory proxy operations APIs: public `/livez` and `/readyz`, an
   authenticated secret-free `/v1/providers` inventory, and
   `/v1/models?ready=true` filtering.

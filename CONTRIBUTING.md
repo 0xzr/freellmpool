@@ -45,6 +45,9 @@ maintainer commands for filing them.
 ## Adding a provider
 
 The whole catalog is [`src/freellmpool/providers.toml`](src/freellmpool/providers.toml).
+The scheduled discovery and protected-probe contract is documented in
+[`docs/CATALOG_SENTINEL.md`](docs/CATALOG_SENTINEL.md); sentinel output is
+advisory and never authorizes an automatic catalog mutation.
 Most providers are OpenAI-compatible, so adding one is just a TOML block:
 
 ```toml

@@ -562,14 +562,17 @@ def call(
     timeout: float = 90.0,
     tools: list | None = None,
     tool_choice=None,
+    enforce_thinking_floor: bool = True,
     post: PostFn = default_post,
 ) -> Reply:
     """Dispatch one completion to ``provider`` and normalize the response.
 
     Routes through the adapter named by ``provider.adapter`` (built-in or
     plugin-registered). Raises :class:`ProviderHTTPError` on a non-200 status.
+    Strictly quota-bounded maintenance probes may set
+    ``enforce_thinking_floor=False``; normal callers retain reasoning headroom.
     """
-    if _is_thinking(model) and max_tokens < _THINKING_FLOOR:
+    if enforce_thinking_floor and _is_thinking(model) and max_tokens < _THINKING_FLOOR:
         # Give reasoning models room so hidden reasoning doesn't eat the whole
         # budget and return empty content.
         max_tokens = _THINKING_FLOOR
