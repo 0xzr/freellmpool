@@ -13,8 +13,9 @@ def test_strip_plain_json():
     assert _strip_fences('{"a": 1}') == '{"a": 1}'
 
 
-def test_cli_models_json_is_machine_readable(monkeypatch, capsys):
+def test_cli_models_json_is_machine_readable(monkeypatch, capsys, tmp_path):
     from freellmpool.cli import main
+    from freellmpool.conformance import FEATURE_TOOLS, STATUS_PASS, ConformanceStore
 
     catalog = [
         Provider(
@@ -39,14 +40,283 @@ def test_cli_models_json_is_machine_readable(monkeypatch, capsys):
         "freellmpool.cli.configured_providers",
         lambda providers: [provider for provider in providers if provider.id == "ready"],
     )
+    store = ConformanceStore(tmp_path / "conformance.json")
+    store.record(
+        catalog[0],
+        "on",
+        FEATURE_TOOLS,
+        status=STATUS_PASS,
+        classification="verified",
+    )
+    monkeypatch.setattr("freellmpool.cli.ConformanceStore", lambda: store)
 
     assert main(["models", "--json", "--all"]) == 0
 
     assert json.loads(capsys.readouterr().out) == [
-        {"provider": "ready", "model": "on", "enabled": True, "configured": True},
-        {"provider": "ready", "model": "off", "enabled": False, "configured": True},
-        {"provider": "missing", "model": "other", "enabled": True, "configured": False},
+        {
+            "provider": "ready",
+            "model": "on",
+            "enabled": True,
+            "configured": True,
+            "capabilities": {
+                "tools": {
+                    "status": "pass",
+                    "classification": "verified",
+                    "verified_at": json.loads(store.path.read_text())["updated_at"],
+                    "verification_count": 1,
+                }
+            },
+            "verified_features": ["tools"],
+        },
+        {
+            "provider": "ready",
+            "model": "off",
+            "enabled": False,
+            "configured": True,
+            "capabilities": {},
+            "verified_features": [],
+        },
+        {
+            "provider": "missing",
+            "model": "other",
+            "enabled": True,
+            "configured": False,
+            "capabilities": {},
+            "verified_features": [],
+        },
     ]
+
+
+def test_cli_models_and_conformance_include_plugin_providers(
+    monkeypatch, capsys, tmp_path
+):
+    from freellmpool import plugins
+    from freellmpool.cli import main
+    from freellmpool.conformance import ConformanceStore
+
+    builtin = Provider(
+        id="builtin",
+        label="Built in",
+        adapter="openai",
+        base_url="https://builtin.test/v1",
+        auth="none",
+        models=(Model("builtin-model"),),
+    )
+    plugin = Provider(
+        id="plugin",
+        label="Plugin",
+        adapter="plugin-adapter",
+        base_url="https://plugin.test/v1",
+        auth="none",
+        models=(Model("plugin-model"),),
+    )
+    store = ConformanceStore(tmp_path / "conformance.json")
+    captured = []
+
+    def fake_run(provider, model, **kwargs):
+        captured.append((provider.id, provider.adapter, model))
+        return {"chat": {"status": "pass", "classification": "verified"}}
+
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: [builtin])
+    monkeypatch.setattr(plugins, "registered_providers", lambda: [plugin])
+    monkeypatch.setattr(
+        "freellmpool.cli.configured_providers",
+        lambda providers, env=None: providers,
+    )
+    monkeypatch.setattr("freellmpool.cli.ConformanceStore", lambda: store)
+    monkeypatch.setattr("freellmpool.cli.run_target_canaries", fake_run)
+
+    assert main(["models", "--providers", "plugin", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == [
+        {
+            "provider": "plugin",
+            "model": "plugin-model",
+            "enabled": True,
+            "configured": True,
+            "capabilities": {},
+            "verified_features": [],
+        }
+    ]
+
+    assert (
+        main(
+            [
+                "conformance",
+                "run",
+                "--providers",
+                "plugin",
+                "--features",
+                "chat",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert captured == [("plugin", "plugin-adapter", "plugin-model")]
+
+
+def test_plugin_provider_overrides_builtin_id_in_cli_catalog(monkeypatch, capsys):
+    from freellmpool import plugins
+    from freellmpool.cli import main
+
+    builtin = Provider(
+        id="same",
+        label="Built in",
+        adapter="openai",
+        base_url="https://builtin.test/v1",
+        auth="none",
+        models=(Model("old"),),
+    )
+    plugin = Provider(
+        id="same",
+        label="Plugin override",
+        adapter="openai",
+        base_url="https://plugin.test/v1",
+        auth="none",
+        models=(Model("new"),),
+    )
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: [builtin])
+    monkeypatch.setattr(plugins, "registered_providers", lambda: [plugin])
+    monkeypatch.setattr(
+        "freellmpool.cli.configured_providers",
+        lambda providers, env=None: providers,
+    )
+
+    assert main(["models", "--json"]) == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert [(row["provider"], row["model"]) for row in rows] == [("same", "new")]
+
+
+def test_cli_conformance_run_is_bounded_machine_readable(monkeypatch, capsys, tmp_path):
+    from freellmpool.cli import main
+    from freellmpool.conformance import ConformanceStore
+
+    provider = Provider(
+        id="ready",
+        label="Ready",
+        adapter="openai",
+        base_url="https://ready.test/v1",
+        auth="none",
+        models=(Model("first"), Model("second")),
+    )
+    store = ConformanceStore(tmp_path / "conformance.json")
+    captured = []
+
+    def fake_run(provider, model, **kwargs):
+        captured.append((provider.id, model, kwargs["features"], kwargs["timeout"]))
+        return {
+            "chat": {"status": "pass", "classification": "verified"},
+            "tools": {"status": "unsupported", "classification": "unsupported"},
+        }
+
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: [provider])
+    monkeypatch.setattr("freellmpool.cli.configured_providers", lambda catalog, env=None: catalog)
+    monkeypatch.setattr("freellmpool.cli.ConformanceStore", lambda: store)
+    monkeypatch.setattr("freellmpool.cli.run_target_canaries", fake_run)
+
+    assert (
+        main(
+            [
+                "conformance",
+                "run",
+                "--providers",
+                "ready",
+                "--features",
+                "chat,tools",
+                "--max-targets",
+                "1",
+                "--timeout",
+                "7",
+                "--json",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert captured == [("ready", "first", ("chat", "tools"), 7.0)]
+    assert output == [
+        {
+            "provider": "ready",
+            "model": "first",
+            "features": {
+                "chat": {"status": "pass", "classification": "verified"},
+                "tools": {"status": "unsupported", "classification": "unsupported"},
+            },
+        }
+    ]
+    evidence = store.evidence(provider, "first")
+    assert evidence["chat"]["status"] == "pass"
+    assert evidence["tools"]["status"] == "unsupported"
+
+
+def test_cli_conformance_run_uses_only_catalog_allowlisted_secret_keys(
+    monkeypatch, capsys, tmp_path
+):
+    from freellmpool.cli import main
+    from freellmpool.conformance import ConformanceStore
+
+    secret = "provider-secret-value"
+    provider = Provider(
+        id="ready",
+        label="Ready",
+        adapter="openai",
+        base_url="https://ready.test/v1",
+        key_env="READY_KEY",
+        models=(Model("first"),),
+    )
+    store = ConformanceStore(tmp_path / "conformance.json")
+    captured = {}
+
+    def fake_run(provider, model, **kwargs):
+        captured.update(kwargs["env"])
+        return {"chat": {"status": "pass", "classification": "verified"}}
+
+    monkeypatch.delenv("READY_KEY", raising=False)
+    monkeypatch.setenv(
+        "FREELLMPOOL_CONFORMANCE_KEYS_JSON",
+        json.dumps({"READY_KEY": secret, "NOT_IN_CATALOG": "must-not-be-imported"}),
+    )
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: [provider])
+    monkeypatch.setattr("freellmpool.cli.ConformanceStore", lambda: store)
+    monkeypatch.setattr("freellmpool.cli.run_target_canaries", fake_run)
+
+    assert main(["conformance", "run", "--features", "chat", "--json"]) == 0
+    output = capsys.readouterr()
+    assert captured["READY_KEY"] == secret
+    assert "NOT_IN_CATALOG" not in captured
+    assert "FREELLMPOOL_CONFORMANCE_KEYS_JSON" not in captured
+    assert secret not in output.out
+    assert secret not in output.err
+
+
+def test_cli_conformance_status_json_reads_sanitized_store(monkeypatch, capsys, tmp_path):
+    from freellmpool.cli import main
+    from freellmpool.conformance import FEATURE_CHAT, STATUS_PASS, ConformanceStore
+
+    provider = Provider(
+        id="ready",
+        label="Ready",
+        adapter="openai",
+        base_url="https://ready.test/v1",
+        auth="none",
+        models=(Model("first"),),
+    )
+    store = ConformanceStore(tmp_path / "conformance.json")
+    store.record(
+        provider,
+        "first",
+        FEATURE_CHAT,
+        status=STATUS_PASS,
+        classification="verified",
+    )
+    monkeypatch.setattr("freellmpool.cli.ConformanceStore", lambda: store)
+
+    assert main(["conformance", "status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["version"] == 1
+    assert payload["targets"]["ready/first"]["features"]["chat"]["status"] == "pass"
 
 
 def test_cli_tokenmax_smoke(providers, env, quota, monkeypatch, capsys):

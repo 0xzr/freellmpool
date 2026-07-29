@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Deterministic, quota-bounded per-model protocol conformance canaries for
+  chat, streaming, tools, JSON object/schema, vision, Responses, and Anthropic Messages,
+  with sanitized persisted evidence, model/status visibility, protected
+  scheduled probes, and feature-aware routing.
 - A weekly, manually dispatchable catalog sentinel with bounded public
   discovery, environment-protected completion probes, sanitized lifecycle
   artifacts, and advisory drift issues that never mutate routing.

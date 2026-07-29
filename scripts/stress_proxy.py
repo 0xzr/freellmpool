@@ -324,9 +324,18 @@ def _exercise(base: str, index: int) -> tuple[str, int]:
             )
             assert _event_names(events) == [
                 "response.created",
+                "response.output_item.added",
+                "response.content_part.added",
                 "response.output_text.delta",
+                "response.output_text.done",
+                "response.content_part.done",
+                "response.output_item.done",
                 "response.completed",
             ]
+            assert events[0][1]["response"]["output"] == []
+            assert [event["sequence_number"] for _, event in events] == list(
+                range(len(events))
+            )
             assert events[-1][1]["type"] == "response.completed"
             return "responses_stream", status
         if route == 7:

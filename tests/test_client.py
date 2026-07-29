@@ -180,6 +180,29 @@ def test_tools_forwarded_and_tool_calls_preserved():
     assert reply.text == ""
 
 
+def test_response_format_is_forwarded_without_relaxing_token_bound():
+    seen = {}
+
+    def post(url, headers, body, timeout):
+        seen.update(body)
+        return C.HTTPResult(200, openai_body('{"ok":true}'), "")
+
+    reply = C.call(
+        P,
+        "plain-model",
+        [{"role": "user", "content": "json"}],
+        api_key="k",
+        env={},
+        max_tokens=16,
+        response_format={"type": "json_object"},
+        post=post,
+    )
+
+    assert reply.text == '{"ok":true}'
+    assert seen["max_tokens"] == 16
+    assert seen["response_format"] == {"type": "json_object"}
+
+
 def test_think_tags_stripped():
     post = make_post({"x.test": (200, openai_body("<think>secret reasoning</think>final answer"))})
     reply = C.call(

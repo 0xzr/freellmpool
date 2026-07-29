@@ -376,6 +376,14 @@ freellmpool keys checklist --target 5    # which keys to add to reach N healthy 
 freellmpool keys add groq                # configure a key (and record metadata)
 ```
 
+Protocol support is verified separately from basic provider health. Run
+`freellmpool conformance run` to check chat, streaming, tools, JSON object/schema,
+vision, Responses, and Anthropic Messages with bounded synthetic requests, then inspect
+the sanitized evidence with `freellmpool conformance status --json`.
+Feature-specific auto-routing uses only verified targets; an exact
+provider/model pin is the explicit override. Full operator and privacy contract:
+[docs/PROTOCOL_CONFORMANCE.md](docs/PROTOCOL_CONFORMANCE.md).
+
 `capacity status` is local-first: it reads your catalog, environment, and
 per-day quota counters and labels each provider `healthy`, `low_quota`,
 `exhausted`, `invalid_key`, or `missing`. It also syncs an advisory external

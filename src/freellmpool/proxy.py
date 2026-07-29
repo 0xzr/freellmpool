@@ -94,10 +94,29 @@ def _model_ids(pool: Pool, ready_model_ids: frozenset[str] | None = None) -> lis
 def _openai_models_payload(
     pool: Pool, ready_model_ids: frozenset[str] | None = None
 ) -> dict:
-    data = [
-        {"id": mid, "object": "model", "owned_by": "freellmpool"}
-        for mid in _model_ids(pool, ready_model_ids)
-    ]
+    target_lookup = {
+        f"{provider.id}/{model.name}": (provider, model.name)
+        for provider in pool.providers
+        for model in provider.models
+        if model.enabled
+    }
+    conformance_snapshot = (
+        pool.conformance.snapshot() if pool.conformance is not None else None
+    )
+    data = []
+    for model_id in _model_ids(pool, ready_model_ids):
+        row = {"id": model_id, "object": "model", "owned_by": "freellmpool"}
+        target = target_lookup.get(model_id)
+        evidence = (
+            pool.conformance.evidence(*target, snapshot=conformance_snapshot)
+            if target is not None and pool.conformance is not None
+            else {}
+        )
+        row["capabilities"] = evidence
+        row["verified_features"] = sorted(
+            feature for feature, result in evidence.items() if result.get("status") == "pass"
+        )
+        data.append(row)
     return {"object": "list", "data": data}
 
 
@@ -107,15 +126,37 @@ def _anthropic_models_payload(
     ids = _model_ids(pool, ready_model_ids)
     if ready_model_ids is None:
         ids.extend(a for a in known_aliases(pool.env) if a.startswith("claude-") and a not in ids)
-    data = [
-        {
+    target_lookup = {
+        f"{provider.id}/{model.name}": (provider, model.name)
+        for provider in pool.providers
+        for model in provider.models
+        if model.enabled
+    }
+    conformance_snapshot = (
+        pool.conformance.snapshot() if pool.conformance is not None else None
+    )
+    data = []
+    for mid in ids:
+        target = target_lookup.get(mid)
+        evidence = (
+            pool.conformance.evidence(*target, snapshot=conformance_snapshot)
+            if target is not None and pool.conformance is not None
+            else {}
+        )
+        data.append(
+            {
             "type": "model",
             "id": mid,
             "display_name": mid,
             "created_at": "2024-01-01T00:00:00Z",
-        }
-        for mid in ids
-    ]
+                "capabilities": evidence,
+                "verified_features": sorted(
+                    feature
+                    for feature, result in evidence.items()
+                    if result.get("status") == "pass"
+                ),
+            }
+        )
     return {
         "data": data,
         "has_more": False,
@@ -177,6 +218,9 @@ def _status_payload(pool: Pool, recent: Sequence[dict], tokenmax: dict | None = 
     health_snap = pool.route_health_snapshot()
     health_store = pool.route_health
     cooldown_snap = pool.cooldown_snapshot(now)  # locked read; no torn cooldown state
+    conformance_snapshot = (
+        pool.conformance.snapshot() if pool.conformance is not None else None
+    )
 
     def modality_routes(providers) -> list[dict]:
         rows = []
@@ -230,6 +274,15 @@ def _status_payload(pool: Pool, recent: Sequence[dict], tokenmax: dict | None = 
             remaining = (m.rpd - used) if m.rpd > 0 else None
             stat = metrics_snap.get(f"{p.id}/{m.name}")
             persistent = health_snap.get(f"{p.id}/{m.name}")
+            capabilities = (
+                pool.conformance.evidence(
+                    p,
+                    m.name,
+                    snapshot=conformance_snapshot,
+                )
+                if pool.conformance is not None
+                else {}
+            )
             models_list.append(
                 {
                     "name": m.name,
@@ -261,6 +314,12 @@ def _status_payload(pool: Pool, recent: Sequence[dict], tokenmax: dict | None = 
                         health_store.reset_remaining(persistent)
                         if health_store is not None
                         else 0.0
+                    ),
+                    "capabilities": capabilities,
+                    "verified_features": sorted(
+                        feature
+                        for feature, result in capabilities.items()
+                        if result.get("status") == "pass"
                     ),
                 }
             )
@@ -731,6 +790,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     temperature=chat["temperature"],
                     tools=chat["tools"],
                     tool_choice=chat["tool_choice"],
+                    protocol="anthropic_messages",
                     routing=routing_override,
                 )
             except NoProvidersConfigured as exc:
@@ -875,6 +935,8 @@ def make_handler(pool: Pool, api_key: str | None = None):
             *,
             tools=None,
             tool_choice=None,
+            response_format=None,
+            protocol: str | None = None,
             timeout: float | None = None,
         ):
             """Shared: resolve model/params and call the pool. Returns a Reply or
@@ -917,6 +979,8 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     timeout=max(0.0, upstream_timeout),
                     tools=tools,
                     tool_choice=tool_choice,
+                    response_format=response_format,
+                    protocol=protocol,
                     routing=routing_override,
                 )
             except NoProvidersConfigured as exc:
@@ -950,11 +1014,25 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 return
             norm = _normalize_messages(messages)
             tools = req.get("tools") if isinstance(req.get("tools"), list) else None
+            response_format = req.get("response_format")
+            if response_format is not None and not isinstance(response_format, dict):
+                self._error(
+                    400,
+                    "'response_format' must be an object",
+                    "invalid_request_error",
+                )
+                return
             # True token streaming for plain chat; tools/stream falls back to buffered.
-            if req.get("stream") and not tools:
+            if req.get("stream") and not tools and response_format is None:
                 self._stream_chat(req, norm)
                 return
-            reply = self._resolve(req, norm, tools=tools, tool_choice=req.get("tool_choice"))
+            reply = self._resolve(
+                req,
+                norm,
+                tools=tools,
+                tool_choice=req.get("tool_choice"),
+                response_format=response_format,
+            )
             if reply is None:
                 return
             # Record recent served
@@ -1102,7 +1180,18 @@ def make_handler(pool: Pool, api_key: str | None = None):
             if not messages:
                 self._error(400, "'input' is required", "invalid_request_error")
                 return
-            reply = self._resolve(req, messages)
+            try:
+                tools, tool_choice = _responses_tools_to_chat(req)
+            except ValueError as exc:
+                self._error(400, str(exc), "invalid_request_error")
+                return
+            reply = self._resolve(
+                req,
+                messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                protocol="responses",
+            )
             if reply is None:
                 return
             record_recent(
@@ -1180,11 +1269,15 @@ def _content(message: dict) -> str:
 
 
 def _normalize_messages(messages: list) -> list[dict]:
-    """Flatten content to text while preserving tool-calling fields so multi-turn
-    tool conversations (assistant tool_calls + tool results) survive the proxy."""
+    """Normalize roles while preserving multimodal and tool-calling content."""
     out: list[dict] = []
     for m in messages:
-        nm: dict = {"role": str(m.get("role", "user")), "content": _content(m)}
+        content = m.get("content")
+        normalized_content = content if isinstance(content, list) else _content(m)
+        nm: dict = {
+            "role": str(m.get("role", "user")),
+            "content": normalized_content,
+        }
         for key in ("tool_calls", "tool_call_id", "name"):
             if m.get(key) is not None:
                 nm[key] = m[key]
@@ -1523,38 +1616,231 @@ def _responses_input_to_messages(req: dict) -> list[dict]:
         for item in data:
             if not isinstance(item, dict):
                 continue
+            kind = item.get("type")
+            if kind == "function_call":
+                call_id = item.get("call_id")
+                name = item.get("name")
+                arguments = item.get("arguments")
+                if (
+                    isinstance(call_id, str)
+                    and call_id
+                    and isinstance(name, str)
+                    and name
+                    and isinstance(arguments, str)
+                ):
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": call_id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": name,
+                                        "arguments": arguments,
+                                    },
+                                }
+                            ],
+                        }
+                    )
+                continue
+            if kind == "function_call_output":
+                call_id = item.get("call_id")
+                output = item.get("output")
+                if isinstance(call_id, str) and call_id and isinstance(output, str):
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "content": output,
+                            "tool_call_id": call_id,
+                        }
+                    )
+                continue
             role = str(item.get("role", "user"))
             content = item.get("content", "")
             if isinstance(content, list):
-                text = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+                parts = []
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    kind = part.get("type")
+                    text = part.get("text")
+                    if kind in {"input_text", "text"} and isinstance(text, str):
+                        parts.append({"type": "text", "text": text})
+                    elif kind in {"input_image", "image_url"}:
+                        image_url = part.get("image_url")
+                        if isinstance(image_url, str):
+                            parts.append(
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": image_url},
+                                }
+                            )
+                        elif isinstance(image_url, dict) and isinstance(
+                            image_url.get("url"), str
+                        ):
+                            parts.append({"type": "image_url", "image_url": image_url})
+                normalized_content: object = parts
             else:
-                text = str(content)
-            messages.append({"role": role, "content": text})
+                normalized_content = str(content)
+            messages.append({"role": role, "content": normalized_content})
     return messages
+
+
+def _responses_tools_to_chat(req: dict) -> tuple[list[dict] | None, object | None]:
+    """Translate Responses function tools/tool choice to Chat Completions shape."""
+
+    raw_tools = req.get("tools")
+    raw_choice = req.get("tool_choice")
+    if raw_tools is None:
+        if raw_choice is not None:
+            raise ValueError("'tool_choice' requires a non-empty 'tools' array")
+        return None, None
+    if not isinstance(raw_tools, list):
+        raise ValueError("'tools' must be an array of function tools")
+    if not raw_tools:
+        if raw_choice is not None:
+            raise ValueError("'tool_choice' requires a non-empty 'tools' array")
+        return None, None
+
+    tools: list[dict] = []
+    for tool in raw_tools:
+        if not isinstance(tool, dict) or tool.get("type") != "function":
+            raise ValueError("only Responses function tools are supported")
+        source = tool.get("function") if isinstance(tool.get("function"), dict) else tool
+        name = source.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError("each function tool requires a non-empty 'name'")
+        function: dict[str, object] = {"name": name}
+        description = source.get("description")
+        if description is not None:
+            if not isinstance(description, str):
+                raise ValueError("function tool 'description' must be a string")
+            function["description"] = description
+        parameters = source.get("parameters")
+        if parameters is not None:
+            if not isinstance(parameters, dict):
+                raise ValueError("function tool 'parameters' must be an object")
+            function["parameters"] = parameters
+        strict = source.get("strict")
+        if strict is not None:
+            if not isinstance(strict, bool):
+                raise ValueError("function tool 'strict' must be a boolean")
+            function["strict"] = strict
+        tools.append({"type": "function", "function": function})
+
+    if raw_choice is None or isinstance(raw_choice, str):
+        if isinstance(raw_choice, str) and raw_choice not in {"auto", "none", "required"}:
+            raise ValueError("unsupported Responses 'tool_choice'")
+        return tools, raw_choice
+    if not isinstance(raw_choice, dict) or raw_choice.get("type") != "function":
+        raise ValueError("unsupported Responses 'tool_choice'")
+    choice_source = (
+        raw_choice.get("function")
+        if isinstance(raw_choice.get("function"), dict)
+        else raw_choice
+    )
+    choice_name = choice_source.get("name")
+    if not isinstance(choice_name, str) or not choice_name:
+        raise ValueError("function 'tool_choice' requires a non-empty 'name'")
+    return tools, {"type": "function", "function": {"name": choice_name}}
+
+
+def _responses_function_call_items(reply) -> list[dict]:
+    tool_calls = reply.message.get("tool_calls") if isinstance(reply.message, dict) else None
+    if not isinstance(tool_calls, list):
+        return []
+    items = []
+    for index, tool_call in enumerate(tool_calls):
+        if not isinstance(tool_call, dict):
+            continue
+        function = tool_call.get("function")
+        if tool_call.get("type") != "function" or not isinstance(function, dict):
+            continue
+        name = function.get("name")
+        arguments = function.get("arguments")
+        if not isinstance(name, str) or not name or not isinstance(arguments, str):
+            continue
+        raw_call_id = tool_call.get("id")
+        call_id = (
+            raw_call_id
+            if isinstance(raw_call_id, str) and raw_call_id
+            else f"call-{reply.provider_id}-{index}"
+        )
+        items.append(
+            {
+                "type": "function_call",
+                "id": f"fc-{call_id}",
+                "call_id": call_id,
+                "name": name,
+                "arguments": arguments,
+                "status": "completed",
+            }
+        )
+    return items
 
 
 def _to_responses_object(reply) -> dict:
     rid = f"resp-freellmpool-{reply.provider_id}"
-    return {
-        "id": rid,
-        "object": "response",
-        "status": "completed",
-        "model": f"{reply.provider_id}/{reply.model}",
-        "output": [
+    output = []
+    if reply.text:
+        output.append(
             {
                 "type": "message",
                 "id": f"msg-{reply.provider_id}",
                 "status": "completed",
                 "role": "assistant",
-                "content": [{"type": "output_text", "text": reply.text or "", "annotations": []}],
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": reply.text,
+                        "annotations": [],
+                    }
+                ],
             }
-        ],
+        )
+    output.extend(_responses_function_call_items(reply))
+    if not output:
+        output.append(
+            {
+                "type": "message",
+                "id": f"msg-{reply.provider_id}",
+                "status": "completed",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "", "annotations": []}],
+            }
+        )
+    return {
+        "id": rid,
+        "object": "response",
+        "created_at": int(time.time()),
+        "status": "completed",
+        "completed_at": int(time.time()),
+        "error": None,
+        "incomplete_details": None,
+        "instructions": None,
+        "max_output_tokens": None,
+        "model": f"{reply.provider_id}/{reply.model}",
+        "output": output,
         "output_text": reply.text or "",  # string per the Responses schema (never null)
+        "parallel_tool_calls": True,
+        "previous_response_id": None,
+        "reasoning": {"effort": None, "summary": None},
+        "store": False,
+        "temperature": 0.0,
+        "text": {"format": {"type": "text"}},
+        "tool_choice": "auto",
+        "tools": [],
+        "top_p": 1.0,
+        "truncation": "disabled",
         "usage": {
             "input_tokens": reply.prompt_tokens or 0,
             "output_tokens": reply.completion_tokens or 0,
             "total_tokens": (reply.prompt_tokens or 0) + (reply.completion_tokens or 0),
         },
+        "user": None,
+        "metadata": {},
         "x_freellmpool": {"provider": reply.provider_id, "model": reply.model},
     }
 
@@ -1562,18 +1848,132 @@ def _to_responses_object(reply) -> dict:
 def _responses_sse_events(reply):
     """Yield Responses-API SSE blocks (typed events) for a finished reply."""
     obj = _to_responses_object(reply)
+    sequence_number = 0
 
     def event(name, payload):
+        nonlocal sequence_number
+        payload = {**payload, "sequence_number": sequence_number}
+        sequence_number += 1
         return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
 
+    created = {
+        **obj,
+        "status": "in_progress",
+        "completed_at": None,
+        "output": [],
+        "output_text": "",
+        "usage": None,
+    }
     yield event(
         "response.created",
-        {"type": "response.created", "response": {"id": obj["id"], "status": "in_progress"}},
+        {"type": "response.created", "response": created},
     )
-    yield event(
-        "response.output_text.delta",
-        {"type": "response.output_text.delta", "delta": reply.text or ""},
-    )
+    for output_index, item in enumerate(obj["output"]):
+        if item.get("type") == "message":
+            initial_item = {**item, "status": "in_progress", "content": []}
+            yield event(
+                "response.output_item.added",
+                {
+                    "type": "response.output_item.added",
+                    "output_index": output_index,
+                    "item": initial_item,
+                },
+            )
+            content = item.get("content")
+            if not isinstance(content, list) or not content:
+                yield event(
+                    "response.output_item.done",
+                    {
+                        "type": "response.output_item.done",
+                        "output_index": output_index,
+                        "item": item,
+                    },
+                )
+                continue
+            part = content[0]
+            initial_part = {**part, "text": ""}
+            yield event(
+                "response.content_part.added",
+                {
+                    "type": "response.content_part.added",
+                    "item_id": item["id"],
+                    "output_index": output_index,
+                    "content_index": 0,
+                    "part": initial_part,
+                },
+            )
+            text = part.get("text") or ""
+            if text:
+                yield event(
+                    "response.output_text.delta",
+                    {
+                        "type": "response.output_text.delta",
+                        "item_id": item["id"],
+                        "output_index": output_index,
+                        "content_index": 0,
+                        "delta": text,
+                        "logprobs": [],
+                    },
+                )
+            yield event(
+                "response.output_text.done",
+                {
+                    "type": "response.output_text.done",
+                    "item_id": item["id"],
+                    "output_index": output_index,
+                    "content_index": 0,
+                    "text": text,
+                    "logprobs": [],
+                },
+            )
+            yield event(
+                "response.content_part.done",
+                {
+                    "type": "response.content_part.done",
+                    "item_id": item["id"],
+                    "output_index": output_index,
+                    "content_index": 0,
+                    "part": part,
+                },
+            )
+            yield event(
+                "response.output_item.done",
+                {
+                    "type": "response.output_item.done",
+                    "output_index": output_index,
+                    "item": item,
+                },
+            )
+            continue
+        if item.get("type") != "function_call":
+            continue
+        initial_item = {**item, "arguments": "", "status": "in_progress"}
+        yield event(
+            "response.output_item.added",
+            {
+                "type": "response.output_item.added",
+                "output_index": output_index,
+                "item": initial_item,
+            },
+        )
+        yield event(
+            "response.function_call_arguments.done",
+            {
+                "type": "response.function_call_arguments.done",
+                "item_id": item["id"],
+                "name": item["name"],
+                "output_index": output_index,
+                "arguments": item["arguments"],
+            },
+        )
+        yield event(
+            "response.output_item.done",
+            {
+                "type": "response.output_item.done",
+                "output_index": output_index,
+                "item": item,
+            },
+        )
     yield event("response.completed", {"type": "response.completed", "response": obj})
 
 

@@ -119,7 +119,7 @@ jobs:
   authenticated-probes:
     name: Protected authenticated completion probes
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     environment: catalog-sentinel
     permissions:
       contents: read
@@ -151,7 +151,9 @@ jobs:
         if: steps.probe-config.outputs.configured == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .sentinel-state/probe.json
+          path: |
+            .sentinel-state/probe.json
+            .sentinel-state/conformance.json
           key: catalog-sentinel-probe-${{ github.run_id }}
           restore-keys: |
             catalog-sentinel-probe-
@@ -175,6 +177,21 @@ jobs:
             --max-models-per-provider 1 \
             "${previous[@]}"
           cp .sentinel-artifacts/probe.json .sentinel-state/probe.json
+      - name: Run bounded protocol conformance canaries
+        if: steps.probe-config.outputs.configured == 'true'
+        env:
+          FREELLMPOOL_CONFORMANCE_FILE: .sentinel-state/conformance.json
+          FREELLMPOOL_CONFORMANCE_KEYS_JSON: ${{ secrets.FREELLMPOOL_SENTINEL_KEYS_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .sentinel-artifacts .sentinel-state
+          freellmpool conformance run \
+            --features chat,streaming,tools,json,json_schema,vision,responses,anthropic_messages \
+            --max-targets 8 \
+            --timeout 20 \
+            --json > .sentinel-artifacts/conformance.json
+          cp .sentinel-state/conformance.json .sentinel-artifacts/conformance-state.json
       - name: Prepare bounded probe issue
         if: steps.probe-config.outputs.configured == 'true'
         id: probe-drift
@@ -230,11 +247,15 @@ jobs:
           path: |
             .sentinel-artifacts/probe.json
             .sentinel-artifacts/probe.md
+            .sentinel-artifacts/conformance.json
+            .sentinel-artifacts/conformance-state.json
           if-no-files-found: error
           retention-days: 30
       - name: Save probe lifecycle state
         if: steps.probe-config.outputs.configured == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .sentinel-state/probe.json
+          path: |
+            .sentinel-state/probe.json
+            .sentinel-state/conformance.json
           key: catalog-sentinel-probe-${{ github.run_id }}
