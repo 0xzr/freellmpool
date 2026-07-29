@@ -123,7 +123,10 @@ class AsyncPool:
                     limits=httpx.Limits(
                         max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0
                     ),
-                    follow_redirects=True,
+                    # Keep provider credentials on the validated origin. A public
+                    # provider URL could otherwise redirect to a loopback/private
+                    # target and receive the Authorization header.
+                    follow_redirects=False,
                 )
                 self._aclient_loop = running
             return self._aclient

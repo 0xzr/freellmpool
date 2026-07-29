@@ -10,6 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler
 
 import pytest
 from helpers import gemini_body, make_post, make_stream_post, openai_body
@@ -22,6 +23,7 @@ from freellmpool.proxy import (
     _MAX_CONNECTIONS,
     _BoundedThreadingHTTPServer,
     _parse_model,
+    make_handler,
     serve,
 )
 from freellmpool.router import Pool
@@ -1505,3 +1507,226 @@ def test_badge_public_when_opted_in(providers, env, quota, monkeypatch):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_max_completion_tokens_reaches_buffered_chat_and_responses(providers, env, quota):
+    post = make_post({})
+    pool = Pool(providers[:1], quota=quota, env=env, post=post)
+    httpd, base = _serve(pool)
+    try:
+        status, _ = _post_json(
+            base + "/v1/chat/completions",
+            {
+                "model": "auto",
+                "max_completion_tokens": 37,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
+        assert status == 200
+        status, _ = _post_json(
+            base + "/v1/responses",
+            {"model": "auto", "max_completion_tokens": 38, "input": "hi"},
+        )
+        assert status == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert [call["body"]["max_tokens"] for call in post.calls] == [37, 38]
+
+
+def test_max_completion_tokens_reaches_live_stream(providers, env, quota):
+    stream_post = make_stream_post({})
+    pool = Pool(providers[:1], quota=quota, env=env, stream_post=stream_post)
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(
+                {
+                    "model": "auto",
+                    "stream": True,
+                    "max_completion_tokens": 39,
+                    "messages": [{"role": "user", "content": "hi"}],
+                }
+            ).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            assert resp.status == 200
+            resp.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert stream_post.calls[0]["body"]["max_tokens"] == 39
+
+
+def test_max_completion_tokens_reaches_battle_and_tokenmax(providers, env, quota):
+    post = make_post({})
+    pool = Pool(providers[:2], quota=quota, env=env, post=post)
+    httpd, base = _serve(pool)
+    try:
+        status, _ = _post_json(
+            base + "/freellmpool/battle",
+            {"prompt": "compare", "n": 2, "max_completion_tokens": 40},
+        )
+        assert status == 200
+        battle_calls = list(post.calls)
+        post.calls.clear()
+        status, _ = _post_json(
+            base + "/tokenmax",
+            {"prompt": "compare", "max_models": 1, "max_completion_tokens": 41},
+        )
+        assert status == 200
+        tokenmax_calls = list(post.calls)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert battle_calls
+    assert {call["body"]["max_tokens"] for call in battle_calls} == {40}
+    assert tokenmax_calls
+    assert {call["body"]["max_tokens"] for call in tokenmax_calls} == {41}
+
+
+@pytest.mark.parametrize("requested", [{"bad": "model"}, ["bad"], 123, None])
+def test_parse_model_rejects_non_string_input(requested):
+    assert _parse_model(requested, {"groq"}) == (None, None)
+
+
+def test_live_stream_records_real_failover_attempts(providers, env, quota):
+    stream_post = make_stream_post(
+        {"alpha.test": (500, []), "beta.test": (200, ["ok"])}
+    )
+    pool = Pool(providers[:2], quota=quota, env=env, stream_post=stream_post)
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(
+                {
+                    "model": "auto",
+                    "stream": True,
+                    "messages": [{"role": "user", "content": "hi"}],
+                }
+            ).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            resp.read()
+        _, status = _get_json(base + "/status")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert status["recent"][0]["provider"] == "beta"
+    assert status["recent"][0]["attempts"] == len(stream_post.calls)
+    assert status["recent"][0]["attempts"] > 1
+
+
+def test_handler_logs_but_does_not_double_write_after_response_start(
+    providers, env, quota, caplog
+):
+    pool = Pool(providers[:1], quota=quota, env=env, post=make_post({}))
+    handler_type = make_handler(pool)
+    handler = object.__new__(handler_type)
+    handler._response_started = True
+    errors = []
+
+    def boom():
+        handler._response_started = True
+        raise RuntimeError("after headers")
+
+    handler._do_get = boom
+    handler._error = lambda *args: errors.append(args)
+
+    with caplog.at_level("ERROR", logger="freellmpool.proxy"):
+        handler.do_GET()
+
+    assert errors == []
+    assert "unexpected GET handler failure" in caplog.text
+
+
+def test_header_flush_failure_is_committed_and_closes_connection(
+    providers, env, quota, monkeypatch
+):
+    pool = Pool(providers[:1], quota=quota, env=env, post=make_post({}))
+    handler_type = make_handler(pool)
+    handler = object.__new__(handler_type)
+    handler._response_started = False
+    handler.close_connection = False
+    errors = []
+
+    def fail_during_flush(_handler):
+        raise OSError("socket failed after a partial header write")
+
+    monkeypatch.setattr(BaseHTTPRequestHandler, "end_headers", fail_during_flush)
+    handler._do_get = handler.end_headers
+    handler._error = lambda *args: errors.append(args)
+
+    handler.do_GET()
+
+    assert handler._response_started is True
+    assert handler.close_connection is True
+    assert errors == []
+
+
+def test_handler_still_sends_redacted_500_before_response_start(providers, env, quota):
+    pool = Pool(providers[:1], quota=quota, env=env, post=make_post({}))
+    handler_type = make_handler(pool)
+    handler = object.__new__(handler_type)
+    handler._response_started = False
+    errors = []
+
+    def boom():
+        raise RuntimeError("before headers")
+
+    handler._do_post = boom
+    handler._error = lambda *args: errors.append(args)
+    handler.do_POST()
+
+    assert errors == [(500, "internal error: RuntimeError", "internal_error")]
+
+
+@pytest.mark.parametrize("with_tools", [False, True])
+def test_chat_sse_chunks_include_integer_created_timestamp(
+    providers, env, quota, with_tools
+):
+    post = make_post({})
+    stream_post = make_stream_post({})
+    pool = Pool(
+        providers[:1],
+        quota=quota,
+        env=env,
+        post=post,
+        stream_post=stream_post,
+    )
+    httpd, base = _serve(pool)
+    try:
+        payload = {
+            "model": "auto",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        if with_tools:
+            payload["tools"] = [{"type": "function", "function": {"name": "f"}}]
+        req = urllib.request.Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            raw = resp.read().decode()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    chunks = [
+        json.loads(line.removeprefix("data: "))
+        for line in raw.splitlines()
+        if line.startswith("data: ") and line != "data: [DONE]"
+    ]
+    assert chunks
+    assert all(isinstance(chunk["created"], int) for chunk in chunks)
+    assert len({chunk["created"] for chunk in chunks}) == 1

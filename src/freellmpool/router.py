@@ -1081,7 +1081,11 @@ class Pool:
             )
             self.quota.record(target.provider.id, target.model)
             self._bump_stats(requests=1)
-            yield {"provider": target.provider.id, "model": target.model}
+            yield {
+                "provider": target.provider.id,
+                "model": target.model,
+                "attempts": len(attempts) + 1,
+            }
             # Accumulate the streamed text so we can record token usage when the stream
             # ends. Providers rarely send a usage block on a stream, so without this the
             # session + lifetime token / savings totals — and the dashboard's tok/s — never

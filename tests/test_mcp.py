@@ -398,6 +398,35 @@ def test_unknown_method_errors(providers, env, quota):
     assert resp["error"]["code"] == -32601
 
 
+def test_unexpected_dispatch_error_is_redacted_and_logged(
+    providers, env, quota, monkeypatch, caplog
+):
+    from freellmpool import mcp_server
+
+    secret = "sentinel-secret-value"
+
+    def boom(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(mcp_server, "_call_tool", boom)
+    pool = _pool(providers, env, quota)
+    with caplog.at_level("ERROR", logger="freellmpool.mcp_server"):
+        resp = handle_message(
+            pool,
+            {
+                "jsonrpc": "2.0",
+                "id": 99,
+                "method": "tools/call",
+                "params": {"name": "free_llm_models"},
+            },
+        )
+
+    assert resp["error"]["code"] == -32603
+    assert resp["error"]["message"] == "internal error"
+    assert secret not in str(resp)
+    assert secret in caplog.text
+
+
 def test_ask_failover_in_tool(providers, env, quota):
     post = make_post({"alpha.test": (500, {}), "beta.test": (200, openai_body("from beta"))})
     pool = _pool(providers, env, quota, post=post)

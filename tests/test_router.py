@@ -154,6 +154,8 @@ def test_stream_chat_failover_before_first_byte(providers, env, quota):
     gen = pool.stream_chat([{"role": "user", "content": "hi"}], providers=["alpha", "beta"])
     meta = next(gen)
     assert meta["provider"] == "beta"  # alpha 500 → failed over before streaming
+    assert meta["attempts"] == len(sp.calls)
+    assert meta["attempts"] > 1
     assert "".join(gen) == "ok"
 
 
