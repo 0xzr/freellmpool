@@ -1,0 +1,143 @@
+name: Release evidence
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Audit release dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release tag provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "$GITHUB_REF_NAME" = "v$package_version"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install pinned release and security tooling
+        run: >-
+          python -m pip install
+          --disable-pip-version-check
+          pip-audit==2.10.1
+      - name: Validate exceptions and audit release dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/security_exceptions.py validate
+          mapfile -t ignored < <(python scripts/security_exceptions.py ids pip-audit)
+          args=()
+          for advisory in "${ignored[@]}"; do
+            args+=(--ignore-vuln "$advisory")
+          done
+          python -m pip_audit . --strict --desc=on --aliases=on "${args[@]}"
+
+  packages:
+    name: Package SBOMs and provenance
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Revalidate release tag provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "$GITHUB_REF_NAME" = "v$package_version"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install pinned build tooling
+        run: >-
+          python -m pip install
+          --disable-pip-version-check
+          build==1.5.0
+      - name: Build wheel and source archive
+        run: python -m build
+      - name: Resolve exact artifacts
+        id: artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t wheels < <(find dist -maxdepth 1 -type f -name '*.whl' -print)
+          mapfile -t sdists < <(find dist -maxdepth 1 -type f -name '*.tar.gz' -print)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          echo "wheel=${wheels[0]}" >> "$GITHUB_OUTPUT"
+          echo "sdist=${sdists[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate wheel SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          file: ${{ steps.artifacts.outputs.wheel }}
+          format: spdx-json
+          output-file: dist/wheel.spdx.json
+          syft-version: v1.50.0
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate source archive SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          file: ${{ steps.artifacts.outputs.sdist }}
+          format: spdx-json
+          output-file: dist/sdist.spdx.json
+          syft-version: v1.50.0
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest package provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+      - name: Attest wheel SBOM
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: ${{ steps.artifacts.outputs.wheel }}
+          sbom-path: dist/wheel.spdx.json
+      - name: Attest source archive SBOM
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: ${{ steps.artifacts.outputs.sdist }}
+          sbom-path: dist/sdist.spdx.json
+
+      - name: Upload package evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: python-release-evidence-${{ github.ref_name }}
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.spdx.json
+          if-no-files-found: error
+          retention-days: 90

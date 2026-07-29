@@ -76,9 +76,9 @@ def test_ci_validates_opencode_packages_with_current_runtimes() -> None:
     )[0]
     for required in (
         "permissions:\n      contents: read",
-        "actions/setup-node@v7",
+        "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
         'node-version: "24"',
-        "oven-sh/setup-bun@v2",
+        "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
         "npm@11.5.1",
         "node scripts/check_opencode_packages.mjs",
     ):
@@ -111,10 +111,10 @@ def test_opencode_publish_workflow_is_manual_protected_and_exact_sha() -> None:
         "contents: read",
         "id-token: write",
         "runs-on: ubuntu-latest",
-        "actions/checkout@v7",
-        "actions/setup-node@v7",
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
         'node-version: "24"',
-        "oven-sh/setup-bun@v2",
+        "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
         "npm@11.5.1",
         "git rev-parse origin/main",
         "node scripts/check_opencode_packages.mjs",
@@ -165,9 +165,13 @@ def test_supported_python_versions_match_ci() -> None:
 
 def test_container_uses_supported_python_314() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    match = re.search(r"^FROM python:(3\.\d+)-slim$", dockerfile, re.MULTILINE)
+    match = re.search(
+        r"^FROM python:(3\.\d+)-(?:alpine|slim)@sha256:([0-9a-f]{64})$",
+        dockerfile,
+        re.MULTILINE,
+    )
 
-    assert match is not None, "Dockerfile must use a versioned official Python slim image"
+    assert match is not None, "Dockerfile must use a digest-pinned official Python image"
     assert match.group(1) == "3.14"
     assert match.group(1) in _ci_python_versions()
 

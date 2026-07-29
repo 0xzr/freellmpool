@@ -3,37 +3,155 @@ name: Docker
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 jobs:
-  build-push:
+  gate:
+    name: Build and scan release image
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release tag provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "$GITHUB_REF_NAME" = "v$package_version"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Validate security exceptions
+        run: |
+          python3 scripts/security_exceptions.py validate
+          python3 scripts/security_exceptions.py ids trivy > .trivyignore.generated
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Build exact release image archive
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          tags: freellmpool:release-scan-${{ github.sha }}
+          outputs: type=docker,dest=/tmp/freellmpool-image.tar
+
+      - name: Fail on high or critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          input: /tmp/freellmpool-image.tar
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          scanners: vuln
+          trivyignores: .trivyignore.generated
+          version: v0.72.0
+
+      - name: Record scanned archive identity
+        run: |
+          cd /tmp
+          sha256sum freellmpool-image.tar > freellmpool-image.tar.sha256
+
+      - name: Upload exact scanned image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: scanned-release-image-${{ github.sha }}
+          path: |
+            /tmp/freellmpool-image.tar
+            /tmp/freellmpool-image.tar.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish scanned release image
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
       packages: write
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
+      - name: Download exact scanned image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          name: scanned-release-image-${{ github.sha }}
+          path: /tmp/scanned-release-image
+
+      - name: Load exact scanned image
+        run: |
+          cd /tmp/scanned-release-image
+          sha256sum --check freellmpool-image.tar.sha256
+          docker load --input freellmpool-image.tar
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest
 
-      - name: Build and push
-        uses: docker/build-push-action@v7
+      - name: Log in to GHCR
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4
         with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote exact scanned image
+        id: push
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          source_image="freellmpool:release-scan-$GITHUB_SHA"
+          mapfile -t tags <<< "$IMAGE_TAGS"
+          test "${#tags[@]}" -gt 0
+          digest=""
+          for tag in "${tags[@]}"; do
+            docker tag "$source_image" "$tag"
+            docker push "$tag"
+            tag_digest="sha256:$(docker buildx imagetools inspect "$tag" --raw | sha256sum | cut -d ' ' -f 1)"
+            if test -z "$digest"; then
+              digest="$tag_digest"
+            else
+              test "$tag_digest" = "$digest"
+            fi
+          done
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Generate downloadable image SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ steps.push.outputs.digest }}
+          format: spdx-json
+          artifact-name: container-sbom.spdx.json
+          output-file: container-sbom.spdx.json
+          syft-version: v1.50.0
+          upload-release-assets: false
+
+      - name: Attest image provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest image SBOM
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          sbom-path: container-sbom.spdx.json
+          push-to-registry: true
