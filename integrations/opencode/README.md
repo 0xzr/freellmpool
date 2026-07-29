@@ -69,17 +69,23 @@ versions that discover custom tools from that directory rather than from a
 plugin's `tool` hook. Keeping both paths configured preserves the served-model
 toast and exposes all three tools across supported OpenCode versions.
 
-Then make sure the proxy is running (`freellmpool proxy`) and that OpenCode has a
-`freellmpool` provider pointed at it (`baseURL: http://localhost:8080/v1`). Add the
-routing aliases as models so you can pick them:
+Then make sure the proxy is running (`freellmpool proxy`) and restart OpenCode.
+The plugin's config hook adds the `freellmpool` provider and six routing aliases
+to the resolved configuration without replacing your existing defaults.
+
+Verify what the picker can see with `opencode models freellmpool`. If an older
+OpenCode version does not support the config hook, copy the provider block
+below into its configuration. The plugin never rewrites that file.
 
 ```jsonc
 {
   "provider": {
     "freellmpool": {
+      "name": "freellmpool (free pool)",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "http://localhost:8080/v1",
+        "apiKey": "{env:FREELLMPOOL_PROXY_KEY}",
         "headerTimeout": 600000,
         "timeout": 600000,
         "chunkTimeout": 120000

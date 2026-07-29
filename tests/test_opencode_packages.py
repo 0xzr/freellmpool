@@ -126,12 +126,19 @@ def test_opencode_server_plugin_registers_tools_with_sdk_helper() -> None:
         "freellmpool_tokenmax",
     ):
         assert f"{name}: tool({{" in source
+    assert "config: async (config) =>" in source
+    assert "installProvider(config)" in source
 
     smoke = (ROOT / "scripts" / "check_opencode_packages.mjs").read_text(
         encoding="utf-8"
     )
     assert "Object.assign((definition) => definition, { schema })" in smoke
     assert "server plugin did not register tools" in smoke
+    assert "server plugin did not register provider models" in smoke
+    assert "server plugin replaced existing provider configuration" in smoke
+    assert "server plugin did not configure proxy authentication" in smoke
+    assert "server plugin replaced the selected default model" in smoke
+    assert "server plugin ignored disabled_providers" in smoke
     assert "local plugin shim did not load" in smoke
     assert "custom tool did not load" in smoke
 
@@ -179,3 +186,23 @@ def test_opencode_docs_distinguish_released_sources_from_registry_hardening() ->
         assert "plugin sources are included in 0.11.4" in text
         assert "registry-readiness hardening" in text
         assert "unreleased repository additions" not in text
+
+
+def test_opencode_config_examples_forward_protected_proxy_auth() -> None:
+    paths = [
+        ROOT / "docs" / "INTEGRATIONS.md",
+        ROOT / "docs" / "run-opencode-on-free-models.html",
+        ROOT / "docs" / "promotion" / "long-form-article.md",
+        ROOT / "docs" / "promotion" / "reddit-opencode.md",
+        ROOT / "docs" / "promotion" / "reply-bank.md",
+        ROOT / "integrations" / "opencode" / "README.md",
+    ]
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert '"apiKey": "{env:FREELLMPOOL_PROXY_KEY}"' in text
+
+    integrations = (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8")
+    manual_fallback = integrations.split("For older versions", 1)[1].split(
+        "Pick `freellmpool/", 1
+    )[0]
+    assert '"model": "freellmpool/' not in manual_fallback

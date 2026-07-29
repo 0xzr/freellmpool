@@ -48,8 +48,10 @@ freellmpool profile doctor opencode --dry-run
 ```
 
 `freellmpool code <agent>` remains a compatibility shortcut that renders the
-same profile quick-start. `profile install <agent>` is print-only; it does not
-edit third-party config files.
+same profile quick-start. `profile install <agent>` is print-only and does not
+edit third-party config files. The OpenCode plugin registers its provider and
+six routing aliases through the runtime config hook without writing the user's
+configuration.
 
 ## OpenAI Python SDK / OpenAI Agents SDK
 

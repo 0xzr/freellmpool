@@ -111,20 +111,22 @@ _PROFILES: tuple[Profile, ...] = (
                     "model": "freellmpool/agent",
                     "provider": {
                         "freellmpool": {
+                            "name": "freellmpool (free pool)",
                             "npm": "@ai-sdk/openai-compatible",
                             "options": {
                                 "baseURL": f"{_DEFAULT_PROXY}/v1",
+                                "apiKey": "{env:FREELLMPOOL_PROXY_KEY}",
                                 "headerTimeout": 600_000,
                                 "timeout": 600_000,
                                 "chunkTimeout": 120_000,
                             },
                             "models": {
-                                "agent": {},
-                                "spread": {},
-                                "auto": {},
-                                "fast": {},
-                                "quality": {},
-                                "fair": {},
+                                "agent": {"name": "Agent — strongest healthy tier"},
+                                "spread": {"name": "Spread — maximum pool breadth"},
+                                "auto": {"name": "Auto — proxy default routing"},
+                                "fast": {"name": "Fast — lowest latency"},
+                                "quality": {"name": "Quality — capability matched"},
+                                "fair": {"name": "Fair — provider quota spread"},
                             },
                         }
                     },

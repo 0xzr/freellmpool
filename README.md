@@ -174,6 +174,9 @@ estimated savings, tokens served free, provider race, latency), per-request
 **agent routing** via the model picker (`freellmpool/agent|spread|auto|fast|quality|fair`), and `freellmpool_status`
 / `freellmpool_models` tools — see [integrations/opencode-tui](integrations/opencode-tui)
 and the [guide](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html).
+The plugin registers its routing aliases automatically on supported OpenCode
+versions without rewriting user configuration. Restart OpenCode and check
+`opencode models freellmpool`.
 The package tarballs are validated in CI, but npm publication remains pending;
 the linked local-file instructions remain the working install path.
 

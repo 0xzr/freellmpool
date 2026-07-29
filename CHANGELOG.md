@@ -41,6 +41,9 @@ All notable changes to this project are documented here. The format is based on
   degraded, or repeat-timeout Ollama, GitHub, and NVIDIA routes.
 
 ### Fixed
+- The OpenCode plugin now registers its provider and named routing aliases
+  through the runtime config hook without rewriting user configuration, while
+  preserving existing provider options and authentication.
 - Public README, integration, agent, and Pages documentation now distinguishes
   released 0.11.4 from post-tag changes on `main`; the jailed OpenCode launcher
   also uses the proxy's actual port 8080 default.

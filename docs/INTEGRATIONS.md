@@ -43,8 +43,8 @@ freellmpool profile doctor opencode --dry-run
 ```
 
 `profile install` is print-only: it writes the quick-start and config snippets
-to stdout so you can inspect or paste them yourself. `profile doctor --dry-run`
-prints the checks it would perform without calling binaries or network URLs.
+to stdout without changing third-party files. `profile doctor --dry-run` prints
+the checks it would perform without calling binaries or network URLs.
 
 The init wizard detects provider keys, agent CLIs, proxy config, and Tailscale
 state, then prints copy-pastable setup plans without editing third-party config:
@@ -85,16 +85,30 @@ while filtering out locally exhausted or cooling-down targets. These are local
 snapshots and never live-probe an upstream provider.
 
 ### opencode
+
+After installing the plugin, restart OpenCode and verify what its model picker
+can see:
+
+```bash
+opencode models freellmpool
+```
+
+The OpenCode plugin's config hook adds this provider automatically on supported
+versions without writing the user's configuration. For older versions, use the
+manual block below. These six entries are routing aliases over the full live
+catalog returned by the proxy's `/v1/models` endpoint.
+
 `opencode.json` (project or `~/.config/opencode/`):
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "freellmpool/agent",
   "provider": {
     "freellmpool": {
+      "name": "freellmpool (free pool)",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "http://localhost:8080/v1",
+        "apiKey": "{env:FREELLMPOOL_PROXY_KEY}",
         "headerTimeout": 600000,
         "timeout": 600000,
         "chunkTimeout": 120000
