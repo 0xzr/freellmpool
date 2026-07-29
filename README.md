@@ -4,9 +4,9 @@
 
 ![freellmpool tokenmax terminal demo](assets/demo.svg)
 
-![247 enabled routes, 24 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
+![222 enabled routes, 24 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
 
-Pool the free tiers of 24 LLM providers cataloged in freellmpool (247 enabled chat routes, 405 cataloged chat models)
+Pool the free tiers of 24 LLM providers cataloged in freellmpool (222 enabled chat routes, 407 cataloged chat models)
 behind one OpenAI-compatible endpoint — as a CLI, a Python library, or a local
 proxy. Can start without API keys when a keyless provider is up.
 
@@ -495,7 +495,7 @@ required. Step-by-step signup links for each (all free, no card) are in
 | Aion Labs | `AION_API_KEY` | 20K free tokens/day, no card |
 | ModelScope API Inference | `MODELSCOPE_API_KEY` | 2,000 free calls/day |
 | Morph | `MORPH_API_KEY` | 200 requests/month; frontier models |
-| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | recurring $5/month Hobby credit; frontier models |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` + `FREELLMPOOL_ENABLE_VERCEL=1` | explicit opt-in; recurring $5/month Hobby credit; frontier models |
 | SiliconFlow | `SILICONFLOW_API_KEY` | free models; identity verification required |
 | Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud, LongCat | see `.env.example` | |
 

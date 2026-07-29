@@ -60,7 +60,6 @@ def test_packaged_catalog_reflects_july_live_model_audit():
             "CohereLabs/c4ai-command-a-03-2025",
             "CohereLabs/c4ai-command-r-08-2024",
             "CohereLabs/command-a-reasoning-08-2025",
-            "CohereLabs/command-a-vision-07-2025",
             "MiniMaxAI/MiniMax-M2.7",
             "MiniMaxAI/MiniMax-M3",
             "Qwen/Qwen3.6-27B",
@@ -73,10 +72,9 @@ def test_packaged_catalog_reflects_july_live_model_audit():
         "kilo": {
             "nvidia/nemotron-3-ultra-550b-a55b:free",
             "poolside/laguna-xs-2.1:free",
-            "tencent/hy3:free",
         },
         "nvidia": {"z-ai/glm-5.2"},
-        "openrouter": {"poolside/laguna-xs-2.1:free", "tencent/hy3:free"},
+        "openrouter": {"poolside/laguna-xs-2.1:free"},
     }
     expected_disabled = {
         "cloudflare": {"@cf/meta-llama/llama-2-7b-chat-hf-lora"},
@@ -161,15 +159,11 @@ def test_packaged_catalog_reflects_july_16_provider_refresh():
 def test_packaged_catalog_reflects_july_17_exhaustive_live_audit():
     providers = {provider.id: provider for provider in load_catalog()}
 
-    assert providers["llm7"].model("minimax-m2.7").enabled
-    assert providers["kilo"].model("kwaipilot/kat-coder-pro-v2.5:free").enabled
+    assert not providers["llm7"].model("minimax-m2.7").enabled
+    assert not providers["kilo"].model("kwaipilot/kat-coder-pro-v2.5:free").enabled
     assert providers["github"].model("openai/gpt-4.1-mini").enabled
 
     revived_nvidia = {
-        "bytedance/seed-oss-36b-instruct",
-        "minimaxai/minimax-m2.7",
-        "qwen/qwen3-next-80b-a3b-instruct",
-        "qwen/qwen3.5-122b-a10b",
         "poolside/laguna-xs-2.1",
         "thinkingmachines/inkling",
     }
@@ -221,6 +215,63 @@ def test_packaged_catalog_reflects_july_17_exhaustive_live_audit():
     assert all(not nvidia_embedders.model(name).enabled for name in removed_nvidia_embedders)
 
 
+def test_packaged_catalog_retires_gemini_2_and_uses_live_verified_llm7_selectors():
+    providers = {provider.id: provider for provider in load_catalog()}
+
+    gemini = providers["gemini"]
+    assert not gemini.model("gemini-2.0-flash").enabled
+    assert not gemini.model("gemini-2.0-flash-lite").enabled
+    assert gemini.model("gemini-2.5-flash").enabled
+
+    llm7 = providers["llm7"]
+    assert llm7.model("default").enabled
+    assert llm7.model("fast").enabled
+    assert llm7.model("pro") is None
+
+
+def test_packaged_catalog_disables_july_29_repeat_definitive_failures():
+    providers = {provider.id: provider for provider in load_catalog()}
+    retired = {
+        "groq": {
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "qwen/qwen3-32b",
+        },
+        "huggingface": {"CohereLabs/command-a-vision-07-2025"},
+        "kilo": {
+            "kwaipilot/kat-coder-pro-v2.5:free",
+            "poolside/laguna-m.1:free",
+            "tencent/hy3:free",
+        },
+        "llm7": {"minimax-m2.7"},
+        "nvidia": {
+            "abacusai/dracarys-llama-3.1-70b-instruct",
+            "bytedance/seed-oss-36b-instruct",
+            "minimaxai/minimax-m2.7",
+            "mistralai/mistral-large-3-675b-instruct-2512",
+            "mistralai/mistral-small-4-119b-2603",
+            "qwen/qwen3-next-80b-a3b-instruct",
+            "qwen/qwen3.5-122b-a10b",
+            "sarvamai/sarvam-m",
+            "stepfun-ai/step-3.5-flash",
+            "upstage/solar-10.7b-instruct",
+        },
+        "openrouter": {
+            "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+            "meta-llama/llama-3.2-3b-instruct:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "nousresearch/hermes-3-llama-3.1-405b:free",
+            "poolside/laguna-m.1:free",
+            "qwen/qwen3-coder:free",
+            "qwen/qwen3-next-80b-a3b-instruct:free",
+            "tencent/hy3:free",
+        },
+    }
+
+    for provider_id, model_names in retired.items():
+        provider = providers[provider_id]
+        assert all(not provider.model(name).enabled for name in model_names)
+
+
 def test_packaged_catalog_includes_frontier_free_providers():
     providers = {provider.id: provider for provider in load_catalog()}
 
@@ -237,6 +288,14 @@ def test_packaged_catalog_includes_frontier_free_providers():
     vercel = providers["vercel"]
     assert vercel.base_url == "https://ai-gateway.vercel.sh/v1"
     assert vercel.key_env == "AI_GATEWAY_API_KEY"
+    assert vercel.extra_env == ("FREELLMPOOL_ENABLE_VERCEL",)
+    assert not vercel.is_configured({"AI_GATEWAY_API_KEY": "free-tier-key"})
+    assert vercel.is_configured(
+        {
+            "AI_GATEWAY_API_KEY": "free-tier-key",
+            "FREELLMPOOL_ENABLE_VERCEL": "1",
+        }
+    )
     assert {model.name for model in vercel.models if model.enabled} == {
         "zai/glm-5.2",
         "minimax/minimax-m3",
