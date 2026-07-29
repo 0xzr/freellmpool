@@ -84,6 +84,15 @@ def test_make_key_includes_routing():
     assert Cache.make_key(*args, routing="fair") == Cache.make_key(*args, routing="fair")
 
 
+def test_make_key_includes_task_hint():
+    args = ([{"role": "user", "content": "read this"}], None, None, 1024, 0.0, None, None)
+    assert Cache.make_key(*args, routing="quality", task="general") != Cache.make_key(
+        *args,
+        routing="quality",
+        task="grounded-reading",
+    )
+
+
 def test_make_key_includes_response_format_and_protocol():
     args = ([{"role": "user", "content": "hi"}], None, None, 1024, 0.0, None, None)
     plain = Cache.make_key(*args, routing="fair")

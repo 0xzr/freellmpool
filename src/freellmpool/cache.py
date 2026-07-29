@@ -4,8 +4,8 @@ Off by default. Enable with a positive TTL via ``FREELLMPOOL_CACHE_TTL`` (second
 or ``[settings] cache_ttl`` in config.toml. Handy for dev/test loops where the
 same prompts run repeatedly: it saves quota and answers instantly.
 
-Keyed on a hash of (messages, model, providers, max_tokens, temperature, tools),
-so only *identical* requests hit the cache. Standard-library sqlite3, no deps.
+Keyed on a hash of the request and routing/task intent, so only *identical*
+requests hit the cache. Standard-library sqlite3, no deps.
 """
 
 from __future__ import annotations
@@ -75,6 +75,7 @@ class Cache:
         routing=None,
         response_format=None,
         protocol=None,
+        task=None,
     ) -> str | None:
         try:
             payload = json.dumps(
@@ -91,6 +92,9 @@ class Cache:
                     "routing": routing,
                     "response_format": response_format,
                     "protocol": protocol,
+                    # Explicit task intent can select a different model under the
+                    # same routing mode and therefore needs its own cache bucket.
+                    "task": task,
                 },
                 sort_keys=True,
             )

@@ -40,6 +40,7 @@ from .models import Provider, Reply
 from .observe import emit
 from .router import Pool, _is_account_quota_exhaustion, _is_health_failure
 from .routing_modes import normalize_routing_mode
+from .task_quality import TASK_GENERAL, resolve_task, validate_task
 
 #: An async transport: ``await apost(url, headers, json_body, timeout) -> HTTPResult``.
 AsyncPostFn = Callable[[str, dict, dict, float], Awaitable["_client.HTTPResult"]]
@@ -382,6 +383,7 @@ class AsyncPool:
         response_format=None,
         protocol: str | None = None,
         routing: str | None = None,
+        task: str | None = None,
     ) -> Reply:
         """Async failover completion — same routing/cache/metrics as :meth:`Pool.chat`.
 
@@ -392,6 +394,11 @@ class AsyncPool:
             raise NoProvidersConfigured("no provider has an API key set")
         provider_list = list(providers) if providers else None
         eff = normalize_routing_mode(routing, p.routing)
+        if eff == "quality":
+            resolved_task = resolve_task(messages, task)
+        else:
+            validate_task(task)
+            resolved_task = TASK_GENERAL
         features = required_features(
             messages,
             tools=tools,
@@ -421,6 +428,7 @@ class AsyncPool:
                 eff,
                 response_format=response_format,
                 protocol=protocol,
+                task=resolved_task,
             )
             hit = await asyncio.to_thread(p._cache.get, cache_key)  # blocking sqlite off-loop
             feature_cache_eligible = (
@@ -457,6 +465,7 @@ class AsyncPool:
             candidates,
             difficulty,
             eff,
+            resolved_task,
         )
         if not targets:
             raise NoProvidersConfigured("no candidate (provider, model) matched the given filters")

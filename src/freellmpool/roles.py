@@ -24,6 +24,7 @@ class RoleSpec:
     max_tokens: int | None = None
     temperature: float | None = None
     system_prefix: str | None = None
+    task: str | None = None
 
 
 _ROLE_SPECS: tuple[RoleSpec, ...] = (
@@ -54,6 +55,18 @@ _ROLE_SPECS: tuple[RoleSpec, ...] = (
         system_prefix=(
             "Summarize the following text concisely, preserving key facts and trade-offs."
         ),
+    ),
+    RoleSpec(
+        name="grounded-reader",
+        description="Quality routing for faithful document reading and extraction.",
+        routing="quality",
+        max_tokens=1024,
+        temperature=0.0,
+        system_prefix=(
+            "Read the supplied material faithfully. Distinguish stated facts from "
+            "inference and do not invent details."
+        ),
+        task="grounded-reading",
     ),
     RoleSpec(
         name="long-context",
@@ -126,5 +139,7 @@ def format_roles() -> str:
             extras.append(f"max_tokens={role.max_tokens}")
         if role.temperature is not None:
             extras.append(f"temperature={role.temperature}")
+        if role.task is not None:
+            extras.append(f"task={role.task}")
         lines.append(f"  {role.name:<16} {role.description} ({', '.join(extras)})")
     return "\n".join(lines)

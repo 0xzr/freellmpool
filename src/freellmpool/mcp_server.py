@@ -64,6 +64,13 @@ from .tailnet import (
     generate_session_token_simple,
     safe_base_url,
 )
+from .task_quality import (
+    TASK_GENERAL,
+    TASK_HINTS,
+    model_task_score,
+    task_evidence_table,
+    task_resolution,
+)
 from .tokenmax import HARD_CAP, RAINBOW_BANNER, fan_out, select_targets
 
 _DEFAULT_PROTOCOL = "2025-06-18"
@@ -115,6 +122,11 @@ TOOLS = [
                     "type": "string",
                     "enum": list(PUBLIC_ROUTING_ALIASES),
                     "description": "How to pick the model: agent (strongest healthy tier with quota spreading), quality (capability matched to prompt), spread (whole-pool breadth), fast (lowest latency), fair (provider balance), or auto (server default).",
+                },
+                "task": {
+                    "type": "string",
+                    "enum": list(TASK_HINTS),
+                    "description": "Optional task hint for quality routing; auto classifies locally.",
                 },
                 "max_tokens": {
                     "type": "integer",
@@ -378,6 +390,11 @@ TOOLS = [
                     "enum": list(PUBLIC_ROUTING_ALIASES),
                     "description": "Routing mode to explain (default: the server's mode).",
                 },
+                "task": {
+                    "type": "string",
+                    "enum": list(TASK_HINTS),
+                    "description": "Optional task hint to explain.",
+                },
             },
             "required": ["prompt"],
         },
@@ -505,6 +522,7 @@ def _tool_ask(pool: Pool, args: dict) -> dict:
             providers=providers,
             routing=routing,
             max_tokens=_max_tokens(args.get("max_tokens"), 1024),
+            task=args.get("task"),
         )
     except Exception as exc:  # noqa: BLE001 — surface as a tool error
         return _text(f"{type(exc).__name__}: {exc}", is_error=True)
@@ -776,17 +794,38 @@ def _tool_route(pool: Pool, args: dict) -> dict:
     routing = _routing_arg(args.get("routing")) or pool.routing
     msgs = _messages(None, prompt)
     difficulty = prompt_difficulty(msgs)
-    targets = pool.rank_targets(msgs, routing=routing)
+    try:
+        resolution = task_resolution(msgs, args.get("task"))
+        targets = pool.rank_targets(msgs, routing=routing, task=resolution.task)
+    except ValueError as exc:
+        return _text(str(exc), is_error=True)
     table = capability_table()
+    task_table = (
+        task_evidence_table(resolution.task)
+        if resolution.task != TASK_GENERAL
+        else {}
+    )
     lines = [
         f"routing mode: {routing}",
         f"estimated prompt difficulty: {difficulty:.2f}  (0 = trivial, 1 = hardest)",
+        f"resolved task: {resolution.task} ({resolution.source})",
         "",
         f"top candidates (in failover order){' — strongest-tier first' if routing == 'agent' else ' — strongest-fit first' if routing == 'quality' else ''}:",
     ]
     for i, t in enumerate(targets[:8], 1):
         cap = model_capability(t.model, table)
-        lines.append(f"  {i:>2}. {t.provider.id}/{t.model}  (capability {cap:.2f})")
+        task_score = model_task_score(t.model, task_table)
+        task_text = (
+            ""
+            if resolution.task == TASK_GENERAL
+            else f", task evidence {task_score:.2f}"
+            if task_score is not None
+            else ", task evidence unmeasured"
+        )
+        lines.append(
+            f"  {i:>2}. {t.provider.id}/{t.model}  "
+            f"(capability {cap:.2f}{task_text})"
+        )
     if not targets:
         lines.append("  (no configured candidates)")
     return _text("\n".join(lines))

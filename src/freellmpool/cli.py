@@ -55,6 +55,7 @@ from .roles import format_roles, get_role
 from .router import Pool
 from .routing_modes import PUBLIC_ROUTING_ALIASES, routing_override
 from .savings import format_saved
+from .task_quality import TASK_HINTS
 
 
 def _read_stdin() -> str:
@@ -139,6 +140,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
     if args.routing is None and routing is None and role is None and args.mode == "normal":
         if not has_routing_config:
             routing = "fair"
+    task = args.task if args.task is not None else (role.task if role is not None else None)
 
     second_opinion = bool(args.second_opinion or (role is not None and role.name == "second-opinion"))
     if second_opinion:
@@ -156,6 +158,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
             max_tokens=max_tokens,
             timeout=args.timeout,
             synthesize=args.synthesize,
+            task=task,
         )
         if not result.answers:
             print("freellmpool: no providers configured", file=sys.stderr)
@@ -168,7 +171,13 @@ def cmd_ask(args: argparse.Namespace) -> int:
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        targets = pool.rank_targets(messages, routing=routing, model=model_filter, providers=provider_filter)
+        targets = pool.rank_targets(
+            messages,
+            routing=routing,
+            model=model_filter,
+            providers=provider_filter,
+            task=task,
+        )
         snapshot = pool.quota.snapshot()
         if declared_quota_exhausted(targets, snapshot):
             print(
@@ -192,6 +201,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
             temperature=temperature,
             timeout=args.timeout,
             routing=routing,
+            task=task,
         )
     except NoProvidersConfigured as exc:
         print(f"freellmpool: {exc}", file=sys.stderr)
@@ -2001,6 +2011,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--routing",
         choices=PUBLIC_ROUTING_ALIASES,
         help="routing mode override (auto uses the pool default)",
+    )
+    p_ask.add_argument(
+        "--task",
+        choices=TASK_HINTS,
+        help="task hint for quality routing (auto classifies locally)",
     )
     p_ask.add_argument(
         "--mode",

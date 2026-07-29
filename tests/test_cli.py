@@ -406,6 +406,57 @@ def test_cli_ask_role_applies_role_defaults(monkeypatch, capsys):
     assert capsys.readouterr().out.strip() == "ok"
 
 
+def test_cli_explicit_task_beats_role_task_default(monkeypatch, capsys):
+    from freellmpool.cli import main
+    from freellmpool.router import Pool
+
+    captured = {}
+
+    class FakePool:
+        def ask(self, prompt, **kwargs):
+            captured.update(kwargs)
+            return Reply(text="ok", provider_id="fake", model="fake-model", raw={})
+
+    monkeypatch.setattr(Pool, "from_default_config", classmethod(lambda cls: FakePool()))
+    monkeypatch.setattr("freellmpool.cli._read_stdin", lambda: "")
+
+    assert (
+        main(
+            [
+                "ask",
+                "Read this Markdown",
+                "--role",
+                "grounded-reader",
+                "--task",
+                "general",
+            ]
+        )
+        == 0
+    )
+
+    assert captured["task"] == "general"
+    assert capsys.readouterr().out.strip() == "ok"
+
+
+def test_cli_grounded_reader_role_passes_its_task_default(monkeypatch, capsys):
+    from freellmpool.cli import main
+    from freellmpool.router import Pool
+
+    captured = {}
+
+    class FakePool:
+        def ask(self, prompt, **kwargs):
+            captured.update(kwargs)
+            return Reply(text="ok", provider_id="fake", model="fake-model", raw={})
+
+    monkeypatch.setattr(Pool, "from_default_config", classmethod(lambda cls: FakePool()))
+    monkeypatch.setattr("freellmpool.cli._read_stdin", lambda: "")
+
+    assert main(["ask", "Read this", "--role", "grounded-reader"]) == 0
+    assert captured["task"] == "grounded-reading"
+    assert capsys.readouterr().out.strip() == "ok"
+
+
 def test_cli_ask_second_opinion_prints_two_answers(providers, env, quota, monkeypatch, capsys):
     from helpers import make_post
 

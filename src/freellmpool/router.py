@@ -57,6 +57,13 @@ from .route_health import (
 )
 from .routing_modes import normalize_routing_mode
 from .stats import StatsStore
+from .task_quality import (
+    TASK_GENERAL,
+    model_task_score,
+    resolve_task,
+    task_evidence_table,
+    validate_task,
+)
 
 # A parsed "context limit" below this is treated as garbled/implausible and not
 # learned, so one bad provider error can't poison routing pool-wide.
@@ -72,6 +79,8 @@ _CTX_LIMIT_TTL = 1800.0  # seconds (30 min)
 # breaks ties among models that already clear the difficulty bar.
 _QUALITY_SLOW_S = 8.0
 _QUALITY_UNKNOWN_LAT = 0.34
+_QUALITY_UNKNOWN_TASK = 0.5
+_QUALITY_TASK_WEIGHT = 1.0
 # "spread" routing groups providers into coarse usage tiers of this many requests, so the
 # least-used tier is served first (spreading load across the WHOLE pool to avoid one
 # provider hitting its rate limit), while within a tier the fastest/healthiest is preferred.
@@ -381,6 +390,7 @@ class Pool:
         routing: str | None = None,
         model: str | None = None,
         providers: Iterable[str] | None = None,
+        task: str | None = None,
     ) -> list[Target]:
         """Public: the ordered candidate (provider, model) targets for ``messages``,
         using the same ordering the failover loop would. Powers the MCP route
@@ -389,10 +399,16 @@ class Pool:
         provider_list = list(providers) if providers else None
         eff = normalize_routing_mode(routing, self.routing)
         difficulty = prompt_difficulty(messages) if eff == "quality" else None
+        if eff == "quality":
+            resolved_task = resolve_task(messages, task)
+        else:
+            validate_task(task)
+            resolved_task = TASK_GENERAL
         return self._order(
             self._all_targets(include=provider_list, model=model),
             difficulty=difficulty,
             routing=eff,
+            task=resolved_task,
         )
 
     def _mark_cooldown(self, provider_id: str, now: float) -> None:
@@ -674,7 +690,11 @@ class Pool:
         return self.conformance.verified_targets(targets, wanted)
 
     def _order(
-        self, targets: list[Target], difficulty: float | None = None, routing: str | None = None
+        self,
+        targets: list[Target],
+        difficulty: float | None = None,
+        routing: str | None = None,
+        task: str = TASK_GENERAL,
     ) -> list[Target]:
         """Order candidate targets for failover.
 
@@ -690,9 +710,10 @@ class Pool:
         fastest/healthiest within a tier. Best for sustained agentic loops on free tiers:
         the breadth of ``fair`` with the speed of ``fast``.
 
-        ``quality``: match the request's ``difficulty`` (0–1) to each model's
-        benchmark-scored capability — strong models for hard prompts, light models
-        for easy ones (rationing scarce strong-model quota). Ordered globally, not
+        ``quality``: match the request's ``difficulty`` (0–1) and bounded validated
+        task evidence to each model's benchmark-scored capability — strong models
+        for hard prompts, proven task fits when available, and light models for easy
+        ones (rationing scarce strong-model quota). Ordered globally, not
         provider-grouped, since capability match is the opted-in intent.
 
         ``agent``: keep every turn on the strongest available benchmark capability
@@ -773,6 +794,11 @@ class Pool:
         if mode == "quality":
             table = capability_table()
             need = difficulty if difficulty is not None else 0.5
+            task_table = task_evidence_table(task) if task != TASK_GENERAL else {}
+            has_task_evidence = any(
+                model_task_score(target.model, task_table) is not None
+                for target in targets
+            )
 
             def lat_pen(t: Target) -> float:
                 # Latency penalty in [0,1]: a measured target's smoothed latency
@@ -793,11 +819,19 @@ class Pool:
 
             def quality_key(t: Target) -> tuple[int, int, float, int]:
                 # over-budget, then known-failing sink to the back (still reachable);
-                # then capability-fit blended with latency; then least-used.
+                # then capability/task fit blended with latency; then least-used.
+                # With no valid task evidence the added term is exactly zero.
+                task_penalty = 0.0
+                if has_task_evidence:
+                    measured = model_task_score(t.model, task_table)
+                    task_score = _QUALITY_UNKNOWN_TASK if measured is None else measured
+                    task_penalty = (1.0 - task_score) * _QUALITY_TASK_WEIGHT
                 return (
                     over_of(t),
                     1 if failing_of(t) else 0,
-                    fit_penalty(model_capability(t.model, table), need) + lat_pen(t),
+                    fit_penalty(model_capability(t.model, table), need)
+                    + task_penalty
+                    + lat_pen(t),
                     used_of(t),
                 )
 
@@ -898,6 +932,7 @@ class Pool:
         tools: list | None = None,
         tool_choice=None,
         routing: str | None = None,
+        task: str | None = None,
     ) -> Reply:
         """Send ``prompt`` to the first provider that succeeds.
 
@@ -920,6 +955,7 @@ class Pool:
             tools=tools,
             tool_choice=tool_choice,
             routing=routing,
+            task=task,
         )
 
     def chat(
@@ -936,6 +972,7 @@ class Pool:
         response_format=None,
         protocol: str | None = None,
         routing: str | None = None,
+        task: str | None = None,
     ) -> Reply:
         """Like :meth:`ask` but takes raw OpenAI-style ``messages``.
 
@@ -965,6 +1002,11 @@ class Pool:
         # per-request override (fast/quality/fair/…) keys its own cache bucket and
         # never serves a reply produced under a different mode's intent.
         eff = normalize_routing_mode(routing, self.routing)
+        if eff == "quality":
+            resolved_task = resolve_task(messages, task)
+        else:
+            validate_task(task)
+            resolved_task = TASK_GENERAL
         cache_key = None
         if self._cache is not None:
             cache_key = self._cache.make_key(
@@ -978,6 +1020,7 @@ class Pool:
                 eff,
                 response_format=response_format,
                 protocol=protocol,
+                task=resolved_task,
             )
             hit = self._cache.get(cache_key)
             feature_cache_eligible = (
@@ -1013,6 +1056,7 @@ class Pool:
             candidates,
             difficulty=difficulty,
             routing=eff,
+            task=resolved_task,
         )
         if not targets:
             raise NoProvidersConfigured("no candidate (provider, model) matched the given filters")
@@ -1191,6 +1235,7 @@ class Pool:
         temperature: float = 0.0,
         timeout: float = 90.0,
         routing: str | None = None,
+        task: str | None = None,
     ):
         """Stream content deltas with token-level streaming.
 
@@ -1204,6 +1249,11 @@ class Pool:
             raise NoProvidersConfigured("no provider has an API key set")
         eff = normalize_routing_mode(routing, self.routing)
         difficulty = prompt_difficulty(messages, max_tokens) if eff == "quality" else None
+        if eff == "quality":
+            resolved_task = resolve_task(messages, task)
+        else:
+            validate_task(task)
+            resolved_task = TASK_GENERAL
         provider_list = list(providers) if providers else None
         candidates = self._all_targets(include=provider_list, model=model)
         candidates = self._feature_targets(
@@ -1215,6 +1265,7 @@ class Pool:
             candidates,
             difficulty=difficulty,
             routing=eff,
+            task=resolved_task,
         )
         targets = [t for t in targets if t.provider.adapter != "gemini"]
         if not targets:

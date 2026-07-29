@@ -13,6 +13,7 @@ EXPECTED_ROLES = {
     "conserve",
     "fast",
     "second-opinion",
+    "grounded-reader",
 }
 
 
@@ -89,3 +90,11 @@ def test_second_opinion_role_uses_panel_defaults():
     assert role.routing == "quality"
     assert role.max_tokens == 512
     assert role.system_prefix is not None
+
+
+def test_grounded_reader_role_declares_explicit_task_hint():
+    role = get_role("grounded-reader")
+    assert role is not None
+    assert role.routing == "quality"
+    assert role.task == "grounded-reading"
+    assert "faithful" in role.system_prefix.lower()

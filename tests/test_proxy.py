@@ -1473,6 +1473,28 @@ def test_header_routing_override_accepted(server):
     assert "x_freellmpool" in body
 
 
+def test_task_hint_header_and_body_extension_are_validated(server):
+    payload = {
+        "model": "quality",
+        "messages": [{"role": "user", "content": "read this"}],
+    }
+    status, _body = _post_json_with_headers(
+        server + "/v1/chat/completions",
+        payload,
+        {"X-Freellmpool-Task": "grounded-reading"},
+    )
+    assert status == 200
+
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        _post_json(
+            server + "/v1/chat/completions",
+            {**payload, "task": "not-a-model-name"},
+        )
+    assert exc_info.value.code == 400
+    body = json.load(exc_info.value)
+    assert body["error"]["type"] == "invalid_request_error"
+
+
 def test_parse_multipart_form_unit():
     from freellmpool.proxy import _parse_multipart_form
 

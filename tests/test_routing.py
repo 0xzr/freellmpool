@@ -5,8 +5,10 @@ from __future__ import annotations
 from helpers import make_post, make_stream_post
 
 from freellmpool import capability as _capability
+from freellmpool import task_quality as _task_quality
 from freellmpool.client import HTTPResult
 from freellmpool.models import Model, Provider
+from freellmpool.quota import QuotaStore
 from freellmpool.router import Pool
 
 _EASY = [{"role": "user", "content": "hi"}]
@@ -23,7 +25,15 @@ def _names(pool, **kw):
     return [t.name for t in pool._order(pool._all_targets(**kw))]
 
 
-def _quality_pool(tmp_path, monkeypatch, quota, *, scores, models):
+def _quality_pool(
+    tmp_path,
+    monkeypatch,
+    quota,
+    *,
+    scores,
+    models,
+    task_scores=None,
+):
     """A quality-routing pool over ``models`` with an injected capability table.
 
     All providers succeed (200), so whichever target quality routing puts first is
@@ -33,11 +43,41 @@ def _quality_pool(tmp_path, monkeypatch, quota, *, scores, models):
 
     cap_file = tmp_path / "cap.json"
     cap_file.write_text(
-        json.dumps({"scores": {k: {"score": v, "source": "arena"} for k, v in scores.items()}}),
+        json.dumps(
+            {"scores": {k: {"score": v, "source": "arena"} for k, v in scores.items()}}
+        ),
         encoding="utf-8",
     )
     monkeypatch.setenv("FREELLMPOOL_CAPABILITY_FILE", str(cap_file))
     _capability._table_cached.cache_clear()
+    if task_scores:
+        evidence_file = tmp_path / "task-evidence.json"
+        evidence_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "scores": {
+                        task: {
+                            model: {
+                                **entry,
+                                "fixture_sha256": _task_quality.GROUNDED_FIXTURE_SHA256,
+                                "trials": 20,
+                                "passed": round(entry["score"] * 20),
+                            }
+                            for model, entry in entries.items()
+                        }
+                        for task, entries in task_scores.items()
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(
+            "FREELLMPOOL_TASK_EVIDENCE_FILE", str(evidence_file)
+        )
+    else:
+        monkeypatch.delenv("FREELLMPOOL_TASK_EVIDENCE_FILE", raising=False)
+    _task_quality._evidence_cached.cache_clear()
     provider = Provider(
         id="x",
         label="X",
@@ -426,6 +466,175 @@ def test_chat_routing_override_end_to_end(tmp_path, monkeypatch, quota):
     # a per-call routing="quality" still sends the hard prompt to the strong model
     assert pool.chat(_HARD, routing="quality").model == "big"
     assert pool.routing == "fast"  # default untouched
+
+
+def test_quality_grounded_reading_prefers_validated_task_evidence(
+    tmp_path, monkeypatch, quota
+):
+    task = _task_quality.TASK_GROUNDED_READING
+    pool = _quality_pool(
+        tmp_path,
+        monkeypatch,
+        quota,
+        scores={"generalist": 0.9, "faithful": 0.6, "unfaithful": 0.8},
+        models=[Model("generalist"), Model("faithful"), Model("unfaithful")],
+        task_scores={
+            task: {
+                "faithful": {
+                    "score": 0.95,
+                    "source": "synthetic-grounded-v1",
+                },
+                "unfaithful": {
+                    "score": 0.2,
+                    "source": "synthetic-grounded-v1",
+                },
+            }
+        },
+    )
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                "Read this Markdown document and tell me what it contains.\n\n"
+                "# API guide\n\n## Authentication\n\nUse X-Finch-Token.\n\n"
+                "## Search modes\n\n| mode | use |\n| --- | --- |\n| precise | facts |"
+            ),
+        }
+    ]
+
+    assert pool.rank_targets(messages)[0].model == "faithful"
+    assert pool.chat(messages).model == "faithful"
+
+
+def test_quality_without_valid_task_evidence_preserves_existing_order(
+    tmp_path, monkeypatch, quota
+):
+    pool = _quality_pool(
+        tmp_path,
+        monkeypatch,
+        quota,
+        scores={"model-a": 0.55, "model-b": 0.9},
+        models=[Model("model-a"), Model("model-b")],
+    )
+    targets = pool._all_targets()
+
+    assert pool._order(
+        targets,
+        difficulty=0.5,
+        routing="quality",
+        task=_task_quality.TASK_GROUNDED_READING,
+    ) == pool._order(
+        targets,
+        difficulty=0.5,
+        routing="quality",
+        task=_task_quality.TASK_GENERAL,
+    )
+
+
+def test_task_evidence_never_overrides_quota_or_failure_constraints(
+    tmp_path, monkeypatch, quota
+):
+    task = _task_quality.TASK_GROUNDED_READING
+    pool = _quality_pool(
+        tmp_path,
+        monkeypatch,
+        quota,
+        scores={"faithful": 0.6, "fallback": 0.6},
+        models=[Model("faithful", rpd=1), Model("fallback")],
+        task_scores={
+            task: {
+                "faithful": {"score": 1.0, "source": "synthetic-grounded-v1"},
+                "fallback": {"score": 0.5, "source": "synthetic-grounded-v1"},
+            }
+        },
+    )
+    quota.record("x", "faithful")
+    targets = pool._all_targets()
+    assert pool._order(
+        targets, difficulty=0.5, routing="quality", task=task
+    )[0].model == "fallback"
+
+    failure_pool = _quality_pool(
+        tmp_path,
+        monkeypatch,
+        QuotaStore(tmp_path / "failure-quota.json"),
+        scores={"faithful": 0.6, "fallback": 0.6},
+        models=[Model("faithful"), Model("fallback")],
+        task_scores={
+            task: {
+                "faithful": {"score": 1.0, "source": "synthetic-grounded-v1"},
+                "fallback": {"score": 0.5, "source": "synthetic-grounded-v1"},
+            }
+        },
+    )
+    for _ in range(3):
+        failure_pool.metrics.record_failure("x/faithful", "down")
+    assert failure_pool._order(
+        failure_pool._all_targets(),
+        difficulty=0.5,
+        routing="quality",
+        task=task,
+    )[0].model == "fallback"
+
+
+def test_task_hint_has_stream_and_async_parity(tmp_path, monkeypatch, quota):
+    import asyncio
+
+    from freellmpool.aio import AsyncPool
+
+    task = _task_quality.TASK_GROUNDED_READING
+    pool = _quality_pool(
+        tmp_path,
+        monkeypatch,
+        quota,
+        scores={"generalist": 0.55, "faithful": 0.6},
+        models=[Model("generalist"), Model("faithful")],
+        task_scores={
+            task: {
+                "generalist": {"score": 0.0, "source": "synthetic-grounded-v1"},
+                "faithful": {"score": 1.0, "source": "synthetic-grounded-v1"},
+            }
+        },
+    )
+    messages = [{"role": "user", "content": "Summarize this."}]
+    assert next(pool.stream_chat(messages, task=task))["model"] == "faithful"
+
+    async def apost(url, headers, body, timeout):
+        return pool._post(url, headers, body, timeout)
+
+    apool = AsyncPool(pool, apost=apost)
+    assert asyncio.run(apool.achat(messages, task=task)).model == "faithful"
+
+
+def test_explicit_general_task_hint_overrides_auto_grounded_classification(
+    tmp_path, monkeypatch, quota
+):
+    task = _task_quality.TASK_GROUNDED_READING
+    pool = _quality_pool(
+        tmp_path,
+        monkeypatch,
+        quota,
+        scores={"generalist": 0.5, "faithful": 0.9},
+        models=[Model("generalist"), Model("faithful")],
+        task_scores={
+            task: {
+                "generalist": {"score": 0.0, "source": "synthetic-grounded-v1"},
+                "faithful": {"score": 1.0, "source": "synthetic-grounded-v1"},
+            }
+        },
+    )
+    messages = [
+        {
+            "role": "user",
+            "content": "Read this Markdown document.\n\n# Facts\n\n## Limits\n\n- 17",
+        }
+    ]
+
+    assert pool.rank_targets(messages, task="general")[0].model == "generalist"
+    assert pool.rank_targets(messages, task=task)[0].model == "faithful"
+    assert pool.rank_targets(messages, task="general")[0].model != pool.rank_targets(
+        messages
+    )[0].model
 
 
 def test_achat_routing_override_end_to_end(tmp_path, monkeypatch, quota):
