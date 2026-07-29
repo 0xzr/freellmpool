@@ -34,6 +34,23 @@ LLM capacity: 3/5 healthy providers
 Action recommended: add 2 provider(s).
 ```
 
+## Advisory external catalog
+
+The external provider catalog is discovery metadata only. Syncing it downloads a
+sanitized public list into the local cache; it does not modify the packaged
+`providers.toml`, add providers to automatic routing, or call provider inference
+APIs.
+
+```bash
+freellmpool catalog sync
+freellmpool catalog status
+```
+
+By default the cache is stored at
+`~/.config/freellmpool/provider_catalog.json`. `catalog status` reads that cache
+and shows the available suggestions. A provider becomes usable only after you
+explicitly import or define it and configure any required credentials.
+
 ## Key inventory
 
 The key inventory is optional. It tracks metadata about keys you created manually. By default it is read from:

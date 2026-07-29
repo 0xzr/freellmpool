@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from freellmpool.cli import _strip_fences
@@ -10,6 +11,42 @@ from freellmpool.models import Model, Provider, Reply
 
 def test_strip_plain_json():
     assert _strip_fences('{"a": 1}') == '{"a": 1}'
+
+
+def test_cli_models_json_is_machine_readable(monkeypatch, capsys):
+    from freellmpool.cli import main
+
+    catalog = [
+        Provider(
+            id="ready",
+            label="Ready",
+            adapter="openai",
+            base_url="https://ready.test/v1",
+            auth="none",
+            models=(Model("on"), Model("off", enabled=False)),
+        ),
+        Provider(
+            id="missing",
+            label="Missing",
+            adapter="openai",
+            base_url="https://missing.test/v1",
+            key_env="MISSING_KEY",
+            models=(Model("other"),),
+        ),
+    ]
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: catalog)
+    monkeypatch.setattr(
+        "freellmpool.cli.configured_providers",
+        lambda providers: [provider for provider in providers if provider.id == "ready"],
+    )
+
+    assert main(["models", "--json", "--all"]) == 0
+
+    assert json.loads(capsys.readouterr().out) == [
+        {"provider": "ready", "model": "on", "enabled": True, "configured": True},
+        {"provider": "ready", "model": "off", "enabled": False, "configured": True},
+        {"provider": "missing", "model": "other", "enabled": True, "configured": False},
+    ]
 
 
 def test_cli_tokenmax_smoke(providers, env, quota, monkeypatch, capsys):

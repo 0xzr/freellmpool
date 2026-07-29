@@ -35,17 +35,23 @@ or the OpenAI-compatible endpoint. To keep working past Gemini's daily cap, pool
 <a href="https://github.com/0xzr/freellmpool">freellmpool</a>.</strong></p>
 
 <h2>What Gemini's free tier is good for</h2>
-<p>The standout is context length: Gemini 2.5/2.0 Flash handle long inputs cheaply, so reach for Gemini when
+<p>The standout is context length: Gemini 2.5 Flash handles long inputs cheaply, so reach for Gemini when
 the task is "read this whole thing and answer." It's a weaker pick for ultra-low-latency chat (Groq and
 Cerebras win there). Note the free AI Studio tier may use your prompts to improve Google's products — don't
 send sensitive data on the free tier; read Google's current data-use terms.</p>
 
 <h2>Free models</h2>
 <ul>
-<li><code>gemini-2.5-flash</code> — newest Flash, best quality/long-context balance.</li>
-<li><code>gemini-2.0-flash</code> — fast, capable general model.</li>
-<li><code>gemini-2.0-flash-lite</code> — cheapest/fastest for simple tasks.</li>
+<li><code>gemini-2.5-flash</code> — the currently enabled, conservatively retained
+Flash route in freellmpool.</li>
 </ul>
+<p>Google shut down <code>gemini-2.0-flash</code> and
+<code>gemini-2.0-flash-lite</code> on June 1, 2026. Current Gemini 3 replacements
+change quickly; freellmpool does not automatically enable a replacement until it
+has produced repeat non-empty completions on a real free-tier project. Check
+Google's <a href="https://ai.google.dev/gemini-api/docs/deprecations">deprecation
+table</a> and <a href="https://ai.google.dev/gemini-api/docs/models">model list</a>
+before pinning a model.</p>
 
 <h2>Get a key and call it</h2>
 <p>Create a key at <a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a>. Gemini has

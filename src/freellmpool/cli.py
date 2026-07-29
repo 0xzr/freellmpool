@@ -369,9 +369,28 @@ def cmd_providers_health(args: argparse.Namespace) -> int:
 
 
 def cmd_models(args: argparse.Namespace) -> int:
+    import json
+
     catalog = load_catalog()
     configured = {p.id for p in configured_providers(catalog)}
     only = set(args.providers.split(",")) if args.providers else None
+    if args.json:
+        rows = [
+            {
+                "provider": provider.id,
+                "model": model.name,
+                "enabled": model.enabled,
+                "configured": provider.id in configured,
+            }
+            for provider in catalog
+            if (only is None or provider.id in only)
+            and (not args.configured_only or provider.id in configured)
+            for model in provider.models
+            if model.enabled or args.all
+        ]
+        print(json.dumps(rows, separators=(",", ":")))
+        return 0
+
     shown = 0
     for p in catalog:
         if only is not None and p.id not in only:
@@ -2049,6 +2068,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_models.add_argument(
         "--all", action="store_true", help="include models that are off by default"
     )
+    p_models.add_argument("--json", action="store_true", help="emit a machine-readable JSON list")
     p_models.set_defaults(func=cmd_models)
 
     p_quota = sub.add_parser("quota", help="show today's per-provider usage")

@@ -39,15 +39,15 @@ OpenAI-compatible endpoint with failover, so you get their combined free capacit
 <tr><th>Provider</th><th>API key?</th><th class=num>Free models*</th><th>Free-tier signal**</th></tr>
 <tr data-provider="pollinations"><td>Pollinations</td><td>No (keyless)</td><td class=num>2</td><td>Anonymous; rate-limited per IP</td></tr>
 <tr data-provider="ovh"><td>OVHcloud AI Endpoints</td><td>No (keyless)</td><td class=num>17</td><td>Anonymous tier (chat + embeddings + Whisper)</td></tr>
-<tr data-provider="llm7"><td>LLM7</td><td>Optional</td><td class=num>3</td><td>~60/hour without a token</td></tr>
-<tr data-provider="kilo"><td>Kilo Gateway</td><td>No (keyless)</td><td class=num>11</td><td>Anonymous; ~200 req/hour per IP</td></tr>
+<tr data-provider="llm7"><td>LLM7</td><td>Optional</td><td class=num>4</td><td>~60/hour without a token</td></tr>
+<tr data-provider="kilo"><td>Kilo Gateway</td><td>No (keyless)</td><td class=num>8</td><td>Anonymous; ~200 req/hour per IP</td></tr>
 <tr data-provider="opencode"><td>OpenCode Zen</td><td>No (keyless)</td><td class=num>0</td><td>Cataloged routes disabled by default pending opt-in</td></tr>
-<tr data-provider="groq"><td>Groq</td><td>Yes (free)</td><td class=num>12</td><td>~1,000 req/day (per model)</td></tr>
+<tr data-provider="groq"><td>Groq</td><td>Yes (free)</td><td class=num>10</td><td>~1,000 req/day (per model)</td></tr>
 <tr data-provider="cerebras"><td>Cerebras</td><td>Yes (free)</td><td class=num>3</td><td>~14,400 req/day (large cap)</td></tr>
-<tr data-provider="gemini"><td>Google Gemini</td><td>Yes (free)</td><td class=num>3</td><td>~1,500 req/day</td></tr>
-<tr data-provider="openrouter"><td>OpenRouter</td><td>Yes (free)</td><td class=num>20</td><td>~1,000 req/day on :free models</td></tr>
+<tr data-provider="gemini"><td>Google Gemini</td><td>Yes (free)</td><td class=num>1</td><td>Current free-tier limits vary by project/model</td></tr>
+<tr data-provider="openrouter"><td>OpenRouter</td><td>Yes (free)</td><td class=num>12</td><td>~1,000 req/day on :free models</td></tr>
 <tr data-provider="github"><td>GitHub Models</td><td>Yes (any PAT)</td><td class=num>22</td><td>~150 req/day</td></tr>
-<tr data-provider="nvidia"><td>NVIDIA NIM</td><td>Yes (free)</td><td class=num>39</td><td>Free credits / rate-limited</td></tr>
+<tr data-provider="nvidia"><td>NVIDIA NIM</td><td>Yes (free)</td><td class=num>29</td><td>Free credits / rate-limited</td></tr>
 <tr data-provider="cloudflare"><td>Cloudflare Workers AI</td><td>Yes (free)</td><td class=num>24</td><td>Daily Neuron allowance</td></tr>
 <tr data-provider="mistral"><td>Mistral</td><td>Yes (free)</td><td class=num>43</td><td>Free experimentation tier</td></tr>
 <tr data-provider="cohere"><td>Cohere</td><td>Yes (free)</td><td class=num>21</td><td>Trial keys, rate-limited</td></tr>
@@ -55,11 +55,11 @@ OpenAI-compatible endpoint with failover, so you get their combined free capacit
 <tr data-provider="zhipu"><td>Z.ai / Zhipu GLM</td><td>Yes (free)</td><td class=num>2</td><td>~1,000 req/day</td></tr>
 <tr data-provider="ollama"><td>Ollama Cloud</td><td>Yes (free)</td><td class=num>8</td><td>Qualitative free limits</td></tr>
 <tr data-provider="longcat"><td>LongCat (Meituan)</td><td>Yes (free)</td><td class=num>0</td><td>Preview route retired; no active route</td></tr>
-<tr data-provider="huggingface"><td>Hugging Face (router)</td><td>Yes (free)</td><td class=num>22</td><td>Monthly included Inference credits</td></tr>
+<tr data-provider="huggingface"><td>Hugging Face (router)</td><td>Yes (free)</td><td class=num>21</td><td>Monthly included Inference credits</td></tr>
 <tr data-provider="aion"><td>Aion Labs</td><td>Yes (free)</td><td class=num>5</td><td>20K tokens/day; no card</td></tr>
 <tr data-provider="modelscope"><td>ModelScope API Inference</td><td>Yes (free)</td><td class=num>7</td><td>2,000 calls/day total; dynamic per-model caps</td></tr>
 <tr data-provider="morph"><td>Morph</td><td>Yes (free)</td><td class=num>3</td><td>200 requests/month</td></tr>
-<tr data-provider="vercel"><td>Vercel AI Gateway</td><td>Yes (free)</td><td class=num>5</td><td>$5 recurring monthly Hobby credit</td></tr>
+<tr data-provider="vercel"><td>Vercel AI Gateway</td><td>Yes + opt-in</td><td class=num>5</td><td>$5 recurring monthly Hobby credit; budgeted-key opt-in required</td></tr>
 <tr data-provider="siliconflow"><td>SiliconFlow</td><td>Yes (free)</td><td class=num>1</td><td>Fixed free-model limits; identity verification required</td></tr>
 </table>
 <p class="tag">* Enabled chat, embedding, and transcription routes in freellmpool's catalog; varies as tiers change.

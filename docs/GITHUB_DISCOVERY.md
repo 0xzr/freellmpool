@@ -5,7 +5,7 @@ promotion actions.
 
 ## Metadata audit
 
-Repository metadata verified on 2026-06-17 with:
+Repository metadata reverified on 2026-07-29 with:
 
 ```bash
 gh repo view 0xzr/freellmpool --json description,repositoryTopics,openGraphImageUrl,stargazerCount,url
@@ -13,7 +13,7 @@ gh repo view 0xzr/freellmpool --json description,repositoryTopics,openGraphImage
 
 Current About description (115 chars):
 
-> Free LLM API pool: 24 LLM providers cataloged, 247 routes, 405 cataloged chat models, keyless start when available.
+> Free LLM API pool: 24 LLM providers cataloged, 222 routes, 407 cataloged chat models, keyless start when available.
 
 Current 20-topic set:
 
@@ -31,7 +31,7 @@ The topic and description refreshes have been applied. Description command used:
 
 ```bash
 gh repo edit 0xzr/freellmpool \
-  --description "Free LLM API pool: 24 LLM providers cataloged, 247 routes, 405 cataloged chat models, keyless start when available."
+  --description "Free LLM API pool: 24 LLM providers cataloged, 222 routes, 407 cataloged chat models, keyless start when available."
 ```
 
 ## Social preview

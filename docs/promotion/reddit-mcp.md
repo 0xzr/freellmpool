@@ -72,8 +72,8 @@ Use cases that have worked well:
   model;
 - route quick "what changed here?" questions away from the main agent.
 
-The current packaged catalog has 24 cataloged providers, 247 enabled chat
-routes, and 405 cataloged chat models. It can start with default
+The current packaged catalog has 24 cataloged providers, 222 enabled chat
+routes, and 407 cataloged chat models. It can start with default
 keyless/key-optional routes when they are available, and provider keys can be
 added for more capacity.
 

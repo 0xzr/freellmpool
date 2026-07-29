@@ -107,12 +107,18 @@ That's enough to start. Run `freellmpool ask "hello"`.
 
 ### Vercel AI Gateway — *$5 recurring monthly Hobby credit*
 1. <https://vercel.com/ai-gateway> → create or select a free Hobby team.
-2. Create an AI Gateway API key.
+2. Create an AI Gateway API key with a monthly spend quota no larger than the
+   included $5 credit.
 3. `export AI_GATEWAY_API_KEY=...`
+4. After verifying that the team has never purchased credits and automatic
+   top-up is disabled, explicitly opt in with
+   `export FREELLMPOOL_ENABLE_VERCEL=1`.
 
    The Hobby team receives $5 of gateway credit each month. Do not purchase
    credits or enable automatic top-ups if you want to remain on the free tier;
-   purchasing credits upgrades the team to a paid tier.
+   purchasing credits upgrades the team to a paid tier. freellmpool deliberately
+   requires both the key and the opt-in flag so merely adding a Vercel credential
+   cannot enroll a paid account in automatic routing.
 
 ### SiliconFlow — *free models, identity verification required*
 1. <https://cloud.siliconflow.cn/account/ak> → sign in and create an API key.
