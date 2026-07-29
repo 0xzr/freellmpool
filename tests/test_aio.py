@@ -134,6 +134,29 @@ def test_async_context_manager_closes(providers, env, quota):
     assert reply.text == "ok"
 
 
+def test_async_client_disables_redirects(providers, env, quota, monkeypatch):
+    import httpx
+
+    seen = {}
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+        async def aclose(self):
+            return None
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    pool = AsyncPool(Pool(providers, quota=quota, env=env))
+
+    async def run():
+        await pool._client_obj()
+        await pool.aclose()
+
+    asyncio.run(run())
+    assert seen["follow_redirects"] is False
+
+
 def test_async_no_providers_raises(quota):
     from freellmpool.errors import NoProvidersConfigured
 

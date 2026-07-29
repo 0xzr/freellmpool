@@ -32,6 +32,7 @@ Implemented on the standard library only — no MCP SDK required.
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import threading
 import time
@@ -67,6 +68,7 @@ from .tokenmax import HARD_CAP, RAINBOW_BANNER, fan_out, select_targets
 
 _DEFAULT_PROTOCOL = "2025-06-18"
 _MAX_PANEL = MAX_PANEL_COUNT
+_log = logging.getLogger(__name__)
 
 # Returned in the `initialize` handshake (MCP's standard `instructions` field) so the
 # calling agent learns HOW to invoke these tools — chiefly: call them directly instead
@@ -910,8 +912,9 @@ def handle_message(
             notify = _make_notify(params, send_notification)
             return _result(mid, _call_tool(pool, params, notify=notify))
         return _error(mid, -32601, f"method not found: {method}")
-    except Exception as exc:  # noqa: BLE001 — never crash the loop
-        return _error(mid, -32603, f"{type(exc).__name__}: {exc}")
+    except Exception:  # noqa: BLE001 — never crash the loop
+        _log.exception("unexpected MCP request failure")
+        return _error(mid, -32603, "internal error")
 
 
 def serve_stdio(pool: Pool, version: str = "0.0.0") -> None:

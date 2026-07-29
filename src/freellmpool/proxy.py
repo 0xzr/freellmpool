@@ -30,11 +30,14 @@ from __future__ import annotations
 import collections
 import hmac
 import json
+import logging
 import os
 import re
 import threading
+import time
 from collections.abc import Sequence
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
@@ -63,6 +66,15 @@ _AGENT_UPSTREAM_TIMEOUT = 540.0  # leave one minute for proxy/client handoff
 # response_format values we forward. srt/vtt aren't accepted by Groq/Mistral's transcription
 # endpoints (they'd fail upstream and surface as a confusing 502), so reject them up front.
 _TRANSCRIPTION_FORMATS = ("json", "text", "verbose_json")
+_log = logging.getLogger(__name__)
+
+
+def _max_tokens_value(req: dict[str, Any], default: int) -> Any:
+    """Return the first supported OpenAI-compatible output-token budget."""
+    for field in ("max_tokens", "max_completion_tokens", "max_output_tokens"):
+        if field in req and req[field] is not None:
+            return req[field]
+    return default
 
 
 def _model_ids(pool: Pool, ready_model_ids: frozenset[str] | None = None) -> list[str]:
@@ -270,6 +282,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
 
     class Handler(BaseHTTPRequestHandler):
         server_version = f"freellmpool/{__version__}"
+        _response_started = False
         # Socket read timeout: a slow/stalled client can't pin a worker thread + fd
         # indefinitely. setup() applies this to the connection via settimeout().
         timeout = 75
@@ -277,6 +290,13 @@ def make_handler(pool: Pool, api_key: str | None = None):
         # quiet by default; the server prints its own concise log line
         def log_message(self, format, *args):  # noqa: A002
             return
+
+        def end_headers(self) -> None:
+            # Committing starts when the header buffer is flushed. A socket write
+            # may transmit a prefix and then raise, so mark this before delegating:
+            # the outer handler must never append a second HTTP response afterward.
+            self._response_started = True
+            super().end_headers()
 
         def _send(self, status: int, payload: dict, headers: dict | None = None) -> None:
             data = json.dumps(payload).encode("utf-8")
@@ -322,16 +342,26 @@ def make_handler(pool: Pool, api_key: str | None = None):
             )
 
         def do_GET(self) -> None:  # noqa: N802
+            self._response_started = False
             try:
                 self._do_get()
             except Exception as exc:  # never let a request kill the thread
-                self._error(500, f"internal error: {type(exc).__name__}", "internal_error")
+                _log.exception("unexpected GET handler failure")
+                if self._response_started:
+                    self.close_connection = True
+                else:
+                    self._error(500, f"internal error: {type(exc).__name__}", "internal_error")
 
         def do_POST(self) -> None:  # noqa: N802
+            self._response_started = False
             try:
                 self._do_post()
             except Exception as exc:  # never let a request kill the thread
-                self._error(500, f"internal error: {type(exc).__name__}", "internal_error")
+                _log.exception("unexpected POST handler failure")
+                if self._response_started:
+                    self.close_connection = True
+                else:
+                    self._error(500, f"internal error: {type(exc).__name__}", "internal_error")
 
         def _do_get(self) -> None:
             path = urlsplit(self.path).path.rstrip("/") or "/"
@@ -511,7 +541,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 pool,
                 prompt.strip(),
                 n=req.get("n", req.get("models", 3)),
-                max_tokens=req.get("max_tokens", 512),
+                max_tokens=_max_tokens_value(req, 512),
                 timeout=90.0,
                 routing=str(req.get("routing") or "quality"),
                 synthesize=bool(req.get("synthesize")),
@@ -537,7 +567,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 msgs.append({"role": "system", "content": system})
             msgs.append({"role": "user", "content": prompt})
             try:
-                max_tokens = max(1, min(8192, int(req.get("max_tokens", 350))))
+                max_tokens = max(1, min(8192, int(_max_tokens_value(req, 350))))
             except (TypeError, ValueError):
                 max_tokens = 350
 
@@ -776,12 +806,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
             requested = resolve_alias(requested, pool.env)  # gpt-4o-mini → free target
             provider_filter, model_filter = _parse_model(requested, {p.id for p in pool.providers})
             try:
-                max_tokens = int(req.get("max_tokens") or req.get("max_output_tokens") or 1024)
+                max_tokens = int(_max_tokens_value(req, 1024))
                 temp_raw = req.get("temperature")
                 temperature = 0.0 if temp_raw is None else float(temp_raw)
             except (TypeError, ValueError):
                 self._error(
-                    400, "'max_tokens'/'temperature' must be numbers", "invalid_request_error"
+                    400,
+                    "'max_tokens'/'max_completion_tokens'/'max_output_tokens'/"
+                    "'temperature' must be numbers",
+                    "invalid_request_error",
                 )
                 return None
             upstream_timeout = (
@@ -862,12 +895,15 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 resolve_alias(requested, pool.env), {p.id for p in pool.providers}
             )
             try:
-                max_tokens = int(req.get("max_tokens") or 1024)
+                max_tokens = int(_max_tokens_value(req, 1024))
                 temp_raw = req.get("temperature")
                 temperature = 0.0 if temp_raw is None else float(temp_raw)
             except (TypeError, ValueError):
                 self._error(
-                    400, "'max_tokens'/'temperature' must be numbers", "invalid_request_error"
+                    400,
+                    "'max_tokens'/'max_completion_tokens'/'max_output_tokens'/"
+                    "'temperature' must be numbers",
+                    "invalid_request_error",
                 )
                 return
             upstream_timeout = (
@@ -923,18 +959,26 @@ def make_handler(pool: Pool, api_key: str | None = None):
 
             provider_id = meta["provider"] if isinstance(meta, dict) else "auto"
             model_name = meta["model"] if isinstance(meta, dict) else "auto"
+            attempts = meta.get("attempts", 1) if isinstance(meta, dict) else 1
             cid = f"chatcmpl-freellmpool-{provider_id}"
             model_id = f"{provider_id}/{model_name}"
+            created = int(time.time())
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "close")
             self.end_headers()
             try:
-                self.wfile.write(_chunk_block(cid, model_id, role="assistant").encode())
+                self.wfile.write(
+                    _chunk_block(cid, model_id, role="assistant", created=created).encode()
+                )
                 for delta in gen:
-                    self.wfile.write(_chunk_block(cid, model_id, content=delta).encode())
-                self.wfile.write(_chunk_block(cid, model_id, finish="stop").encode())
+                    self.wfile.write(
+                        _chunk_block(cid, model_id, content=delta, created=created).encode()
+                    )
+                self.wfile.write(
+                    _chunk_block(cid, model_id, finish="stop", created=created).encode()
+                )
                 self.wfile.write(b"data: [DONE]\n\n")
                 self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError):  # pragma: no cover
@@ -966,7 +1010,9 @@ def make_handler(pool: Pool, api_key: str | None = None):
             finally:
                 gen.close()  # release the upstream stream even on early disconnect
             # Record recent served (stream)
-            record_recent({"provider": provider_id, "model": model_name, "attempts": 1})
+            record_recent(
+                {"provider": provider_id, "model": model_name, "attempts": int(attempts)}
+            )
 
         def _handle_responses(self, req: dict) -> None:
             """Minimal OpenAI Responses API (/v1/responses) shim for Codex CLI
@@ -1017,7 +1063,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
     return Handler
 
 
-def _parse_model(requested: str, provider_ids: set[str]):
+def _parse_model(requested: object, provider_ids: set[str]):
     """Map an OpenAI 'model' field to (provider_filter, model_filter).
 
     "auto"                  -> (None, None)        any provider/model
@@ -1027,7 +1073,7 @@ def _parse_model(requested: str, provider_ids: set[str]):
                                it's a catalog model name that happens to contain '/')
     "llama-3.3-70b"         -> (None, "llama-3.3-70b")  model on any provider
     """
-    if not requested or requested == "auto":
+    if not isinstance(requested, str) or not requested or requested == "auto":
         return None, None
     if "/" in requested:
         provider, _, model = requested.partition("/")
@@ -1308,7 +1354,15 @@ if(data.synthesis&&data.synthesis.text){out.appendChild(card('synthesis',data.sy
 </script></body></html>"""
 
 
-def _chunk_block(cid: str, model_id: str, *, role=None, content=None, finish=None) -> str:
+def _chunk_block(
+    cid: str,
+    model_id: str,
+    *,
+    role=None,
+    content=None,
+    finish=None,
+    created: int | None = None,
+) -> str:
     delta: dict = {}
     if role is not None:
         delta["role"] = role
@@ -1317,6 +1371,7 @@ def _chunk_block(cid: str, model_id: str, *, role=None, content=None, finish=Non
     chunk = {
         "id": cid,
         "object": "chat.completion.chunk",
+        "created": int(time.time()) if created is None else created,
         "model": model_id,
         "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
     }
@@ -1331,7 +1386,12 @@ def _sse_chunks(reply):
     """
     cid = f"chatcmpl-freellmpool-{reply.provider_id}"
     model = f"{reply.provider_id}/{reply.model}"
-    base = {"id": cid, "object": "chat.completion.chunk", "model": model}
+    base = {
+        "id": cid,
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+    }
     tool_calls = reply.message.get("tool_calls") if reply.message else None
 
     def block(chunk):
