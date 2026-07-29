@@ -161,20 +161,31 @@ def readiness_snapshot(
     env: Mapping[str, str],
     quota: Mapping[str, int],
     cooldowns: Mapping[str, float],
+    route_cooldowns: Mapping[str, float] | None = None,
 ) -> ReadinessSnapshot:
     """Build a deterministic snapshot without calling an upstream provider."""
     env_copy = dict(env)
+    route_cooldowns = route_cooldowns or {}
     rows: list[ProviderReadiness] = []
     for provider in providers:
         configured = provider.is_configured(env_copy)
         enabled = [model for model in provider.models if model.enabled]
-        cooldown = max(0.0, float(cooldowns.get(provider.id, 0.0)))
+        provider_cooldown = max(0.0, float(cooldowns.get(provider.id, 0.0)))
+        model_cooldowns = {
+            model.name: max(
+                provider_cooldown,
+                0.0,
+                float(route_cooldowns.get(f"{provider.id}/{model.name}", 0.0)),
+            )
+            for model in enabled
+        }
+        cooldown = max((provider_cooldown, *model_cooldowns.values()))
         models = tuple(
             _model_readiness(
                 provider.id,
                 model,
                 configured=configured,
-                cooled=cooldown > 0,
+                cooled=model_cooldowns[model.name] > 0,
                 used=int(quota.get(f"{provider.id}::{model.name}", 0)),
             )
             for model in enabled
@@ -184,12 +195,12 @@ def readiness_snapshot(
             status: ReadinessStatus = "unconfigured"
         elif not enabled:
             status = "no_enabled_models"
-        elif cooldown > 0:
-            status = "cooldown"
-        elif all(model.status == "quota_exhausted" for model in models):
-            status = "quota_exhausted"
-        else:
+        elif any(model.ready for model in models):
             status = "ready"
+        elif any(model.status == "cooldown" for model in models):
+            status = "cooldown"
+        else:
+            status = "quota_exhausted"
         ready_models = sum(model.ready for model in models)
         rows.append(
             ProviderReadiness(

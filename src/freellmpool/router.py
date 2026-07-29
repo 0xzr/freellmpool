@@ -46,6 +46,13 @@ from .metrics import Metrics, score_stat
 from .models import EmbedReply, Provider, Reply, TranscribeReply
 from .observe import EventHook, emit
 from .quota import QuotaStore
+from .route_health import (
+    FailureUpdate,
+    HealthLease,
+    RouteHealthStore,
+    default_route_health_path,
+    score_record,
+)
 from .routing_modes import normalize_routing_mode
 from .stats import StatsStore
 
@@ -106,6 +113,29 @@ def _is_account_quota_exhaustion(exc: ProviderHTTPError) -> bool:
     )
 
 
+def _health_failure_class(exc: Exception) -> str:
+    """Reduce failures to a privacy-safe class suitable for persistent state."""
+    if isinstance(exc, ProviderHTTPError):
+        if _is_account_quota_exhaustion(exc):
+            return "provider_quota"
+        if exc.status == 429:
+            return "rate_limit"
+        if exc.status == 408:
+            return "timeout"
+        if exc.status >= 500:
+            return "availability"
+        if exc.status in (401, 403):
+            return "auth"
+        if exc.status in (404, 410):
+            return "retirement"
+        if exc.status == 402:
+            return "capability"
+        return "client"
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    return "transport"
+
+
 @dataclass(frozen=True)
 class Target:
     """A concrete (provider, model) pair the router can call."""
@@ -150,6 +180,7 @@ class Pool:
         routing: str = "fair",
         on_event: EventHook | None = None,
         stats_store: StatsStore | None = None,
+        route_health: RouteHealthStore | None = None,
     ):
         self.providers = providers
         targets: list[Target] = []
@@ -185,6 +216,7 @@ class Pool:
         self.cooldown_seconds = cooldown_seconds
         self._clock = clock or time.monotonic
         self.metrics = metrics or Metrics()
+        self.route_health = route_health
         # "fair"   — least-used provider first, then least-used model in provider.
         # "fast"   — lowest measured provider latency / failure penalty first.
         # "quality"— match prompt difficulty to model capability (benchmark-scored),
@@ -231,7 +263,7 @@ class Pool:
         """Provider -> seconds remaining for transient or account-quota backoff."""
         with self._cooldown_lock:
             provider_ids = self._cooldown_until.keys() | self._account_backoff_until.keys()
-            return {
+            result = {
                 provider_id: max(
                     0.0,
                     self._cooldown_until.get(provider_id, 0.0) - now,
@@ -239,6 +271,10 @@ class Pool:
                 )
                 for provider_id in provider_ids
             }
+        if self.route_health is not None:
+            for provider_id, remaining in self.route_health.provider_cooldowns().items():
+                result[provider_id] = max(result.get(provider_id, 0.0), remaining)
+        return result
 
     def lifetime_stats(self) -> dict:
         """Persistent lifetime totals (+ first_seen), or the in-memory session
@@ -246,6 +282,85 @@ class Pool:
         if self._stats_store is not None:
             return self._stats_store.snapshot()
         return {**self.stats_snapshot(), "first_seen": None}
+
+    def route_health_snapshot(self):
+        """Persistent health rows for status surfaces, or an empty mapping."""
+        return self.route_health.snapshot() if self.route_health is not None else {}
+
+    def route_cooldown_snapshot(self) -> dict[str, float]:
+        """Persistent per-model circuit reset times for readiness surfaces."""
+        return self.route_health.route_cooldowns() if self.route_health is not None else {}
+
+    def _acquire_route(self, target: Target) -> HealthLease | None:
+        if self.route_health is None:
+            return HealthLease(started_at=time.time(), generations={})
+        return self.route_health.acquire_many(
+            (f"{target.provider.id}/*", target.name)
+        )
+
+    def _record_route_success(
+        self,
+        target: Target,
+        latency_ms: float,
+        lease: HealthLease,
+    ) -> None:
+        if self.route_health is None:
+            return
+        self.route_health.record_success_many(
+            (target.name, f"{target.provider.id}/*"),
+            latency_ms,
+            lease=lease,
+        )
+
+    def _record_route_failure(
+        self,
+        target: Target,
+        exc: Exception,
+        lease: HealthLease,
+    ) -> None:
+        if self.route_health is None:
+            return
+        failure_class = _health_failure_class(exc)
+        counts = _is_health_failure(exc)
+        retry_after = exc.retry_after if isinstance(exc, ProviderHTTPError) else None
+        updates = [
+            FailureUpdate(
+                key=target.name,
+                failure_class=failure_class,
+                retry_after=retry_after,
+                counts_for_health=counts,
+                open_immediately=(
+                    isinstance(exc, ProviderHTTPError) and exc.status == 429
+                ),
+            )
+        ]
+        if failure_class in {"rate_limit", "provider_quota", "auth"}:
+            provider_retry = retry_after
+            if failure_class == "provider_quota":
+                provider_retry = max(
+                    retry_after or 0.0,
+                    _ACCOUNT_BACKOFF_SECONDS,
+                    self.cooldown_seconds,
+                )
+            updates.append(
+                FailureUpdate(
+                    key=f"{target.provider.id}/*",
+                    failure_class=failure_class,
+                    retry_after=provider_retry,
+                    counts_for_health=failure_class != "auth",
+                    open_immediately=(
+                        failure_class in {"rate_limit", "provider_quota"}
+                    ),
+                )
+            )
+        self.route_health.record_failures(
+            updates,
+            lease=lease,
+        )
+
+    def _record_route_empty(self, target: Target, lease: HealthLease) -> None:
+        if self.route_health is not None:
+            self.route_health.record_failure(target.name, "empty", lease=lease)
 
     def rank_targets(
         self,
@@ -364,6 +479,10 @@ class Pool:
             routing=routing,
             on_event=on_event,
             stats_store=StatsStore(),
+            route_health=RouteHealthStore(
+                path=default_route_health_path(env),
+                base_cooldown=cooldown,
+            ),
         )
 
     def embed(
@@ -392,6 +511,12 @@ class Pool:
                     continue
                 if model is not None and m.name != model:
                     continue
+                target = Target(emb, m.name, m.rpd, m.context)
+                lease = self._acquire_route(target)
+                if lease is None:
+                    attempts.append((target.name, "skipped (persistent circuit open)"))
+                    continue
+                started = self._clock()
                 try:
                     reply = _client.embed(
                         emb,
@@ -403,7 +528,8 @@ class Pool:
                         post=self._post,
                     )
                 except Exception as exc:  # noqa: BLE001 — try the next embedder
-                    attempts.append((f"{emb.id}/{m.name}", f"{type(exc).__name__}: {exc}"))
+                    attempts.append((target.name, f"{type(exc).__name__}: {exc}"))
+                    self._record_route_failure(target, exc, lease)
                     if (
                         isinstance(exc, ProviderHTTPError)
                         and not exc.retryable
@@ -414,6 +540,11 @@ class Pool:
                     continue
                 # Account for embeddings like chat: per-day quota + lifetime stats, so
                 # a heavy embedding workload doesn't bypass RPD pacing / usage totals.
+                self._record_route_success(
+                    target,
+                    max(0.0, (self._clock() - started) * 1000.0),
+                    lease,
+                )
                 self.quota.record(emb.id, m.name)
                 self._bump_stats(requests=1, prompt_tokens=reply.prompt_tokens or 0)
                 return reply
@@ -454,6 +585,12 @@ class Pool:
                     continue
                 if model is not None and m.name != model:
                     continue
+                target = Target(tr, m.name, m.rpd, m.context)
+                lease = self._acquire_route(target)
+                if lease is None:
+                    attempts.append((target.name, "skipped (persistent circuit open)"))
+                    continue
+                started = self._clock()
                 try:
                     reply = _client.transcribe(
                         tr,
@@ -468,7 +605,8 @@ class Pool:
                         post=self._transcribe_post,
                     )
                 except Exception as exc:  # noqa: BLE001 — try the next transcriber
-                    attempts.append((f"{tr.id}/{m.name}", f"{type(exc).__name__}: {exc}"))
+                    attempts.append((target.name, f"{type(exc).__name__}: {exc}"))
+                    self._record_route_failure(target, exc, lease)
                     if (
                         isinstance(exc, ProviderHTTPError)
                         and not exc.retryable
@@ -477,6 +615,11 @@ class Pool:
                     ):
                         client_error = exc
                     continue
+                self._record_route_success(
+                    target,
+                    max(0.0, (self._clock() - started) * 1000.0),
+                    lease,
+                )
                 self.quota.record(tr.id, m.name)
                 self._bump_stats(requests=1, prompt_tokens=reply.prompt_tokens or 0)
                 return reply
@@ -539,6 +682,7 @@ class Pool:
         snap = self.quota.snapshot()
         metrics = self.metrics
         msnap = metrics.snapshot()
+        hsnap = self.route_health_snapshot()
         mode = normalize_routing_mode(routing, self.routing)
 
         def used_of(t: Target) -> int:
@@ -550,11 +694,26 @@ class Pool:
         def stat_of(t: Target):
             return msnap.get(t.name)
 
+        def health_of(t: Target):
+            return hsnap.get(t.name)
+
         def failing_of(t: Target) -> bool:
+            health = health_of(t)
+            if health is not None and (
+                health.state != "closed"
+                or (
+                    self.route_health is not None
+                    and health.consecutive_failures >= self.route_health.failure_threshold
+                )
+            ):
+                return True
             st = stat_of(t)
             return bool(st and st.failing)
 
         def score_of(t: Target) -> float:
+            health = health_of(t)
+            if health is not None:
+                return score_record(health)
             return score_stat(stat_of(t))
 
         if mode == "agent":
@@ -597,9 +756,13 @@ class Pool:
                 # *already clear* the bar — so quality stops parking on a giant that
                 # takes tens of seconds when a comparably-capable model answers in ~1s.
                 st = stat_of(t)
-                if st is None or st.ewma_ms is None:
+                latency = st.ewma_ms if st is not None else None
+                if latency is None:
+                    health = health_of(t)
+                    latency = health.ewma_ms if health is not None else None
+                if latency is None:
                     return _QUALITY_UNKNOWN_LAT
-                return min(st.ewma_ms / 1000.0, _QUALITY_SLOW_S) / _QUALITY_SLOW_S
+                return min(latency / 1000.0, _QUALITY_SLOW_S) / _QUALITY_SLOW_S
 
             def quality_key(t: Target) -> tuple[int, int, float, int]:
                 # over-budget, then known-failing sink to the back (still reachable);
@@ -838,6 +1001,12 @@ class Pool:
             if remaining <= 0:
                 attempts.append((target.name, "skipped (overall request timeout exhausted)"))
                 break
+            lease = self._acquire_route(target)
+            if lease is None:
+                non_ctx_failure = True
+                attempts.append((target.name, "skipped (persistent circuit open)"))
+                emit(self._on_event, "circuit_skip", target=target.name)
+                continue
             emit(self._on_event, "attempt", target=target.name, n=len(attempts) + 1)
             try:
                 reply = _client.call(
@@ -856,6 +1025,7 @@ class Pool:
             except ProviderHTTPError as exc:
                 is_ctx, limit = context_limit_from_error(exc.status, str(exc))
                 if is_ctx:
+                    self._record_route_failure(target, exc, lease)
                     ctx_overflow = True
                     if limit is not None:
                         self._learn_context_limit(target.name, limit)
@@ -883,12 +1053,14 @@ class Pool:
                     client_error = exc
                 if _is_health_failure(exc):
                     self.metrics.record_failure(target.name, str(exc))
+                self._record_route_failure(target, exc, lease)
                 emit(self._on_event, "error", target=target.name, reason=str(exc))
                 attempts.append((target.name, str(exc)))
                 continue
             except Exception as exc:  # network error, etc. — try the next one
                 non_ctx_failure = True
                 self.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
+                self._record_route_failure(target, exc, lease)
                 emit(self._on_event, "error", target=target.name, reason=f"{type(exc).__name__}")
                 attempts.append((target.name, f"{type(exc).__name__}: {exc}"))
                 continue
@@ -897,12 +1069,14 @@ class Pool:
             if not reply.text and not has_tool_calls:
                 non_ctx_failure = True
                 self.metrics.record_failure(target.name, "empty completion")
+                self._record_route_empty(target, lease)
                 emit(self._on_event, "error", target=target.name, reason="empty completion")
                 attempts.append((target.name, "empty completion"))
                 continue
 
             latency_ms = max(0.0, (self._clock() - started) * 1000.0)
             self.metrics.record_success(target.name, latency_ms)
+            self._record_route_success(target, latency_ms, lease)
             emit(
                 self._on_event,
                 "success",
@@ -1013,6 +1187,12 @@ class Pool:
             if remaining <= 0:
                 attempts.append((target.name, "skipped (overall request timeout exhausted)"))
                 break
+            lease = self._acquire_route(target)
+            if lease is None:
+                non_ctx_failure = True
+                attempts.append((target.name, "skipped (persistent circuit open)"))
+                emit(self._on_event, "circuit_skip", target=target.name, stream=True)
+                continue
             emit(self._on_event, "attempt", target=target.name, stream=True)
             gen = _client.stream_call(
                 target.provider,
@@ -1030,12 +1210,14 @@ class Pool:
             except StopIteration:
                 non_ctx_failure = True
                 self.metrics.record_failure(target.name, "empty stream")
+                self._record_route_empty(target, lease)
                 emit(self._on_event, "error", target=target.name, reason="empty stream")
                 attempts.append((target.name, "empty stream"))
                 continue
             except ProviderHTTPError as exc:
                 is_ctx, limit = context_limit_from_error(exc.status, str(exc))
                 if is_ctx:
+                    self._record_route_failure(target, exc, lease)
                     ctx_overflow = True
                     if limit is not None:
                         self._learn_context_limit(target.name, limit)
@@ -1059,12 +1241,14 @@ class Pool:
                     client_error = exc
                 if _is_health_failure(exc):
                     self.metrics.record_failure(target.name, str(exc))
+                self._record_route_failure(target, exc, lease)
                 emit(self._on_event, "error", target=target.name, reason=str(exc))
                 attempts.append((target.name, str(exc)))
                 continue
             except Exception as exc:  # noqa: BLE001
                 non_ctx_failure = True
                 self.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
+                self._record_route_failure(target, exc, lease)
                 emit(self._on_event, "error", target=target.name, reason=f"{type(exc).__name__}")
                 attempts.append((target.name, f"{type(exc).__name__}: {exc}"))
                 continue
@@ -1099,7 +1283,22 @@ class Pool:
                     if isinstance(chunk, str):
                         streamed.append(chunk)
                     yield chunk
+            except Exception as exc:
+                self.metrics.record_failure(
+                    target.name,
+                    f"{type(exc).__name__}: {exc}",
+                )
+                self._record_route_failure(target, exc, lease)
+                emit(
+                    self._on_event,
+                    "error",
+                    target=target.name,
+                    reason=f"mid-stream {type(exc).__name__}",
+                )
+                raise
+            else:
                 drained = True
+                self._record_route_success(target, latency_ms, lease)
             finally:
                 # The manual loop (vs `yield from`) doesn't auto-delegate close(), so on an
                 # early consumer disconnect we must close the upstream stream ourselves to

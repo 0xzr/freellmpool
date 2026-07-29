@@ -132,6 +132,7 @@ def _readiness_snapshot(pool: Pool) -> ReadinessSnapshot:
         env=pool.env,
         quota=pool.quota.snapshot(),
         cooldowns=pool.cooldown_snapshot(now),
+        route_cooldowns=pool.route_cooldown_snapshot(),
     )
 
 
@@ -173,11 +174,52 @@ def _status_payload(pool: Pool, recent: Sequence[dict], tokenmax: dict | None = 
     now = pool._clock()
     quota_snap = pool.quota.snapshot()
     metrics_snap = pool.metrics.snapshot()
+    health_snap = pool.route_health_snapshot()
+    health_store = pool.route_health
     cooldown_snap = pool.cooldown_snapshot(now)  # locked read; no torn cooldown state
+
+    def modality_routes(providers) -> list[dict]:
+        rows = []
+        for provider in providers:
+            for model in provider.models:
+                if not model.enabled:
+                    continue
+                persistent = health_snap.get(f"{provider.id}/{model.name}")
+                rows.append(
+                    {
+                        "provider": provider.id,
+                        "name": model.name,
+                        "circuit_state": persistent.state if persistent else "closed",
+                        "consecutive_failures": (
+                            persistent.consecutive_failures if persistent else 0
+                        ),
+                        "failure_class": (
+                            persistent.failure_class if persistent else None
+                        ),
+                        "ewma_ms": persistent.ewma_ms if persistent else None,
+                        "success_rate": (
+                            persistent.success_rate
+                            if persistent and persistent.total
+                            else None
+                        ),
+                        "sample_age_s": (
+                            health_store.sample_age(persistent)
+                            if health_store is not None
+                            else None
+                        ),
+                        "reset_remaining_s": (
+                            health_store.reset_remaining(persistent)
+                            if health_store is not None
+                            else 0.0
+                        ),
+                    }
+                )
+        return rows
 
     providers_list = []
     for p in pool.providers:
         cooldown_remaining = cooldown_snap.get(p.id, 0.0)
+        provider_health = health_snap.get(f"{p.id}/*")
 
         models_list = []
         for m in p.models:
@@ -187,15 +229,39 @@ def _status_payload(pool: Pool, recent: Sequence[dict], tokenmax: dict | None = 
             used = quota_snap.get(key, 0)
             remaining = (m.rpd - used) if m.rpd > 0 else None
             stat = metrics_snap.get(f"{p.id}/{m.name}")
+            persistent = health_snap.get(f"{p.id}/{m.name}")
             models_list.append(
                 {
                     "name": m.name,
                     "rpd": m.rpd,
                     "used_today": used,
                     "remaining": remaining,
-                    "ewma_ms": stat.ewma_ms if stat else None,
-                    "success_rate": stat.success_rate if stat else None,
+                    "ewma_ms": (
+                        persistent.ewma_ms
+                        if persistent and persistent.ewma_ms is not None
+                        else stat.ewma_ms if stat else None
+                    ),
+                    "success_rate": (
+                        persistent.success_rate
+                        if persistent and persistent.total
+                        else stat.success_rate if stat else None
+                    ),
                     "last_error": stat.last_error if stat else None,
+                    "circuit_state": persistent.state if persistent else "closed",
+                    "consecutive_failures": (
+                        persistent.consecutive_failures if persistent else 0
+                    ),
+                    "failure_class": persistent.failure_class if persistent else None,
+                    "sample_age_s": (
+                        health_store.sample_age(persistent)
+                        if health_store is not None
+                        else None
+                    ),
+                    "reset_remaining_s": (
+                        health_store.reset_remaining(persistent)
+                        if health_store is not None
+                        else 0.0
+                    ),
                 }
             )
 
@@ -204,6 +270,17 @@ def _status_payload(pool: Pool, recent: Sequence[dict], tokenmax: dict | None = 
                 "id": p.id,
                 "configured": p.is_configured(pool.env),
                 "cooldown_remaining_s": cooldown_remaining,
+                "circuit_state": (
+                    provider_health.state if provider_health else "closed"
+                ),
+                "failure_class": (
+                    provider_health.failure_class if provider_health else None
+                ),
+                "sample_age_s": (
+                    health_store.sample_age(provider_health)
+                    if health_store is not None
+                    else None
+                ),
                 "models": models_list,
             }
         )
@@ -231,6 +308,10 @@ def _status_payload(pool: Pool, recent: Sequence[dict], tokenmax: dict | None = 
             "first_seen": life.get("first_seen"),
         },
         "providers": providers_list,
+        "routes": {
+            "embeddings": modality_routes(pool.embedders),
+            "transcriptions": modality_routes(pool.transcribers),
+        },
         "recent": list(recent),
         "tokenmax": tokenmax or {"active": False},
     }

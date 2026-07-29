@@ -68,7 +68,15 @@ class ProviderHTTPError(FreeLLMPoolError):
     router should move on to another provider (True) or give up (False).
     """
 
-    def __init__(self, status: int, message: str, *, retryable: bool):
+    def __init__(
+        self,
+        status: int,
+        message: str,
+        *,
+        retryable: bool,
+        retry_after: float | None = None,
+    ):
         self.status = status
         self.retryable = retryable
+        self.retry_after = retry_after
         super().__init__(f"HTTP {status}: {message}")

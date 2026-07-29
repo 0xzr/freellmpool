@@ -79,7 +79,10 @@ PostFn = Callable[[str, dict, dict, float], HTTPResult]
 # keeps the connection open until exhausted/closed.
 from collections.abc import Iterable, Iterator  # noqa: E402
 
-StreamPostFn = Callable[[str, dict, dict, float], "tuple[int, Iterable[str]]"]
+StreamPostFn = Callable[
+    [str, dict, dict, float],
+    "tuple[int, Iterable[str]] | tuple[int, dict, Iterable[str]]",
+]
 
 _USER_AGENT = f"freellmpool/{__version__} (+https://github.com/0xzr/freellmpool)"
 
@@ -222,17 +225,36 @@ def _header(headers: dict | None, name: str) -> str | None:
 
 def _retry_after_seconds(headers: dict | None) -> float | None:
     raw = _header(headers, "Retry-After")
-    if not raw:
-        return None
-    raw = raw.strip()
-    try:
-        return max(0.0, float(raw))
-    except ValueError:
-        pass
-    try:
-        return max(0.0, parsedate_to_datetime(raw).timestamp() - time.time())
-    except (TypeError, ValueError, OSError):
-        return None
+    if raw:
+        raw = raw.strip()
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            pass
+        try:
+            return max(0.0, parsedate_to_datetime(raw).timestamp() - time.time())
+        except (TypeError, ValueError, OSError):
+            pass
+
+    # RFC RateLimit-Reset is a delay in seconds. The widespread legacy
+    # X-RateLimit-Reset convention is usually a Unix timestamp, though some
+    # providers return a delay; distinguish epoch-shaped values conservatively.
+    reset = _header(headers, "RateLimit-Reset")
+    if reset:
+        try:
+            return max(0.0, float(reset.strip()))
+        except ValueError:
+            pass
+    legacy = _header(headers, "X-RateLimit-Reset")
+    if legacy:
+        try:
+            value = float(legacy.strip())
+        except ValueError:
+            return None
+        if value >= 1_000_000_000:
+            return max(0.0, value - time.time())
+        return max(0.0, value)
+    return None
 
 
 def _retry_delay(result: HTTPResult | None, attempt: int, deadline: float) -> float | None:
@@ -300,7 +322,7 @@ class _StreamLines:
 
 
 def default_stream_post(url: str, headers: dict, json_body: dict, timeout: float):
-    """Open a streaming POST on the pooled client and return (status, line iter)."""
+    """Open a streaming POST and retain response headers for reset guidance."""
     deadline = time.monotonic() + timeout
     cm = _client().stream("POST", url, headers=headers, json=json_body, timeout=_timeout(timeout))
     try:
@@ -308,7 +330,11 @@ def default_stream_post(url: str, headers: dict, json_body: dict, timeout: float
     except BaseException:  # opening the stream failed — release the connection
         cm.__exit__(*sys.exc_info())
         raise
-    return resp.status_code, _StreamLines(cm, resp, deadline=deadline)
+    return (
+        resp.status_code,
+        dict(getattr(resp, "headers", {}) or {}),
+        _StreamLines(cm, resp, deadline=deadline),
+    )
 
 
 def stream_call(
@@ -343,7 +369,12 @@ def stream_call(
         "temperature": temperature,
         "stream": True,
     }
-    status, line_iter = stream_post(url, headers, body, timeout)
+    opened = stream_post(url, headers, body, timeout)
+    if len(opened) == 2:
+        status, line_iter = opened
+        response_headers = None
+    else:
+        status, response_headers, line_iter = opened
     close = getattr(line_iter, "close", lambda: None)
     if status != 200:
         # Drain a *bounded* prefix of the error body so the router can classify it
@@ -361,7 +392,15 @@ def stream_call(
         finally:
             close()
         err_body = "".join(parts)[:500]
-        raise ProviderHTTPError(status, err_body or f"HTTP {status}", retryable=_retryable(status))
+        raise _provider_http_error(
+            HTTPResult(
+                status=status,
+                body={},
+                text=err_body or f"HTTP {status}",
+                headers=response_headers,
+            )
+        )
+    done = False
     try:
         for line in line_iter:
             if not line:
@@ -371,6 +410,7 @@ def stream_call(
             line = line.strip()
             if not line or line == "[DONE]":
                 if line == "[DONE]":
+                    done = True
                     break
                 continue
             try:
@@ -381,6 +421,12 @@ def stream_call(
             delta = (choices[0].get("delta") or {}).get("content")
             if delta:
                 yield delta
+        if not done:
+            raise ProviderHTTPError(
+                502,
+                "stream ended before [DONE]",
+                retryable=True,
+            )
     finally:
         close()
 
@@ -399,6 +445,16 @@ def _err_message(result: HTTPResult) -> str:
     if isinstance(err, str):
         return err
     return (result.text or "").strip()[:200] or "no body"
+
+
+def _provider_http_error(result: HTTPResult) -> ProviderHTTPError:
+    """Build an HTTP error without discarding provider backoff guidance."""
+    return ProviderHTTPError(
+        result.status,
+        _err_message(result),
+        retryable=_retryable(result.status),
+        retry_after=_retry_after_seconds(result.headers),
+    )
 
 
 def _to_gemini_contents(messages: list[Message]) -> tuple[dict | None, list[dict]]:
@@ -569,9 +625,7 @@ def _call_openai(
             body["tool_choice"] = tool_choice
     result = post(url, headers, body, timeout)
     if result.status != 200:
-        raise ProviderHTTPError(
-            result.status, _err_message(result), retryable=_retryable(result.status)
-        )
+        raise _provider_http_error(result)
 
     choices = result.body.get("choices") or []
     if not choices:
@@ -620,9 +674,7 @@ def embed(
         body["input_type"] = "query"
     result = post(url, headers, body, timeout)
     if result.status != 200:
-        raise ProviderHTTPError(
-            result.status, _err_message(result), retryable=_retryable(result.status)
-        )
+        raise _provider_http_error(result)
     data = result.body.get("data") or []
     if not data:
         raise ProviderHTTPError(502, "no embeddings in response", retryable=True)
@@ -736,9 +788,7 @@ def transcribe(
         data["language"] = language
     result = post(url, headers, files, data, timeout)
     if result.status != 200:
-        raise ProviderHTTPError(
-            result.status, _err_message(result), retryable=_retryable(result.status)
-        )
+        raise _provider_http_error(result)
     body = result.body if isinstance(result.body, dict) else {}
     raw_text = body.get("text")
     # `default_multipart_post` always lands the transcript under body["text"] (plain-text
@@ -787,9 +837,7 @@ def _call_gemini(
 
     result = post(url, headers, body, timeout)
     if result.status != 200:
-        raise ProviderHTTPError(
-            result.status, _err_message(result), retryable=_retryable(result.status)
-        )
+        raise _provider_http_error(result)
 
     candidates = result.body.get("candidates") or []
     if not candidates:

@@ -23,7 +23,6 @@ from .client import (
     _CONNECT_TIMEOUT,
     _THINKING_FLOOR,
     _USER_AGENT,
-    _err_message,
     _is_thinking,
     _retryable,
     _strip_think,
@@ -293,9 +292,7 @@ class AsyncPool:
                 body["tool_choice"] = tool_choice
         result = await self._apost(url, headers, body, timeout)
         if result.status != 200:
-            raise ProviderHTTPError(
-                result.status, _err_message(result), retryable=_retryable(result.status)
-            )
+            raise _client._provider_http_error(result)
         choices = result.body.get("choices") or []
         if not choices:
             raise ProviderHTTPError(502, "no choices in response", retryable=True)
@@ -334,9 +331,7 @@ class AsyncPool:
             body["systemInstruction"] = system_instruction
         result = await self._apost(url, headers, body, timeout)
         if result.status != 200:
-            raise ProviderHTTPError(
-                result.status, _err_message(result), retryable=_retryable(result.status)
-            )
+            raise _client._provider_http_error(result)
         candidates = result.body.get("candidates") or []
         if not candidates:
             raise ProviderHTTPError(502, "no candidates in response", retryable=True)
@@ -412,8 +407,11 @@ class AsyncPool:
             emit(p._on_event, "cache_miss", key=cache_key)
 
         difficulty = prompt_difficulty(messages, max_tokens, tools) if eff == "quality" else None
-        targets = p._order(
-            p._all_targets(include=provider_list, model=model), difficulty=difficulty, routing=eff
+        targets = await asyncio.to_thread(
+            p._order,
+            p._all_targets(include=provider_list, model=model),
+            difficulty,
+            eff,
         )
         if not targets:
             raise NoProvidersConfigured("no candidate (provider, model) matched the given filters")
@@ -458,6 +456,12 @@ class AsyncPool:
             if remaining <= 0:
                 attempts.append((target.name, "skipped (overall request timeout exhausted)"))
                 break
+            lease = await asyncio.to_thread(p._acquire_route, target)
+            if lease is None:
+                non_ctx_failure = True
+                attempts.append((target.name, "skipped (persistent circuit open)"))
+                emit(p._on_event, "circuit_skip", target=target.name)
+                continue
             emit(p._on_event, "attempt", target=target.name, n=len(attempts) + 1)
             try:
                 reply = await self._acall(
@@ -473,6 +477,9 @@ class AsyncPool:
             except ProviderHTTPError as exc:
                 is_ctx, limit = context_limit_from_error(exc.status, str(exc))
                 if is_ctx:
+                    await asyncio.to_thread(
+                        p._record_route_failure, target, exc, lease
+                    )
                     ctx_overflow = True
                     if limit is not None:
                         p._learn_context_limit(target.name, limit)
@@ -496,12 +503,18 @@ class AsyncPool:
                     client_error = exc
                 if _is_health_failure(exc):
                     p.metrics.record_failure(target.name, str(exc))
+                await asyncio.to_thread(
+                    p._record_route_failure, target, exc, lease
+                )
                 emit(p._on_event, "error", target=target.name, reason=str(exc))
                 attempts.append((target.name, str(exc)))
                 continue
             except Exception as exc:  # noqa: BLE001
                 non_ctx_failure = True
                 p.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
+                await asyncio.to_thread(
+                    p._record_route_failure, target, exc, lease
+                )
                 emit(p._on_event, "error", target=target.name, reason=f"{type(exc).__name__}")
                 attempts.append((target.name, f"{type(exc).__name__}: {exc}"))
                 continue
@@ -510,12 +523,16 @@ class AsyncPool:
             if not reply.text and not has_tool_calls:
                 non_ctx_failure = True
                 p.metrics.record_failure(target.name, "empty completion")
+                await asyncio.to_thread(p._record_route_empty, target, lease)
                 emit(p._on_event, "error", target=target.name, reason="empty completion")
                 attempts.append((target.name, "empty completion"))
                 continue
 
             latency_ms = max(0.0, (p._clock() - started) * 1000.0)
             p.metrics.record_success(target.name, latency_ms)
+            await asyncio.to_thread(
+                p._record_route_success, target, latency_ms, lease
+            )
             emit(
                 p._on_event,
                 "success",
