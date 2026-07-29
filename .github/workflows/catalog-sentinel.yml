@@ -1,0 +1,240 @@
+name: Catalog sentinel
+
+on:
+  schedule:
+    - cron: "23 6 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-sentinel
+  cancel-in-progress: false
+
+jobs:
+  public-discovery:
+    name: Public catalog discovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install runtime
+        run: python -m pip install --disable-pip-version-check .
+      - name: Restore prior lifecycle state
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .sentinel-state/public.json
+          key: catalog-sentinel-public-${{ github.run_id }}
+          restore-keys: |
+            catalog-sentinel-public-
+      - name: Run bounded public discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .sentinel-artifacts .sentinel-state
+          previous=()
+          if test -f .sentinel-state/public.json; then
+            previous=(--previous .sentinel-state/public.json)
+          fi
+          # Advisory evidence only. Never mutates providers.toml or routing state.
+          python scripts/catalog_sentinel.py discover \
+            --output .sentinel-artifacts/public.json \
+            --summary .sentinel-artifacts/public.md \
+            --timeout 10 \
+            --max-bytes 1000000 \
+            "${previous[@]}"
+          cp .sentinel-artifacts/public.json .sentinel-state/public.json
+      - name: Prepare bounded drift issue
+        id: drift
+        shell: bash
+        run: |
+          set +e
+          python scripts/catalog_sentinel.py issue-body \
+            --report .sentinel-artifacts/public.json \
+            --output .sentinel-artifacts/issue.md
+          status=$?
+          set -e
+          if test "$status" -eq 3; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            test "$status" -eq 0
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open or update advisory drift issue
+        if: steps.drift.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --search '"Catalog sentinel drift" in:title' \
+            --limit 100 \
+            --json number,title,author,body \
+            --jq 'map(select(
+              .title == "Catalog sentinel drift"
+              and (.author.login == "github-actions[bot]" or .author.login == "github-actions")
+              and (.body | contains("<!-- freellmpool-catalog-sentinel:public:v1 -->"))
+            )) | first | .number // empty')
+          if [[ "$existing" =~ ^[0-9]+$ ]]; then
+            gh issue comment "$existing" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body-file .sentinel-artifacts/issue.md
+          else
+            gh issue create \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Catalog sentinel drift" \
+              --label provider-catalog \
+              --label tests \
+              --body-file .sentinel-artifacts/issue.md
+          fi
+      - name: Upload sanitized public evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: catalog-sentinel-public-${{ github.run_id }}
+          path: |
+            .sentinel-artifacts/public.json
+            .sentinel-artifacts/public.md
+          if-no-files-found: error
+          retention-days: 30
+      - name: Save public lifecycle state
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .sentinel-state/public.json
+          key: catalog-sentinel-public-${{ github.run_id }}
+
+  authenticated-probes:
+    name: Protected authenticated completion probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: catalog-sentinel
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install runtime
+        run: python -m pip install --disable-pip-version-check .
+      - name: Detect protected probe configuration
+        id: probe-config
+        env:
+          SENTINEL_KEYS: ${{ secrets.FREELLMPOOL_SENTINEL_KEYS_JSON }}
+        shell: bash
+        run: |
+          if test -n "$SENTINEL_KEYS"; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Protected probe secret is not configured; public discovery still completed."
+          fi
+      - name: Restore prior probe lifecycle state
+        if: steps.probe-config.outputs.configured == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .sentinel-state/probe.json
+          key: catalog-sentinel-probe-${{ github.run_id }}
+          restore-keys: |
+            catalog-sentinel-probe-
+      - name: Run bounded authenticated probes
+        if: steps.probe-config.outputs.configured == 'true'
+        env:
+          FREELLMPOOL_SENTINEL_KEYS_JSON: ${{ secrets.FREELLMPOOL_SENTINEL_KEYS_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .sentinel-artifacts .sentinel-state
+          previous=()
+          if test -f .sentinel-state/probe.json; then
+            previous=(--previous .sentinel-state/probe.json)
+          fi
+          python scripts/catalog_sentinel.py probe \
+            --output .sentinel-artifacts/probe.json \
+            --summary .sentinel-artifacts/probe.md \
+            --timeout 20 \
+            --max-providers 8 \
+            --max-models-per-provider 1 \
+            "${previous[@]}"
+          cp .sentinel-artifacts/probe.json .sentinel-state/probe.json
+      - name: Prepare bounded probe issue
+        if: steps.probe-config.outputs.configured == 'true'
+        id: probe-drift
+        shell: bash
+        run: |
+          set +e
+          python scripts/catalog_sentinel.py issue-body \
+            --report .sentinel-artifacts/probe.json \
+            --output .sentinel-artifacts/probe-issue.md
+          status=$?
+          set -e
+          if test "$status" -eq 3; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            test "$status" -eq 0
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open or update advisory probe issue
+        if: steps.probe-drift.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --search '"Catalog sentinel probe findings" in:title' \
+            --limit 100 \
+            --json number,title,author,body \
+            --jq 'map(select(
+              .title == "Catalog sentinel probe findings"
+              and (.author.login == "github-actions[bot]" or .author.login == "github-actions")
+              and (.body | contains("<!-- freellmpool-catalog-sentinel:probe:v1 -->"))
+            )) | first | .number // empty')
+          if [[ "$existing" =~ ^[0-9]+$ ]]; then
+            gh issue comment "$existing" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body-file .sentinel-artifacts/probe-issue.md
+          else
+            gh issue create \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Catalog sentinel probe findings" \
+              --label provider-catalog \
+              --label tests \
+              --body-file .sentinel-artifacts/probe-issue.md
+          fi
+      - name: Upload sanitized protected evidence
+        if: steps.probe-config.outputs.configured == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: catalog-sentinel-probes-${{ github.run_id }}
+          path: |
+            .sentinel-artifacts/probe.json
+            .sentinel-artifacts/probe.md
+          if-no-files-found: error
+          retention-days: 30
+      - name: Save probe lifecycle state
+        if: steps.probe-config.outputs.configured == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .sentinel-state/probe.json
+          key: catalog-sentinel-probe-${{ github.run_id }}

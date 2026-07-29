@@ -40,6 +40,26 @@ def test_thinking_model_bumps_max_tokens():
     assert seen["max_tokens"] >= 4096  # reasoning model got headroom
 
 
+def test_thinking_model_floor_can_be_disabled_for_strictly_bounded_canary():
+    seen = {}
+
+    def post(url, headers, body, timeout):
+        seen.update(body)
+        return C.HTTPResult(200, openai_body("ok"), "ok")
+
+    C.call(
+        P,
+        "zai-glm-4.7",
+        [{"role": "user", "content": "hi"}],
+        api_key="k",
+        env={},
+        max_tokens=8,
+        enforce_thinking_floor=False,
+        post=post,
+    )
+    assert seen["max_tokens"] == 8
+
+
 def test_non_thinking_model_keeps_max_tokens():
     seen = {}
 
