@@ -5,14 +5,14 @@
 # Works out of the box with no keys (keyless providers). Add provider keys as
 # env vars to unlock more, e.g. `-e GROQ_API_KEY=...`. When exposing the proxy
 # beyond localhost, set FREELLMPOOL_PROXY_KEY to require a Bearer token.
-FROM python:3.14-slim
+FROM python:3.14-alpine@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
 
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir "httpx==0.28.1" .
 
-RUN useradd --create-home --uid 10001 freellmpool
+RUN adduser -D -u 10001 freellmpool
 USER freellmpool
 
 EXPOSE 8080

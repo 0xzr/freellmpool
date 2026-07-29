@@ -665,6 +665,9 @@ python -m pip install -e ".[dev]" && ruff check . && pytest
 Source-first verification in this repo uses `PYTHONPATH=src` so `pytest` exercises
 the checkout without requiring an editable install first; CI runs the same
 configuration. Release readiness uses `PYTHONPATH=src python3 scripts/check_release_ready.py`.
+Security scanners, severity gates, the expiring exception process, local
+reproduction, SBOMs, and provenance verification are documented in
+[SECURITY.md](SECURITY.md).
 
 ## License
 

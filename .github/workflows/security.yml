@@ -1,0 +1,122 @@
+name: Security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "47 4 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: High-severity Python source audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install pinned scanner
+        run: python -m pip install --disable-pip-version-check bandit==1.9.4
+      - name: Validate security exceptions
+        run: |
+          python scripts/security_exceptions.py validate
+          python scripts/security_exceptions.py check-suppressions
+      - name: Fail on high-confidence, high-severity source findings
+        run: >-
+          bandit
+          --recursive src
+          --severity-level high
+          --confidence-level high
+          --ignore-nosec
+
+  dependencies:
+    name: Python dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install pinned scanner
+        run: python -m pip install --disable-pip-version-check pip-audit==2.10.1
+      - name: Validate security exceptions
+        run: |
+          python scripts/security_exceptions.py validate
+          python scripts/security_exceptions.py check-suppressions
+      - name: Audit resolved project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ignored < <(python scripts/security_exceptions.py ids pip-audit)
+          args=()
+          for advisory in "${ignored[@]}"; do
+            args+=(--ignore-vuln "$advisory")
+          done
+          python -m pip_audit . --strict --desc=on --aliases=on "${args[@]}"
+
+  workflows:
+    name: GitHub Actions audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install pinned scanner
+        run: python -m pip install --disable-pip-version-check zizmor==1.28.0
+      - name: Validate security exceptions
+        run: python scripts/security_exceptions.py validate
+      - name: Fail on high-confidence, high-severity workflow findings
+        run: >-
+          zizmor
+          --strict-collection
+          --no-ignores
+          --no-config
+          --min-severity=high
+          --min-confidence=high
+          .
+
+  container:
+    name: Container vulnerability audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Validate security exceptions
+        run: |
+          python3 scripts/security_exceptions.py validate
+          python3 scripts/security_exceptions.py ids trivy > .trivyignore.generated
+      - name: Build image
+        run: docker build --tag freellmpool:security-${{ github.sha }} .
+      - name: Fail on high or critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: freellmpool:security-${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          scanners: vuln
+          trivyignores: .trivyignore.generated
+          version: v0.72.0
