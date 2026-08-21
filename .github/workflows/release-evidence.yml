@@ -115,18 +115,18 @@ jobs:
           upload-release-assets: false
 
       - name: Attest package provenance
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: |
             dist/*.whl
             dist/*.tar.gz
       - name: Attest wheel SBOM
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: ${{ steps.artifacts.outputs.wheel }}
           sbom-path: dist/wheel.spdx.json
       - name: Attest source archive SBOM
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: ${{ steps.artifacts.outputs.sdist }}
           sbom-path: dist/sdist.spdx.json
