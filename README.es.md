@@ -23,17 +23,11 @@ comparaciones.
 
 ## Estado de versión y distribución
 
-- **Última versión: 0.11.4.** La versión de GitHub y el paquete de PyPI son
-  0.11.4; incluyen el enrutamiento `spread`.
-- **main contiene cambios aún no publicados**, entre ellos el perfil de
-  Hermes, las APIs operativas `/livez`, `/readyz`, `/v1/providers` y
-  `/v1/models?ready=true`, el catálogo actualizado y la preparación para
-  publicar los plugins de OpenCode que ya existen en 0.11.4. Para probar esos
-  cambios antes de la próxima versión, reemplaza el paquete en tu entorno:
-
-  ```bash
-  python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
-  ```
+- **Última versión: 0.12.0.** La versión de GitHub y el paquete de PyPI son
+  0.12.0; incluyen el perfil de Hermes, las APIs operativas `/livez`,
+  `/readyz`, `/v1/providers` y `/v1/models?ready=true`, el catálogo actualizado,
+  Vercel AI Gateway, el enrutamiento `spread` y la preparación de los plugins
+  de OpenCode para el registro.
 
 - **Estado de publicación en npm: pendiente.** `opencode-freellmpool` y
   `opencode-freellmpool-tui` están probados, pero no publicados en npm al

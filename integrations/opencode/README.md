@@ -47,7 +47,7 @@ aggregate quota matters more than keeping every turn in the strongest tier.
 > **Registry publication status: pending.** `opencode-freellmpool` and its
 > companion `opencode-freellmpool-tui` are pack/install/load-tested in CI, but
 > neither package was published on npm as of 2026-07-19.
-> Repository-local plugin sources are included in 0.11.4; current `main` adds registry-readiness hardening
+> Repository-local plugin sources are included in 0.12.0 with registry-readiness hardening
 > and corrected defaults. Use the local-file path below until verified registry
 > versions exist.
 

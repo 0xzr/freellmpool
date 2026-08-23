@@ -46,18 +46,11 @@ and more) behind one endpoint, with automatic failover. Several providers need n
 start for free in under a minute. It also ships an OpenCode plugin with a <strong>live dashboard, quality
 routing, and usage tools</strong> built in.</strong></p>
 
-<div class="note"><strong>Release status:</strong> GitHub and PyPI both provide 0.11.4,
-including <code>spread</code> routing. Repository-local OpenCode plugin sources are included in 0.11.4;
-current <code>main</code> adds registry-readiness hardening, corrected defaults, and the operations APIs
-described below. Replace the released package to test that source explicitly:
-<pre><code>python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'</code></pre></div>
+<div class="note"><strong>Release status:</strong> Latest release: 0.12.0. GitHub and PyPI include
+<code>spread</code> routing and the operations APIs described below. Repository-local OpenCode plugin sources are included in 0.12.0 with registry-readiness hardening and corrected defaults.</div>
 
-<h2>1. Choose a release or current-main install, then start the proxy</h2>
-<pre><code># Released 0.11.4:
-python -m pip install freellmpool
-# Or replace it with current main for the latest plugin support and operations APIs:
-python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
-
+<h2>1. Install the release, then start the proxy</h2>
+<pre><code>python -m pip install freellmpool
 freellmpool proxy            # serves http://localhost:8080</code></pre>
 <p>The proxy now routes OpenAI-style requests to a free provider and fails over when one is
 rate-limited.</p>
@@ -113,12 +106,12 @@ The planned packages are <code>opencode-freellmpool</code> and
 but neither package was published on npm as of 2026-07-19. Use the linked
 local-file setup until both registry versions are verified.</p>
 
-<h2>5. Operational checks (current main)</h2>
+<h2>5. Operational checks</h2>
 <p>Before a long OpenCode run, automation can call public <code>/livez</code> for process
 liveness and <code>/readyz</code> for advisory local capacity. With proxy authentication,
 <code>/v1/providers</code> returns secret-free readiness details and
 <code>/v1/models?ready=true</code> returns only locally ready targets. These endpoints are
-current-main additions and readiness does not probe upstream providers.</p>
+released operations, and readiness does not probe upstream providers.</p>
 
 <div class="note">Free-tier models are smaller than frontier models. They're great for scaffolding,
 refactors, tests, commit messages, and everyday edits — not a substitute for a frontier model on the
@@ -148,7 +141,7 @@ for local and custom models. You're using the LLM providers' own free tiers; don
 <code>freellmpool_status</code> tool, or curl the proxy's <code>/status</code> endpoint.</p>
 
 <p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open
-source). Updated 2026-07-19.</p>
+source). Updated 2026-08-23.</p>
 
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "How to run OpenCode on free LLM models", "item": "https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html"}]}</script>

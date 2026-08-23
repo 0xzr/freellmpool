@@ -67,12 +67,10 @@ freellmpool ask "Explain the CAP theorem in one sentence."   # keyless when rout
 MIT license
 </p>
 
-<div class="note"><strong>Release status.</strong> Latest release: 0.11.4, available from both
-GitHub and PyPI. <strong>Current main includes unreleased changes</strong>, including the Hermes profile,
-the readiness/provider operations APIs, refreshed catalog data, and registry-readiness hardening for
+<div class="note"><strong>Release status.</strong> Latest release: 0.12.0, available from both
+GitHub and PyPI. It includes the Hermes profile, readiness/provider operations APIs, refreshed
+providers, Vercel AI Gateway support, <code>spread</code> routing, and registry-readiness hardening for
 the existing repository-local OpenCode plugins.
-Released 0.11.4 already includes <code>spread</code> routing. To test the main-only additions explicitly:
-<pre><code>python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'</code></pre>
 <strong>Registry publication status: pending.</strong> <code>opencode-freellmpool</code> and
 <code>opencode-freellmpool-tui</code> are CI-tested but were not published on npm as of 2026-07-19;
 use their repository-local installation paths.</div>
@@ -92,8 +90,8 @@ tiers — not a server you deploy and not a paid aggregator.</p>
 <ul>
 <li><strong>Use free LLMs from the command line:</strong> <code>freellmpool ask "..."</code>, pipe stdin, pin a provider/model.</li>
 <li><strong>OpenAI-compatible proxy:</strong> point <code>OPENAI_BASE_URL</code> at <code>freellmpool proxy</code> for most text, embedding, and transcription calls.</li>
-<li><strong>Run coding agents for free:</strong> <code>freellmpool code claude</code> (also codex, aider, cline, continue, cursor, Hermes, and OpenCode) routes them to pooled free models — see the <a href="run-coding-agents-on-free-models.html">step-by-step guide</a>. The Hermes profile is currently main-only.</li>
-<li><strong>Automate proxy operations:</strong> current <code>main</code> adds public <code>/livez</code> and <code>/readyz</code> probes, authenticated <code>/v1/providers</code>, and <code>/v1/models?ready=true</code> for locally ready targets.</li>
+<li><strong>Run coding agents for free:</strong> <code>freellmpool code claude</code> (also codex, aider, cline, continue, cursor, Hermes, and OpenCode) routes them to pooled free models — see the <a href="run-coding-agents-on-free-models.html">step-by-step guide</a>. The Hermes profile is included in 0.12.0.</li>
+<li><strong>Automate proxy operations:</strong> release 0.12.0 includes public <code>/livez</code> and <code>/readyz</code> probes, authenticated <code>/v1/providers</code>, and <code>/v1/models?ready=true</code> for locally ready targets.</li>
 <li><strong>Use OpenCode deeply:</strong> choose <code>freellmpool/agent</code> for strongest-tier, quota-aware agent loops and add the repository-local dashboard/tools plugins while npm publication is pending.</li>
 <li><strong>Add model-pool review to metaswarm:</strong> use the experimental <a href="https://github.com/0xzr/freellmpool/tree/main/integrations/metaswarm">metaswarm adapter</a> as a review-only external tool.</li>
 <li><strong>Async + library:</strong> <code>from freellmpool import Pool, AsyncPool</code>.</li>
@@ -185,7 +183,7 @@ for provider routing, ToS, and privacy notes.</p>
 
 </div>
 
-<p class="meta">Free and open source (MIT). Latest release: 0.11.4. Page updated 2026-08-23.
+<p class="meta">Free and open source (MIT). Latest release: 0.12.0. Page updated 2026-08-23.
 Project: <a href="https://github.com/0xzr/freellmpool">github.com/0xzr/freellmpool</a></p>
 
 </div>
@@ -200,7 +198,7 @@ Project: <a href="https://github.com/0xzr/freellmpool">github.com/0xzr/freellmpo
   "description": "Free, open-source OpenAI-compatible gateway that pools the free tiers of 24 cataloged LLM providers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Morph, Vercel and more) behind one endpoint, with automatic failover. CLI, Python library, local proxy, and MCP server. Keyless start when routes are available.",
   "url": "https://0xzr.github.io/freellmpool/",
   "downloadUrl": "https://pypi.org/project/freellmpool/",
-  "softwareVersion": "0.11.4",
+  "softwareVersion": "0.12.0",
   "license": "https://opensource.org/licenses/MIT",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
   "author": {"@type": "Person", "name": "0xzr"}
