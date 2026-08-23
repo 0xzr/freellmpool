@@ -76,7 +76,7 @@ dev = [
 security = [
     "bandit==1.9.4",
     "pip-audit==2.10.1",
-    "zizmor==1.28.0",
+    "zizmor==1.29.0",
 ]
 
 [project.scripts]
