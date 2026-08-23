@@ -182,8 +182,8 @@ def build_and_smoke(root: Path, *, version: str, dist_dir: Path | None = None) -
         if dist.exists():
             shutil.rmtree(dist)
 
-    # The host toolchain may ship an old pkginfo/twine that rejects
-    # Metadata-Version: 2.4 wheels. Create an isolated checker venv with
+    # The host toolchain may ship an old pkginfo/twine that rejects modern
+    # metadata. Create an isolated checker venv with
     # packaging tools known to support modern metadata.
     checker_tmp = tempfile.TemporaryDirectory(prefix="flp-release-checker-")
     checker = Path(checker_tmp.name) / "venv"
@@ -202,7 +202,7 @@ def build_and_smoke(root: Path, *, version: str, dist_dir: Path | None = None) -
                 "install",
                 "--upgrade",
                 "build>=1.2",
-                "twine>=6.0,<7.0",
+                "twine==7.0.0",
                 "pkginfo>=1.12,<2.0",
             ],
             cwd=root,

@@ -54,6 +54,26 @@ def test_discovery_filters_paid_aggregator_routes(monkeypatch) -> None:
     assert vetter.list_live_models(_provider("opencode"), {}) == ["hy3-free"]
 
 
+def test_pollinations_discovery_includes_canonical_name_and_aliases(monkeypatch) -> None:
+    vetter = _load_vetter()
+    monkeypatch.setattr(
+        vetter,
+        "_http_get",
+        lambda url, headers: [
+            {
+                "name": "openai-fast",
+                "aliases": ["openai", "gpt-oss", "bad`alias", 42],
+            }
+        ],
+    )
+
+    assert vetter.list_live_models(_provider("pollinations"), {}) == [
+        "gpt-oss",
+        "openai",
+        "openai-fast",
+    ]
+
+
 def test_ping_model_rejects_empty_http_success(monkeypatch) -> None:
     vetter = _load_vetter()
     calls = 0

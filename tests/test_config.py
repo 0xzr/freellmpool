@@ -325,6 +325,10 @@ def test_pollinations_catalog_matches_live_chat_selectors():
 
     assert set(models) == {"openai", "openai-fast", "gpt-oss"}
     assert models["gpt-oss"].enabled is True
+    assert models["openai-fast"].auto is True
+    assert models["openai"].auto is False
+    assert models["gpt-oss"].auto is False
+
 
 def test_env_example_documents_keyless_providers():
     """Verify .env.example lists all default-enabled keyless/key-optional providers."""

@@ -59,6 +59,7 @@ jobs:
       - name: Wheel smoke
         run: |
           python -m build
+          python -m twine check dist/*.whl dist/*.tar.gz
           python -m venv /tmp/freellmpool-wheel-smoke
           /tmp/freellmpool-wheel-smoke/bin/python -m pip install --upgrade pip
           /tmp/freellmpool-wheel-smoke/bin/python -m pip install dist/*.whl

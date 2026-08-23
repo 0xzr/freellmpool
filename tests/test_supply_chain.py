@@ -237,6 +237,17 @@ def test_release_checklist_only_passes_distributions_to_twine():
     assert 'twine upload "$release_evidence_dir"/*.whl' in checklist
 
 
+def test_ci_and_release_evidence_validate_built_distribution_metadata():
+    ci = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+    release = (WORKFLOWS / "release-evidence.yml").read_text(encoding="utf-8")
+    readiness = (ROOT / "scripts" / "check_release_ready.py").read_text(encoding="utf-8")
+
+    assert "python -m twine check dist/*.whl dist/*.tar.gz" in ci
+    assert "twine==7.0.0" in release
+    assert "python -m twine check dist/*.whl dist/*.tar.gz" in release
+    assert '"twine==7.0.0"' in readiness
+
+
 def test_security_enforcement_is_documented():
     enforcement = (ROOT / "docs" / "SECURITY_ENFORCEMENT.md").read_text(
         encoding="utf-8"

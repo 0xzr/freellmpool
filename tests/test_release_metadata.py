@@ -49,6 +49,12 @@ def test_runtime_dependencies_guard_stdlib_first_contract() -> None:
     assert pyproject["project"]["dependencies"] == ["httpx>=0.27"]
 
 
+def test_build_backend_is_reproducibly_pinned() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+
+    assert pyproject["build-system"]["requires"] == ["hatchling==1.32.0"]
+
+
 def test_readme_has_copy_pastable_tailnet_and_metaswarm_paths() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "freellmpool tailnet serve --port 8080" in readme
@@ -215,4 +221,4 @@ def test_pypi_metadata_has_launch_surfaces() -> None:
 
     dev_deps = project["optional-dependencies"]["dev"]
     assert any(dep.startswith("build>=") for dep in dev_deps)
-    assert any(dep.startswith("twine>=") for dep in dev_deps)
+    assert "twine==7.0.0" in dev_deps

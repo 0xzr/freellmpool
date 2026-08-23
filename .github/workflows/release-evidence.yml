@@ -81,8 +81,11 @@ jobs:
           python -m pip install
           --disable-pip-version-check
           build==1.5.0
+          twine==7.0.0
       - name: Build wheel and source archive
         run: python -m build
+      - name: Validate distribution metadata
+        run: python -m twine check dist/*.whl dist/*.tar.gz
       - name: Resolve exact artifacts
         id: artifacts
         shell: bash

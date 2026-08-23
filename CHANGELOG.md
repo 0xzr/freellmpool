@@ -41,6 +41,10 @@ All notable changes to this project are documented here. The format is based on
 - Refreshed Pollinations against its authoritative public listing and repeat
   anonymous completion probes: added the working `gpt-oss` selector, removed
   the retired `mistral` row, and synchronized the 223-route metadata and assets.
+- Kept Pollinations aliases available for exact pins while deduplicating them
+  from automatic failover and multi-model fan-out.
+- Pinned the build backend and upgraded distribution metadata validation to
+  Twine 7 across local readiness, pull-request CI, and tag evidence.
 - Updated the pinned Zizmor workflow scanner and security extra to 1.29.0.
 - Corrected the OpenCode integrations to use the proxy's actual port 8080
   default and refreshed the dated competitor comparison from pinned sources.
