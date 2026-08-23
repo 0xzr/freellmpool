@@ -172,7 +172,7 @@ def test_pull_requests_have_source_dependency_workflow_and_container_gates():
     assert "github/codeql-action/analyze@" in codeql
 
     assert "pip-audit==2.10.1" in security
-    assert "zizmor==1.28.0" in security
+    assert "zizmor==1.29.0" in security
     assert "--no-ignores" in security
     assert "--no-config" in security
     assert "bandit\n          --recursive src" in security
@@ -237,6 +237,17 @@ def test_release_checklist_only_passes_distributions_to_twine():
     assert 'twine upload "$release_evidence_dir"/*.whl' in checklist
 
 
+def test_ci_and_release_evidence_validate_built_distribution_metadata():
+    ci = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+    release = (WORKFLOWS / "release-evidence.yml").read_text(encoding="utf-8")
+    readiness = (ROOT / "scripts" / "check_release_ready.py").read_text(encoding="utf-8")
+
+    assert "python -m twine check dist/*.whl dist/*.tar.gz" in ci
+    assert "twine==7.0.0" in release
+    assert "python -m twine check dist/*.whl dist/*.tar.gz" in release
+    assert '"twine==7.0.0"' in readiness
+
+
 def test_security_enforcement_is_documented():
     enforcement = (ROOT / "docs" / "SECURITY_ENFORCEMENT.md").read_text(
         encoding="utf-8"
@@ -261,7 +272,7 @@ def test_security_tooling_extra_is_complete_and_pinned():
     assert extras["security"] == [
         "bandit==1.9.4",
         "pip-audit==2.10.1",
-        "zizmor==1.28.0",
+        "zizmor==1.29.0",
     ]
 
 

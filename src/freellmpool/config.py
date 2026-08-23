@@ -309,6 +309,7 @@ def _parse_rows(rows: list) -> list[Provider]:
                     name=model_name,
                     rpd=_maybe_int(m.get("rpd", 0)) or 0,
                     enabled=bool(m.get("enabled", True)),
+                    auto=bool(m.get("auto", True)),
                     context=_maybe_int(m.get("context"), positive=True),
                 )
             )

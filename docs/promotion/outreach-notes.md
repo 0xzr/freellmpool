@@ -21,7 +21,7 @@ keys for more models and capacity.
 Repo: https://github.com/0xzr/freellmpool
 Docs: https://0xzr.github.io/freellmpool/
 
-Current catalog: 24 cataloged providers, 222 enabled chat routes, 407 cataloged chat
+Current catalog: 24 cataloged providers, 223 enabled chat routes, 407 cataloged chat
 models.
 
 The honest caveat: it is not a privacy layer. Prompts go to the selected
@@ -50,7 +50,7 @@ disponible, y también permite sumar
 keys gratuitas propias de Groq, Cerebras, Gemini, Mistral, OpenRouter, NVIDIA,
 etc.
 
-Catálogo actual: 24 proveedores, 222 rutas chat habilitadas, 407 modelos chat
+Catálogo actual: 24 proveedores, 223 rutas chat habilitadas, 407 modelos chat
 catalogados.
 
 Nota importante: no es una capa de privacidad; los prompts van al proveedor
@@ -65,7 +65,7 @@ freellmpool is a local MIT-licensed gateway for pooling free LLM provider tiers.
 It exposes a CLI, Python library, OpenAI-compatible local proxy, experimental
 Anthropic-compatible path, and MCP server. It supports keyless start when
 default keyless routes are available, optional user-owned free-tier keys, and
-currently catalogs 24 cataloged providers with 222 enabled chat routes. Useful for
+currently catalogs 24 cataloged providers with 223 enabled chat routes. Useful for
 coding-agent side tasks, docs, triage, and scripts where free-tier models are
 good enough.
 

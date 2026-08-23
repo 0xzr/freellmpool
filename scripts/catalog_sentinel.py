@@ -7,7 +7,6 @@ import argparse
 import asyncio
 import json
 import os
-import re
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -22,17 +21,16 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from freellmpool import client as flp_client  # noqa: E402
+from freellmpool.catalog_validation import normalize_model_listing  # noqa: E402
 from freellmpool.config import load_catalog  # noqa: E402
 from freellmpool.errors import ProviderHTTPError  # noqa: E402
 from freellmpool.models import Provider  # noqa: E402
 
 _MAX_BODY_BYTES = 1_000_000
-_MAX_MODEL_ID = 200
 _MAX_SECRET_JSON_BYTES = 32_000
 _MAX_PREVIOUS_BYTES = 2_000_000
 _MAX_ISSUE_BODY_BYTES = 60_000
 _PING = [{"role": "user", "content": "Reply with the single word: pong"}]
-_SAFE_MODEL_ID = re.compile(r"^[A-Za-z0-9@][A-Za-z0-9._:/@+-]{0,199}$")
 # Only endpoints verified to expose a complete public chat-model listing belong
 # here. Everything else is useful for additions, but absences remain unconfirmed.
 _AUTHORITATIVE_PUBLIC_LISTINGS = frozenset({"pollinations"})
@@ -60,32 +58,6 @@ def classify_http(status: int | None) -> str:
     if 500 <= status < 600:
         return "transient_provider_error"
     return "other_provider_error"
-
-
-def normalize_model_listing(payload: Any) -> tuple[str, ...]:
-    rows = payload.get("data") if isinstance(payload, dict) else payload
-    if not isinstance(rows, list):
-        return ()
-    found: set[str] = set()
-    for row in rows:
-        candidates: list[Any]
-        if isinstance(row, dict):
-            candidates = [row.get("id") or row.get("name")]
-            aliases = row.get("aliases")
-            if isinstance(aliases, list):
-                candidates.extend(aliases)
-        else:
-            candidates = [row]
-        for model_id in candidates:
-            if not isinstance(model_id, str):
-                continue
-            if (
-                not 1 <= len(model_id) <= _MAX_MODEL_ID
-                or not _SAFE_MODEL_ID.fullmatch(model_id)
-            ):
-                continue
-            found.add(model_id)
-    return tuple(sorted(found))
 
 
 def _public_models_url(provider: Provider) -> str:

@@ -11,9 +11,14 @@ adapter = "openai"
 base_url = "https://text.pollinations.ai/openai"
 auth = "none"
 models = [
-    { name = "openai", rpd = 0 },
+    # The public listing defines openai-fast as the canonical route. Keep its
+    # aliases available for exact pins without retrying/fanning out to the same
+    # gpt-oss-20b backend more than once during automatic routing.
+    { name = "openai", rpd = 0, auto = false },
     { name = "openai-fast", rpd = 0 },
-    { name = "mistral", rpd = 0, enabled = false },
+    # Public listing plus three repeat non-empty anonymous completions on
+    # 2026-08-23. The provider currently resolves this selector to gpt-oss-20b.
+    { name = "gpt-oss", rpd = 0, auto = false },
 ]
 
 [[provider]]

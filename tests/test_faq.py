@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import re
 import tomllib
 import xml.dom.minidom
 from pathlib import Path
 
 from freellmpool import __version__
+from freellmpool.config import load_catalog
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,9 +70,30 @@ def test_demo_assets_are_well_formed_and_current():
     assert "TOKENMAXXING" in demo
     assert "--animation-duration: 8500ms" in demo
     assert f"freellmpool-{__version__}" in demo
-    assert "24 cataloged providers, 222 enabled routes" in demo
+    assert "24 cataloged providers, 223 enabled routes" in demo
     assert "keyless start when available" in demo
-    assert "222" in results
+    assert "223" in results
     assert "407 cataloged" in results
     assert "cataloged providers" in results
     assert "$0" in results
+
+    provider_ids = {provider.id for provider in load_catalog()}
+    displayed_routes = {
+        value
+        for value in re.findall(
+            r'<tspan class="(?:cyan|purple|yellow|green)">([^<]+/[^<]+)</tspan>', demo
+        )
+        if value.split("/", 1)[0] in provider_ids
+    }
+    automatic_routes = {
+        f"{provider.id}/{model.name}"
+        for provider in load_catalog()
+        for model in provider.models
+        if model.enabled and model.auto
+    }
+    assert displayed_routes
+    assert displayed_routes <= automatic_routes
+
+    assert (ROOT / "docs/assets/demo.png").read_bytes() == (
+        ROOT / "assets/demo.png"
+    ).read_bytes()

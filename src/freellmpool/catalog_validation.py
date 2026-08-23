@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 from .capability import capability_table, model_capability
@@ -12,6 +14,33 @@ from .models import Provider
 
 _ADAPTERS = {"openai", "gemini", "cloudflare"}
 _AUTH = {"bearer", "none"}
+_MAX_MODEL_ID = 200
+_SAFE_MODEL_ID = re.compile(r"^[A-Za-z0-9@][A-Za-z0-9._:/@+-]{0,199}$")
+
+
+def normalize_model_listing(payload: Any) -> tuple[str, ...]:
+    """Return bounded, safe canonical model names and aliases from common listings."""
+
+    rows = payload.get("data") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        return ()
+    found: set[str] = set()
+    for row in rows:
+        if isinstance(row, dict):
+            candidates: list[Any] = [row.get("id") or row.get("name")]
+            aliases = row.get("aliases")
+            if isinstance(aliases, list):
+                candidates.extend(aliases)
+        else:
+            candidates = [row]
+        for model_id in candidates:
+            if (
+                isinstance(model_id, str)
+                and 1 <= len(model_id) <= _MAX_MODEL_ID
+                and _SAFE_MODEL_ID.fullmatch(model_id)
+            ):
+                found.add(model_id)
+    return tuple(sorted(found))
 
 
 def _valid_url(value: str) -> bool:

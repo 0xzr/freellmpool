@@ -305,6 +305,26 @@ def test_all_targets_uses_indexed_filters(env, quota):
     assert [t.name for t in pool._all_targets(include=["b"], model="shared")] == ["b/shared"]
 
 
+def test_exact_pin_preserves_alias_excluded_from_automatic_routing(env, quota):
+    from freellmpool.models import Model, Provider
+
+    provider = Provider(
+        id="aliases",
+        label="Aliases",
+        adapter="openai",
+        base_url="https://aliases.test/v1",
+        auth="none",
+        models=(Model("canonical"), Model("friendly-alias", auto=False)),
+    )
+    pool = Pool([provider], quota=quota, env=env, post=make_post({}))
+
+    assert [target.name for target in pool._all_targets()] == ["aliases/canonical"]
+    assert [target.name for target in pool._all_targets(model="friendly-alias")] == [
+        "aliases/friendly-alias"
+    ]
+    assert pool.ask("hi", model="friendly-alias").model == "friendly-alias"
+
+
 def test_tool_calls_reply_is_success(providers, env, quota):
     tc = [{"id": "c", "type": "function", "function": {"name": "f", "arguments": "{}"}}]
     post = make_post(

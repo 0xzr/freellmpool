@@ -207,7 +207,7 @@ class Pool:
                 targets.append(target)
                 targets_by_provider.setdefault(provider.id, []).append(target)
                 targets_by_model.setdefault(model_obj.name, []).append(target)
-                if model_obj.enabled:
+                if model_obj.enabled and model_obj.auto:
                     enabled_targets.append(target)
                     enabled_by_provider.setdefault(provider.id, []).append(target)
                     enabled_by_model.setdefault(model_obj.name, []).append(target)

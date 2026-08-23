@@ -43,6 +43,7 @@ if _SRC.is_dir():
 import httpx  # noqa: E402
 
 from freellmpool import client as flp_client  # noqa: E402
+from freellmpool.catalog_validation import normalize_model_listing  # noqa: E402
 from freellmpool.config import configured_providers, effective_env, load_catalog  # noqa: E402
 from freellmpool.errors import ProviderHTTPError  # noqa: E402
 from freellmpool.models import Provider  # noqa: E402
@@ -130,6 +131,9 @@ def list_live_models(provider: Provider, env: dict) -> list[str]:
     key = provider.api_key(env)
     auth = {"Authorization": f"Bearer {key}"} if key else {}
 
+    if provider.id == "pollinations":
+        return _list_fallback(provider)
+
     if provider.adapter == "gemini":
         data = _http_get_obj(f"{provider.base_url}/models?key={key}", {})
         return [m["name"].split("/")[-1] for m in data.get("models", []) if "name" in m]
@@ -176,12 +180,7 @@ def _list_fallback(provider: Provider) -> list[str]:
             data = _http_get("https://text.pollinations.ai/models", {})
         except Exception:
             return []
-        out = []
-        for m in data if isinstance(data, list) else []:
-            name = m.get("name") if isinstance(m, dict) else (m if isinstance(m, str) else None)
-            if name:
-                out.append(name)
-        return out
+        return list(normalize_model_listing(data))
     return []
 
 

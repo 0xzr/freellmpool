@@ -1392,6 +1392,7 @@ def _to_openai_response(reply) -> dict:
     return {
         "id": f"chatcmpl-freellmpool-{reply.provider_id}",
         "object": "chat.completion",
+        "created": int(time.time()),
         "model": f"{reply.provider_id}/{reply.model}",
         "choices": [{"index": 0, "message": message, "finish_reason": finish}],
         "usage": {
@@ -2017,6 +2018,7 @@ def serve(
 
 
 _MAX_CONNECTIONS = 128  # cap concurrent worker threads/fds against a slowloris-style flood
+_CONNECTION_SLOT_WAIT_SECONDS = 0.25  # absorb normal worker turnover at the hard cap
 
 
 class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
@@ -2038,7 +2040,11 @@ class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
         super().server_close()
 
     def process_request(self, request, client_address):
-        if not self._slots.acquire(blocking=False):
+        # A client can receive its response just before the worker's ``finally``
+        # releases its slot. Give that normal rollover a short grace period so a
+        # pool exactly at the advertised cap does not spuriously reject the next
+        # request, while slow-connection floods still get a bounded, quick 503.
+        if not self._slots.acquire(timeout=_CONNECTION_SLOT_WAIT_SECONDS):
             try:
                 request.sendall(
                     b"HTTP/1.1 503 Service Unavailable\r\n"
