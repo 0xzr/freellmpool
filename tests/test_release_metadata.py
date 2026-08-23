@@ -35,7 +35,7 @@ def test_release_metadata_versions_match_package() -> None:
     assert f"{model_count.group(1)} cataloged" in docs
     assert f"Latest release: {version}" in docs
     assert f'"softwareVersion": "{version}"' in docs
-    assert "installed from current main" in demo.lower()
+    assert "installed from current checkout" in demo.lower()
     assert f"{provider_count.group(1)} cataloged providers" in demo
 
 
@@ -166,6 +166,8 @@ def test_pages_describe_current_main_agent_and_operations_surfaces() -> None:
 
 def test_pages_dates_match_current_documentation_pass() -> None:
     sitemap = (ROOT / "docs" / "sitemap.xml").read_text(encoding="utf-8")
+    index = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+    assert "Page updated 2026-08-23" in index
     for page in (
         "https://0xzr.github.io/freellmpool/",
         "https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html",
@@ -193,9 +195,11 @@ def test_pypi_metadata_has_launch_surfaces() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
     project = pyproject["project"]
     discovery = (ROOT / "docs/GITHUB_DISCOVERY.md").read_text(encoding="utf-8")
+    promotion = (ROOT / "docs/promotion/README.md").read_text(encoding="utf-8")
 
     assert len(project["description"]) <= 120
     assert f"> {project['description']}" in discovery
+    assert "Current main catalog (unreleased)" in promotion
 
     urls = project["urls"]
     for name in ("Docs", "Changelog", "Issues", "Repository"):

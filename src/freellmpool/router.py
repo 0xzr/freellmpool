@@ -114,26 +114,8 @@ def _is_account_quota_exhaustion(
     if exc.status not in (402, 429):
         return False
     message = str(exc).lower()
-    error_type = (exc.error_type or "").lower()
     if provider_id == "vercel" and exc.status == 402:
-        if error_type in {
-            "budget_exceeded",
-            "insufficient_credits",
-            "insufficient_funds",
-            "spend_limit_exceeded",
-        }:
-            return True
-        if any(
-            marker in message
-            for marker in (
-                "budget exceeded",
-                "insufficient funds",
-                "key budget",
-                "spend limit",
-                "spend quota",
-            )
-        ):
-            return True
+        return True
     return any(
         marker in message
         for marker in (

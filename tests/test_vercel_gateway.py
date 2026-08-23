@@ -241,6 +241,17 @@ def test_public_audit_rejects_bad_or_nonzero_free_route_endpoints(endpoint_paylo
     assert exc.value.classification in {"invalid_endpoint_listing", "pricing_drift"}
 
 
+@pytest.mark.parametrize("malformed", ["not-a-row", {"status": "0"}, {"status": True}])
+def test_public_audit_rejects_mixed_valid_and_malformed_endpoint_rows(malformed):
+    payload = _endpoint_payload(AUTO_MODELS[0].name, prompt="0", completion="0")
+    payload["data"]["endpoints"].append(malformed)
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.audit_public_catalog(
+            _provider(), fetch=_fetcher(endpoint_overrides={AUTO_MODELS[0].name: payload})
+        )
+    assert exc.value.classification == "invalid_endpoint_listing"
+
+
 def test_public_audit_rejects_malformed_tier_cost():
     payload = _endpoint_payload(AUTO_MODELS[0].name, prompt="0", completion="0")
     payload["data"]["endpoints"][0]["pricing"]["prompt_tiers"] = [{"min": 0}]
@@ -376,8 +387,9 @@ def test_acceptance_runs_exactly_three_single_attempt_normal_client_calls():
 
 def test_bounded_reader_rejects_oversized_response():
     class Response:
-        def iter_bytes(self, chunk_size=None):
-            assert chunk_size == 64 * 1024
+        headers = {}
+
+        def iter_raw(self):
             yield b"1234"
             yield b"5678"
 
@@ -388,13 +400,33 @@ def test_bounded_reader_rejects_oversized_response():
 
 def test_bounded_reader_enforces_total_deadline():
     class Response:
-        def iter_bytes(self, chunk_size=None):
-            yield b"{}"
+        headers = {}
+
+        def iter_raw(self):
+            yield b"x"
+            yield b"y"
 
     ticks = iter([0.0, 2.0])
     with pytest.raises(VERIFIER.VerificationError) as exc:
         VERIFIER._read_bounded(Response(), 100, deadline=1.0, now=lambda: next(ticks))
     assert exc.value.classification == "request_deadline_exceeded"
+
+
+def test_bounded_reader_rejects_content_encoding_before_decompression():
+    iterated = False
+
+    class Response:
+        headers = {"Content-Encoding": "gzip"}
+
+        def iter_raw(self):
+            nonlocal iterated
+            iterated = True
+            yield b"compressed"
+
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER._read_bounded(Response(), 100, deadline=1, now=lambda: 0)
+    assert exc.value.classification == "unexpected_content_encoding"
+    assert iterated is False
 
 
 def test_network_helpers_reject_unpinned_urls_before_transport(monkeypatch):
@@ -420,9 +452,11 @@ def test_network_helpers_reject_unpinned_urls_before_transport(monkeypatch):
 
 def test_network_helpers_disable_redirect_following(monkeypatch):
     seen = []
+    requests = []
 
     class Response:
         status_code = 200
+        headers = {}
 
         def __enter__(self):
             return self
@@ -430,7 +464,7 @@ def test_network_helpers_disable_redirect_following(monkeypatch):
         def __exit__(self, *_args):
             return None
 
-        def iter_bytes(self, chunk_size=None):
+        def iter_raw(self):
             yield b'{"data": []}'
 
     class Client:
@@ -443,12 +477,15 @@ def test_network_helpers_disable_redirect_following(monkeypatch):
         def __exit__(self, *_args):
             return None
 
-        def stream(self, *_args, **_kwargs):
+        def stream(self, *args, **kwargs):
+            requests.append((args, kwargs))
             return Response()
 
     monkeypatch.setattr(VERIFIER.httpx, "Client", Client)
     assert VERIFIER._bounded_json_get(VERIFIER.MODELS_URL) == {"data": []}
     assert seen == [{"follow_redirects": False, "timeout": VERIFIER.TIMEOUT_SECONDS}]
+    assert len(requests) == 1
+    assert requests[0][1]["headers"]["Accept-Encoding"] == "identity"
 
 
 def test_completion_transport_disables_redirects_and_posts_once(monkeypatch):
@@ -457,6 +494,7 @@ def test_completion_transport_disables_redirects_and_posts_once(monkeypatch):
 
     class Response:
         status_code = 200
+        headers = {}
 
         def __enter__(self):
             return self
@@ -464,7 +502,7 @@ def test_completion_transport_disables_redirects_and_posts_once(monkeypatch):
         def __exit__(self, *_args):
             return None
 
-        def iter_bytes(self, chunk_size=None):
+        def iter_raw(self):
             yield b'{"choices": []}'
 
     class Client:
@@ -489,11 +527,13 @@ def test_completion_transport_disables_redirects_and_posts_once(monkeypatch):
     assert seen_clients == [{"follow_redirects": False, "timeout": 3}]
     assert len(seen_streams) == 1
     assert seen_streams[0][0:2] == ("POST", f"{VERIFIER.BASE_URL}/chat/completions")
+    assert seen_streams[0][2]["headers"]["Accept-Encoding"] == "identity"
 
 
 def test_model_listing_http_status_is_classified_and_sanitized(monkeypatch):
     class Response:
         status_code = 402
+        headers = {}
 
         def __enter__(self):
             return self
@@ -501,7 +541,7 @@ def test_model_listing_http_status_is_classified_and_sanitized(monkeypatch):
         def __exit__(self, *_args):
             return None
 
-        def iter_bytes(self, chunk_size=None):
+        def iter_raw(self):
             yield b'{"error":"do-not-serialize"}'
 
     class Client:
@@ -533,6 +573,7 @@ def test_model_listing_http_status_is_classified_and_sanitized(monkeypatch):
 def test_model_listing_malformed_json_failures_are_sanitized(monkeypatch, raw):
     class Response:
         status_code = 200
+        headers = {}
 
         def __enter__(self):
             return self
@@ -540,7 +581,7 @@ def test_model_listing_malformed_json_failures_are_sanitized(monkeypatch, raw):
         def __exit__(self, *_args):
             return None
 
-        def iter_bytes(self, chunk_size=None):
+        def iter_raw(self):
             yield raw
 
     class Client:

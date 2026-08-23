@@ -184,7 +184,15 @@ def test_stream_chat_account_quota_skips_provider_catalog_and_backs_off(
     assert "beta.test" in sp.calls[0]["url"]
 
 
-def test_vercel_insufficient_funds_402_backs_off_the_whole_provider(env, quota):
+@pytest.mark.parametrize(
+    "error_body",
+    [
+        {"error": {"type": "insufficient_funds", "message": "Insufficient funds"}},
+        {},
+        {"error": {"type": "future_budget_error", "message": "changed wording"}},
+    ],
+)
+def test_vercel_any_402_backs_off_the_whole_provider(env, quota, error_body):
     vercel = Provider(
         id="vercel",
         label="Vercel",
@@ -205,7 +213,7 @@ def test_vercel_insufficient_funds_402_backs_off_the_whole_provider(env, quota):
         {
             "ai-gateway.vercel.sh": (
                 402,
-                {"error": {"type": "insufficient_funds", "message": "Insufficient funds"}},
+                error_body,
             ),
             "beta.test": (200, openai_body("fallback")),
         }

@@ -183,8 +183,12 @@ def _read_bounded(
     deadline: float,
     now: Callable[[], float] = time.monotonic,
 ) -> bytes:
+    headers = getattr(response, "headers", {})
+    encoding = headers.get("content-encoding") or headers.get("Content-Encoding") or "identity"
+    if not isinstance(encoding, str) or encoding.strip().lower() not in {"", "identity"}:
+        raise VerificationError("unexpected_content_encoding")
     raw = bytearray()
-    for chunk in response.iter_bytes(chunk_size=64 * 1024):
+    for chunk in response.iter_raw():
         if now() > deadline:
             raise VerificationError("request_deadline_exceeded")
         if not isinstance(chunk, bytes) or len(chunk) > max_bytes - len(raw):
@@ -225,7 +229,11 @@ def _bounded_json_get(
     deadline = time.monotonic() + timeout
     try:
         with httpx.Client(follow_redirects=False, timeout=timeout) as session:
-            with session.stream("GET", url, headers={"Accept": "application/json"}) as response:
+            with session.stream(
+                "GET",
+                url,
+                headers={"Accept": "application/json", "Accept-Encoding": "identity"},
+            ) as response:
                 status = response.status_code
                 raw = _read_bounded(response, max_bytes, deadline=deadline)
     except VerificationError:
@@ -257,9 +265,12 @@ class SingleAttemptPost:
         self.last_error_type = None
         self.last_status = None
         deadline = time.monotonic() + timeout
+        request_headers = {**headers, "Accept-Encoding": "identity"}
         try:
             with httpx.Client(follow_redirects=False, timeout=timeout) as session:
-                with session.stream("POST", url, headers=headers, json=body) as response:
+                with session.stream(
+                    "POST", url, headers=request_headers, json=body
+                ) as response:
                     status = response.status_code
                     self.last_status = status
                     raw = _read_bounded(response, self.max_bytes, deadline=deadline)
@@ -338,11 +349,14 @@ def audit_public_catalog(
             or not isinstance(data.get("endpoints"), list)
         ):
             raise VerificationError("invalid_endpoint_listing")
-        active = [
-            endpoint
-            for endpoint in data["endpoints"]
-            if isinstance(endpoint, dict) and endpoint.get("status") == 0
-        ]
+        endpoints = data["endpoints"]
+        for endpoint in endpoints:
+            if not isinstance(endpoint, dict):
+                raise VerificationError("invalid_endpoint_listing")
+            status = endpoint.get("status")
+            if isinstance(status, bool) or not isinstance(status, int) or status < 0:
+                raise VerificationError("invalid_endpoint_listing")
+        active = [endpoint for endpoint in endpoints if endpoint["status"] == 0]
         if not active:
             raise VerificationError("invalid_endpoint_listing")
         endpoint_prices: list[Decimal] = []

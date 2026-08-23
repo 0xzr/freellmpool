@@ -65,6 +65,28 @@ def test_public_count_drift_detects_claim_wrapped_across_lines(tmp_path):
     assert any("cataloged model bucket drift" in error for error in errors)
 
 
+def test_public_count_drift_is_not_hidden_by_same_sentence_keyless_copy(tmp_path):
+    namespace = runpy.run_path(str(ROOT / "scripts" / "check-counts"))
+    (tmp_path / "README.md").write_text("", encoding="utf-8")
+    (tmp_path / "FAQ.md").write_text("", encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "stale.md").write_text(
+        "Current catalog: 24 providers, 225 enabled chat routes, 409 cataloged chat "
+        "models; keyless start when available.\n",
+        encoding="utf-8",
+    )
+    counts = SimpleNamespace(
+        providers=24,
+        enabled_chat_models=226,
+        cataloged_chat_models=410,
+    )
+
+    errors = namespace["_check_public_drift"](tmp_path, counts)
+    assert any("enabled route bucket drift" in error for error in errors)
+    assert any("cataloged model bucket drift" in error for error in errors)
+
+
 def test_proxy_stress_script_tiny_profile():
     stress_proxy = _load_script("stress_proxy")
 

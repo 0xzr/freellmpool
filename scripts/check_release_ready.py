@@ -99,8 +99,8 @@ def metadata_errors(root: Path, *, version: str | None = None) -> list[str]:
         "docs/index.html JSON-LD softwareVersion mismatch",
     )
     require(
-        "installed from current main" in demo.lower(),
-        "assets/demo.svg current-main transcript mismatch",
+        "installed from current checkout" in demo.lower(),
+        "assets/demo.svg current-checkout transcript mismatch",
     )
     require(re.search(rf"^## \[{re.escape(version)}\]", changelog, re.MULTILINE) is not None, "CHANGELOG missing top-level release entry")
 

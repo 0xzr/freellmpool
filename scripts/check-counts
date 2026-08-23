@@ -37,6 +37,9 @@ EXTERNAL_CONTEXT = (
     "litellm",
     "openrouter free models",
     "openrouter's",
+)
+
+PROVIDER_ONLY_CONTEXT = (
     "keyless",
     "no API key",
     "need no API",
@@ -109,11 +112,26 @@ def _check_public_drift(root: Path, counts) -> list[str]:
         rel = path.relative_to(root)
         content = path.read_text(encoding="utf-8")
         checks = (
-            (provider_claim, counts.providers, "provider count drift"),
-            (enabled_route_claim, counts.enabled_chat_models, "enabled route bucket drift"),
-            (cataloged_claim, counts.cataloged_chat_models, "cataloged model bucket drift"),
+            (
+                provider_claim,
+                counts.providers,
+                "provider count drift",
+                EXTERNAL_CONTEXT + PROVIDER_ONLY_CONTEXT,
+            ),
+            (
+                enabled_route_claim,
+                counts.enabled_chat_models,
+                "enabled route bucket drift",
+                EXTERNAL_CONTEXT,
+            ),
+            (
+                cataloged_claim,
+                counts.cataloged_chat_models,
+                "cataloged model bucket drift",
+                EXTERNAL_CONTEXT,
+            ),
         )
-        for pattern, expected, label in checks:
+        for pattern, expected, label, exemptions in checks:
             for match in pattern.finditer(content):
                 context_starts = (
                     content.rfind(". ", 0, match.start()),
@@ -128,7 +146,7 @@ def _check_public_drift(root: Path, counts) -> list[str]:
                 ]
                 context_end = min(context_ends, default=match.end())
                 claim_context = content[context_start:context_end].lower()
-                if any(token in claim_context for token in EXTERNAL_CONTEXT):
+                if any(token in claim_context for token in exemptions):
                     continue
                 if int(match.group("n")) == expected:
                     continue

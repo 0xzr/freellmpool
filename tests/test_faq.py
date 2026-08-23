@@ -68,8 +68,9 @@ def test_demo_assets_are_well_formed_and_current():
     xml.dom.minidom.parseString(results)
     assert "TOKENMAXXING" in demo
     assert "--animation-duration: 8500ms" in demo
-    assert "installed from current main" in demo.lower()
+    assert "installed from current checkout" in demo.lower()
     assert "24 cataloged providers, 226 enabled routes" in demo
+    assert "current checkout catalog" in demo.lower()
     assert "keyless start when available" in demo
     assert "226" in results
     assert "410 cataloged" in results
