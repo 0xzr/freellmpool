@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-labelledby="title desc">
   <title id="title">freellmpool tokenmax launch card</title>
-  <desc id="desc">Static launch card showing 222 enabled routes, 24 cataloged providers, zero dollars, keyless start, and automatic failover.</desc>
+  <desc id="desc">Static launch card showing 223 enabled routes, 24 cataloged providers, zero dollars, keyless start, and automatic failover.</desc>
   <defs>
     <style>
       .bg { fill: #f7fafc; }
@@ -18,7 +18,7 @@
   <text class="ink muted small" x="70" y="128">A local OpenAI-compatible pool over legitimate free tiers.</text>
 
   <rect class="card" x="70" y="178" width="320" height="220" rx="18"/>
-  <text class="ink metric" x="104" y="292">222</text>
+  <text class="ink metric" x="104" y="292">223</text>
   <text class="ink label" x="108" y="340">enabled routes</text>
   <text class="ink muted tiny" x="108" y="374">407 cataloged chat models</text>
 

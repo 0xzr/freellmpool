@@ -81,7 +81,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install pinned scanner
-        run: python -m pip install --disable-pip-version-check zizmor==1.28.0
+        run: python -m pip install --disable-pip-version-check zizmor==1.29.0
       - name: Validate security exceptions
         run: python scripts/security_exceptions.py validate
       - name: Fail on high-confidence, high-severity workflow findings

@@ -172,7 +172,7 @@ def test_pull_requests_have_source_dependency_workflow_and_container_gates():
     assert "github/codeql-action/analyze@" in codeql
 
     assert "pip-audit==2.10.1" in security
-    assert "zizmor==1.28.0" in security
+    assert "zizmor==1.29.0" in security
     assert "--no-ignores" in security
     assert "--no-config" in security
     assert "bandit\n          --recursive src" in security
@@ -261,7 +261,7 @@ def test_security_tooling_extra_is_complete_and_pinned():
     assert extras["security"] == [
         "bandit==1.9.4",
         "pip-audit==2.10.1",
-        "zizmor==1.28.0",
+        "zizmor==1.29.0",
     ]
 
 

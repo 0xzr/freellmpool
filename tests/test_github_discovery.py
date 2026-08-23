@@ -64,7 +64,7 @@ def test_github_discovery_description_stays_within_about_limit():
     assert len(description) <= 120
     assert "keyless start when available" in description
     assert "24 LLM providers" in description
-    assert "222 routes" in description
+    assert "223 routes" in description
     assert "407 cataloged chat models" in description
 
 
@@ -93,7 +93,7 @@ def test_social_preview_svg_matches_github_preview_requirements():
     for text in (
         "keyless start",
         "24 cataloged",
-        "222 routes",
+        "223 routes",
         "OpenAI proxy",
         "exp. Anthropic",
         "failover",

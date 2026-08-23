@@ -13,7 +13,9 @@ auth = "none"
 models = [
     { name = "openai", rpd = 0 },
     { name = "openai-fast", rpd = 0 },
-    { name = "mistral", rpd = 0, enabled = false },
+    # Public listing plus three repeat non-empty anonymous completions on
+    # 2026-08-23. The provider currently resolves this selector to gpt-oss-20b.
+    { name = "gpt-oss", rpd = 0 },
 ]
 
 [[provider]]

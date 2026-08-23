@@ -4,9 +4,9 @@
 
 ![freellmpool tokenmax terminal demo](assets/demo.svg)
 
-![222 enabled routes, 24 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
+![223 enabled routes, 24 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
 
-Pool the free tiers of 24 LLM providers cataloged in freellmpool (222 enabled chat routes, 407 cataloged chat models)
+Pool the free tiers of 24 LLM providers cataloged in freellmpool (223 enabled chat routes, 407 cataloged chat models)
 behind one OpenAI-compatible endpoint — as a CLI, a Python library, or a local
 proxy. Can start without API keys when a keyless provider is up.
 

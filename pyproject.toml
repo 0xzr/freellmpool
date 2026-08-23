@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "freellmpool"
 version = "0.11.4"
-description = "Free LLM API pool: 24 LLM providers cataloged, 222 routes, 407 cataloged chat models, keyless start when available."
+description = "Free LLM API pool: 24 LLM providers cataloged, 223 routes, 407 cataloged chat models, keyless start when available."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -76,7 +76,7 @@ dev = [
 security = [
     "bandit==1.9.4",
     "pip-audit==2.10.1",
-    "zizmor==1.28.0",
+    "zizmor==1.29.0",
 ]
 
 [project.scripts]

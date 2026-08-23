@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from http.server import BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 from helpers import gemini_body, make_post, make_stream_post, openai_body
@@ -57,6 +57,7 @@ def test_chat_completions_shape(server):
     )
     assert status == 200
     assert body["object"] == "chat.completion"
+    assert isinstance(body["created"], int)
     assert body["choices"][0]["message"]["content"] == "ok"
     assert "x_freellmpool" in body
 
@@ -204,6 +205,63 @@ def test_proxy_server_header_uses_package_version(server):
 
 def test_proxy_listen_backlog_matches_connection_cap():
     assert _BoundedThreadingHTTPServer.request_queue_size == _MAX_CONNECTIONS
+
+
+def test_proxy_waits_briefly_for_a_connection_slot_before_rejecting(monkeypatch):
+    server = object.__new__(_BoundedThreadingHTTPServer)
+    server._slots = threading.BoundedSemaphore(1)
+    assert server._slots.acquire(blocking=False)
+    delegated = []
+    rejected = []
+
+    monkeypatch.setattr(
+        ThreadingHTTPServer,
+        "process_request",
+        lambda self, request, address: delegated.append((request, address)),
+    )
+    server.shutdown_request = lambda request: rejected.append(request)
+
+    request = object()
+    releaser = threading.Timer(0.05, server._slots.release)
+    releaser.start()
+    started = time.monotonic()
+    server.process_request(request, ("127.0.0.1", 12345))
+    elapsed = time.monotonic() - started
+    releaser.join()
+
+    assert elapsed >= 0.04
+    assert delegated == [(request, ("127.0.0.1", 12345))]
+    assert rejected == []
+    server._slots.release()
+
+
+def test_proxy_still_rejects_when_connection_cap_does_not_clear(monkeypatch):
+    class Request:
+        def __init__(self):
+            self.sent = b""
+
+        def sendall(self, data):
+            self.sent += data
+
+    server = object.__new__(_BoundedThreadingHTTPServer)
+    server._slots = threading.BoundedSemaphore(1)
+    assert server._slots.acquire(blocking=False)
+    delegated = []
+    rejected = []
+    monkeypatch.setattr(
+        ThreadingHTTPServer,
+        "process_request",
+        lambda self, request, address: delegated.append((request, address)),
+    )
+    server.shutdown_request = lambda request: rejected.append(request)
+
+    request = Request()
+    server.process_request(request, ("127.0.0.1", 12345))
+
+    assert delegated == []
+    assert rejected == [request]
+    assert request.sent.startswith(b"HTTP/1.1 503 Service Unavailable")
+    server._slots.release()
 
 
 def test_concurrent_chat_requests_share_pool_safely(providers, env, quota):

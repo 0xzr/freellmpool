@@ -318,6 +318,14 @@ def test_keyless_providers_always_configured():
     assert "pollinations" in ids  # keyless
     assert "groq" not in ids  # needs a key
 
+
+def test_pollinations_catalog_matches_live_chat_selectors():
+    pollinations = next(provider for provider in load_catalog() if provider.id == "pollinations")
+    models = {model.name: model for model in pollinations.models}
+
+    assert set(models) == {"openai", "openai-fast", "gpt-oss"}
+    assert models["gpt-oss"].enabled is True
+
 def test_env_example_documents_keyless_providers():
     """Verify .env.example lists all default-enabled keyless/key-optional providers."""
     catalog = load_catalog()
