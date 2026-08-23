@@ -115,9 +115,11 @@ def test_public_docs_describe_the_current_release() -> None:
     )
 
     for text in source_docs:
+        normalized = text.casefold().replace("`", "")
         assert version in text
         assert "pip install" in text
-        assert "Current main includes unreleased changes" not in text
+        assert "unreleased" not in normalized
+        assert re.search(r"\bcurrent[- ]+main\b", normalized) is None
         assert "0.11.4" not in text
 
     for text in (readme, index):

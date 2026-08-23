@@ -71,7 +71,7 @@ Anthropic bridge, `/v1/models` for concrete `provider/model` ids, `/dashboard`
 for operations, `/playground` for browser-side battle runs, and
 `/freellmpool/battle` for JSON/Markdown comparison results.
 
-On current `main`, automation can use `/healthz` and `/livez` as public liveness aliases;
+In release 0.12.0, automation can use `/healthz` and `/livez` as public liveness aliases;
 `/readyz` is a public advisory local-capacity probe (200 or 503), and
 `/v1/providers` is the authenticated secret-free inventory. Use
 `/v1/models?ready=true` to keep the normal OpenAI/Anthropic model-list shape

@@ -161,7 +161,7 @@ Existing OpenAI-compatible apps work the same way: set
 Anthropic-compatible tools can use the experimental bridge with
 `ANTHROPIC_BASE_URL=http://localhost:8080`.
 
-**OpenCode** gets a deeper integration on current `main`: a live in-editor **dashboard** (routing mode,
+**OpenCode** gets a deeper integration in 0.12.0: a live in-editor **dashboard** (routing mode,
 estimated savings, tokens served free, provider race, latency), per-request
 **agent routing** via the model picker (`freellmpool/agent|spread|auto|fast|quality|fair`), and `freellmpool_status`
 / `freellmpool_models` tools — see [integrations/opencode-tui](integrations/opencode-tui)
@@ -286,7 +286,7 @@ freellmpool profile show opencode
 freellmpool profile doctor opencode --dry-run
 ```
 
-Current `main` proxy surfaces (the readiness/provider additions are unreleased):
+Release 0.12.0 proxy surfaces:
 
 - `/v1/chat/completions` — OpenAI-compatible chat, token streaming, tool calling.
 - `/v1/responses` — minimal Responses API shim for Codex-style agents.
