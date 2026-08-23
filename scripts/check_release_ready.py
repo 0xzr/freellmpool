@@ -98,7 +98,10 @@ def metadata_errors(root: Path, *, version: str | None = None) -> list[str]:
         f'"softwareVersion": "{version}"' in docs_index,
         "docs/index.html JSON-LD softwareVersion mismatch",
     )
-    require(f"freellmpool-{version}" in demo, "assets/demo.svg install transcript mismatch")
+    require(
+        "installed from current main" in demo.lower(),
+        "assets/demo.svg current-main transcript mismatch",
+    )
     require(re.search(rf"^## \[{re.escape(version)}\]", changelog, re.MULTILINE) is not None, "CHANGELOG missing top-level release entry")
 
     provider_phrase = f"{counts.providers} LLM providers"

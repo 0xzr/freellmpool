@@ -75,8 +75,10 @@ class ProviderHTTPError(FreeLLMPoolError):
         *,
         retryable: bool,
         retry_after: float | None = None,
+        error_type: str | None = None,
     ):
         self.status = status
         self.retryable = retryable
         self.retry_after = retry_after
+        self.error_type = error_type
         super().__init__(f"HTTP {status}: {message}")

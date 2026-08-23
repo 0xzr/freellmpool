@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
+import time
 from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -57,6 +59,26 @@ _DIRECT_PRICE_FIELDS = frozenset(
         "discount",
     }
 )
+_TIER_PRICE_FIELDS = frozenset(f"{name}_tiers" for name in _DIRECT_PRICE_FIELDS)
+_PRICING_METADATA_FIELDS = frozenset({"varies_by_provider"})
+_KNOWN_SERVING_PROVIDERS = frozenset(
+    {
+        "alibaba",
+        "baseten",
+        "deepinfra",
+        "deepseek",
+        "fireworks",
+        "gmicloud",
+        "novita",
+        "nvidia",
+        "poolside",
+        "runinfra",
+        "runware",
+        "wafer",
+    }
+)
+_PROVIDER_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}\Z")
+_MAX_SAFE_INTEGER = 1_000_000_000
 
 
 class VerificationError(RuntimeError):
@@ -77,37 +99,69 @@ def _decimal(value: Any, classification: str) -> Decimal:
         number = Decimal(raw)
     except (InvalidOperation, ValueError):
         raise VerificationError(classification) from None
-    if (
-        not number.is_finite()
-        or number < 0
-        or (number != 0 and not -30 <= number.adjusted() <= 6)
-    ):
+    exponent = number.as_tuple().exponent
+    if not isinstance(exponent, int) or not -30 <= exponent <= 6:
         raise VerificationError(classification)
-    return number
+    if not number.is_finite() or number < 0 or (number != 0 and number.adjusted() > 6):
+        raise VerificationError(classification)
+    return Decimal(0) if number == 0 else number
 
 
 def _decimal_text(value: Decimal) -> str:
+    if value == 0:
+        return "0"
     return format(value, "f")
 
 
-def _pricing_values(pricing: Any) -> list[Decimal]:
+def _tier_bound(value: Any, classification: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= _MAX_SAFE_INTEGER:
+        raise VerificationError(classification)
+    return value
+
+
+def _pricing_values(
+    pricing: Any,
+    *,
+    required: frozenset[str],
+    classification: str,
+) -> list[Decimal]:
     if not isinstance(pricing, dict):
-        raise VerificationError("invalid_model_pricing")
+        raise VerificationError(classification)
+    if not required <= pricing.keys():
+        raise VerificationError(classification)
     values: list[Decimal] = []
     for name, raw in pricing.items():
         if name in _DIRECT_PRICE_FIELDS:
-            values.append(_decimal(raw, "invalid_model_pricing"))
+            values.append(_decimal(raw, classification))
             continue
-        if not name.endswith("_tiers"):
+        if name in _PRICING_METADATA_FIELDS:
+            if not isinstance(raw, bool):
+                raise VerificationError(classification)
             continue
-        if not isinstance(raw, list):
-            raise VerificationError("invalid_model_pricing")
-        for tier in raw:
-            if not isinstance(tier, dict) or "cost" not in tier:
-                raise VerificationError("invalid_model_pricing")
-            values.append(_decimal(tier["cost"], "invalid_model_pricing"))
+        if name not in _TIER_PRICE_FIELDS:
+            raise VerificationError("pricing_schema_drift")
+        if not isinstance(raw, list) or not raw:
+            raise VerificationError(classification)
+        previous_max: int | None = None
+        for index, tier in enumerate(raw):
+            if (
+                not isinstance(tier, dict)
+                or not {"cost", "min"} <= tier.keys()
+                or not tier.keys() <= {"cost", "min", "max"}
+            ):
+                raise VerificationError(classification)
+            minimum = _tier_bound(tier["min"], classification)
+            maximum = (
+                _tier_bound(tier["max"], classification) if "max" in tier else None
+            )
+            if maximum is not None and maximum <= minimum:
+                raise VerificationError(classification)
+            if index and (previous_max is None or previous_max > minimum):
+                raise VerificationError(classification)
+            values.append(_decimal(tier["cost"], classification))
+            previous_max = maximum
     if not values:
-        raise VerificationError("invalid_model_pricing")
+        raise VerificationError(classification)
     return values
 
 
@@ -122,13 +176,42 @@ def _validate_provider(provider: Provider) -> None:
         raise VerificationError("unsafe_provider_configuration")
 
 
-def _read_bounded(response: httpx.Response, max_bytes: int) -> bytes:
+def _read_bounded(
+    response: httpx.Response,
+    max_bytes: int,
+    *,
+    deadline: float,
+    now: Callable[[], float] = time.monotonic,
+) -> bytes:
     raw = bytearray()
-    for chunk in response.iter_bytes():
-        raw.extend(chunk)
-        if len(raw) > max_bytes:
+    for chunk in response.iter_bytes(chunk_size=64 * 1024):
+        if now() > deadline:
+            raise VerificationError("request_deadline_exceeded")
+        if not isinstance(chunk, bytes) or len(chunk) > max_bytes - len(raw):
             raise VerificationError("response_too_large")
+        raw.extend(chunk)
+        if now() > deadline:
+            raise VerificationError("request_deadline_exceeded")
+    if now() > deadline:
+        raise VerificationError("request_deadline_exceeded")
     return bytes(raw)
+
+
+def _json_loads(raw: bytes, classification: str) -> Any:
+    try:
+        return json.loads(raw)
+    except (UnicodeError, json.JSONDecodeError, ValueError, RecursionError):
+        raise VerificationError(classification) from None
+
+
+def _discovery_http_classification(status: int) -> str:
+    if status in {401, 403}:
+        return "auth_required"
+    if status == 402:
+        return "billing_or_credit"
+    if status == 429:
+        return "rate_limited"
+    return "model_listing_http_error"
 
 
 def _bounded_json_get(
@@ -139,21 +222,19 @@ def _bounded_json_get(
 ) -> Any:
     if not (url == MODELS_URL or (url.startswith(MODELS_URL + "/") and url.endswith("/endpoints"))):
         raise VerificationError("unsafe_discovery_url")
+    deadline = time.monotonic() + timeout
     try:
         with httpx.Client(follow_redirects=False, timeout=timeout) as session:
             with session.stream("GET", url, headers={"Accept": "application/json"}) as response:
                 status = response.status_code
-                raw = _read_bounded(response, max_bytes)
+                raw = _read_bounded(response, max_bytes, deadline=deadline)
     except VerificationError:
         raise
     except (httpx.HTTPError, OSError):
         raise VerificationError("discovery_transport_error") from None
     if status != 200:
-        raise VerificationError("model_listing_http_error")
-    try:
-        return json.loads(raw)
-    except (UnicodeError, json.JSONDecodeError):
-        raise VerificationError("invalid_model_listing") from None
+        raise VerificationError(_discovery_http_classification(status))
+    return _json_loads(raw, "invalid_model_listing")
 
 
 class SingleAttemptPost:
@@ -175,19 +256,20 @@ class SingleAttemptPost:
             raise VerificationError("unsafe_completion_url")
         self.last_error_type = None
         self.last_status = None
+        deadline = time.monotonic() + timeout
         try:
             with httpx.Client(follow_redirects=False, timeout=timeout) as session:
                 with session.stream("POST", url, headers=headers, json=body) as response:
                     status = response.status_code
                     self.last_status = status
-                    raw = _read_bounded(response, self.max_bytes)
+                    raw = _read_bounded(response, self.max_bytes, deadline=deadline)
         except VerificationError:
             raise
         except (httpx.HTTPError, OSError):
             raise VerificationError("completion_transport_error") from None
         try:
-            payload = json.loads(raw)
-        except (UnicodeError, json.JSONDecodeError):
+            payload = _json_loads(raw, "malformed_completion")
+        except VerificationError:
             payload = {}
         if not isinstance(payload, dict):
             payload = {}
@@ -224,18 +306,22 @@ def audit_public_catalog(
         pricing = row.get("pricing")
         if not isinstance(pricing, dict) or "input" not in pricing or "output" not in pricing:
             raise VerificationError("invalid_model_pricing")
+        aggregate_prices = _pricing_values(
+            pricing,
+            required=frozenset({"input", "output"}),
+            classification="invalid_model_pricing",
+        )
         aggregate_input = _decimal(pricing["input"], "invalid_model_pricing")
         aggregate_output = _decimal(pricing["output"], "invalid_model_pricing")
-        _pricing_values(pricing)
         context_window = row.get("context_window")
         max_output = row.get("max_tokens")
         if (
             isinstance(context_window, bool)
             or not isinstance(context_window, int)
-            or context_window <= 0
+            or not 0 < context_window <= _MAX_SAFE_INTEGER
             or isinstance(max_output, bool)
             or not isinstance(max_output, int)
-            or max_output <= 0
+            or not 0 < max_output <= _MAX_SAFE_INTEGER
         ):
             raise VerificationError("invalid_model_listing")
 
@@ -264,16 +350,24 @@ def audit_public_catalog(
         try:
             for endpoint in active:
                 name = endpoint.get("provider_name")
-                if not isinstance(name, str) or not name.strip() or len(name) > 128:
-                    raise VerificationError("invalid_endpoint_listing")
+                if (
+                    not isinstance(name, str)
+                    or _PROVIDER_ID.fullmatch(name) is None
+                    or name not in _KNOWN_SERVING_PROVIDERS
+                ):
+                    raise VerificationError("provider_schema_drift")
                 providers.append(name)
-                endpoint_prices.extend(_pricing_values(endpoint.get("pricing")))
-        except VerificationError as exc:
-            if exc.classification == "invalid_model_pricing":
-                raise VerificationError("invalid_endpoint_listing") from None
+                endpoint_prices.extend(
+                    _pricing_values(
+                        endpoint.get("pricing"),
+                        required=frozenset({"prompt", "completion"}),
+                        classification="invalid_endpoint_listing",
+                    )
+                )
+        except VerificationError:
             raise
 
-        zero_price = aggregate_input == 0 and aggregate_output == 0
+        zero_price = all(price == 0 for price in aggregate_prices)
         if zero_price and any(price != 0 for price in endpoint_prices):
             raise VerificationError("pricing_drift")
         report.append(
@@ -304,7 +398,7 @@ def _failure_classification(status: int, error_type: str | None) -> str:
     return "provider_error"
 
 
-def _gateway_metadata(raw: Any) -> tuple[str, Decimal]:
+def _gateway_metadata(raw: Any, allowed_providers: frozenset[str]) -> tuple[str, Decimal]:
     if not isinstance(raw, dict):
         raise VerificationError("provenance_missing")
     metadata = raw.get("provider_metadata") or raw.get("providerMetadata")
@@ -313,11 +407,24 @@ def _gateway_metadata(raw: Any) -> tuple[str, Decimal]:
     gateway = metadata.get("gateway")
     if not isinstance(gateway, dict):
         raise VerificationError("provenance_missing")
-    provider = gateway.get("provider")
-    cost = gateway.get("cost")
-    if not isinstance(provider, str) or not provider.strip() or len(provider) > 128 or cost is None:
+    routing = gateway.get("routing")
+    if not isinstance(routing, dict):
         raise VerificationError("provenance_missing")
+    provider = routing.get("finalProvider")
+    cost = gateway.get("cost")
+    if not isinstance(provider, str) or _PROVIDER_ID.fullmatch(provider) is None or cost is None:
+        raise VerificationError("provenance_missing")
+    if provider not in allowed_providers:
+        raise VerificationError("unverified_serving_provider")
     return provider, _decimal(cost, "invalid_returned_cost")
+
+
+def _usage_token_count(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= _MAX_SAFE_INTEGER:
+        raise VerificationError("invalid_usage")
+    return value
 
 
 def verify(
@@ -372,9 +479,13 @@ def verify(
         returned_model = raw.get("model") if isinstance(raw, dict) else None
         if returned_model != model:
             raise VerificationError("model_mismatch")
-        serving_provider, cost = _gateway_metadata(raw)
+        serving_provider, cost = _gateway_metadata(
+            raw, frozenset(selected["active_providers"])
+        )
         if selected["zero_price"] and cost != 0:
             raise VerificationError("nonzero_returned_cost")
+        prompt_tokens = _usage_token_count(reply.prompt_tokens)
+        completion_tokens = _usage_token_count(reply.completion_tokens)
         attempts.append(
             {
                 "attempt": attempt,
@@ -383,8 +494,8 @@ def verify(
                 "returned_model": returned_model,
                 "serving_provider": serving_provider,
                 "cost": _decimal_text(cost),
-                "prompt_tokens": reply.prompt_tokens,
-                "completion_tokens": reply.completion_tokens,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
             }
         )
     return {
@@ -446,6 +557,9 @@ def main(argv: list[str] | None = None) -> int:
             )
     except VerificationError as exc:
         print(json.dumps({"classification": exc.classification, "ok": False}, sort_keys=True))
+        return 1
+    except Exception:
+        print(json.dumps({"classification": "unexpected_verifier_error", "ok": False}, sort_keys=True))
         return 1
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

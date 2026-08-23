@@ -392,10 +392,14 @@ def stream_call(
         finally:
             close()
         err_body = "".join(parts)[:500]
+        try:
+            parsed_error = json.loads(err_body)
+        except (json.JSONDecodeError, ValueError, RecursionError):
+            parsed_error = {}
         raise _provider_http_error(
             HTTPResult(
                 status=status,
-                body={},
+                body=parsed_error if isinstance(parsed_error, dict) else {},
                 text=err_body or f"HTTP {status}",
                 headers=response_headers,
             )
@@ -449,11 +453,16 @@ def _err_message(result: HTTPResult) -> str:
 
 def _provider_http_error(result: HTTPResult) -> ProviderHTTPError:
     """Build an HTTP error without discarding provider backoff guidance."""
+    error = result.body.get("error") if isinstance(result.body, dict) else None
+    error_type = error.get("type") if isinstance(error, dict) else None
+    if not isinstance(error_type, str) or len(error_type) > 128:
+        error_type = None
     return ProviderHTTPError(
         result.status,
         _err_message(result),
         retryable=_retryable(result.status),
         retry_after=_retry_after_seconds(result.headers),
+        error_type=error_type,
     )
 
 

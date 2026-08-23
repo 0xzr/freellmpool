@@ -547,7 +547,7 @@ class AsyncPool:
                     p._mark_cooldown(target.provider.id, p._clock())
                     unavailable_providers.add(target.provider.id)
                     emit(p._on_event, "cooldown", target=target.name, status=429)
-                account_exhausted = _is_account_quota_exhaustion(exc)
+                account_exhausted = _is_account_quota_exhaustion(exc, target.provider.id)
                 if account_exhausted:
                     p._mark_account_backoff(target.provider.id, p._clock())
                     unavailable_providers.add(target.provider.id)

@@ -5,7 +5,7 @@ promotion actions.
 
 ## Metadata audit
 
-Repository metadata reverified on 2026-07-29 with:
+Repository metadata reverified on 2026-08-23 with:
 
 ```bash
 gh repo view 0xzr/freellmpool --json description,repositoryTopics,openGraphImageUrl,stargazerCount,url

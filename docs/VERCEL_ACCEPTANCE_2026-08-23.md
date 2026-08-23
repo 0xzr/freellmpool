@@ -48,14 +48,18 @@ No completion was returned and this is not acceptance evidence.
 After Vercel clears the account requirement, the verifier must produce three
 non-empty normal-client completions. Successful zero-price acceptance also
 requires the exact returned model, serving-provider provenance, and a numeric
-zero gateway cost. Missing metadata or nonzero cost fails closed. Priced-model
-canaries require `--attest-credit-spend`.
+zero gateway cost. The serving winner is read from the documented
+`providerMetadata.gateway.routing.finalProvider` field and must match one of
+the model's active providers from the audited endpoint listing. Missing or
+unrecognized metadata and nonzero cost fail closed. Priced-model canaries
+require `--attest-credit-spend`.
 
-HTTP 402 is classified as billing/credit exhaustion and backs off the Vercel
-account rather than retiring a model. Tests cover 401/403 authentication,
-customer verification, 402 billing, 429 rate limits, malformed/empty discovery,
-bad pricing, empty/malformed completions, provenance/cost drift, response bounds,
-and secret/content redaction.
+Vercel insufficient-funds and spend-budget HTTP 402 responses back off the
+account rather than retiring a model; generic capability/payment 402 responses
+remain model-local. Tests cover 401/403 authentication, customer verification,
+402 billing, 429 rate limits, malformed/empty discovery, bad pricing,
+empty/malformed completions, provenance/cost drift, response bounds, and
+secret/content redaction.
 
 ## Terms and privacy
 

@@ -1,9 +1,11 @@
 # Getting your free API keys (step by step)
 
-`freellmpool` is only as good as the free tiers you plug into it. The good news:
-**every provider below is free and none require a credit card.** You don't need
-all of them — even **one** key gets you going. Start with Groq + Cerebras (the
-two fastest, most generous, and quickest to sign up for), then add more later.
+`freellmpool` is only as good as the free tiers you plug into it. Most providers
+below offer a cardless free tier, but requirements can change. Vercel currently
+requires customer/card verification, and its low-cost automatic route can use
+the included monthly Hobby credit. You don't need every provider — even **one**
+key gets you going. Start with Groq + Cerebras (the two fastest, most generous,
+and quickest to sign up for), then add more later.
 
 > **No keys at all?** freellmpool still works: **Pollinations**, **OVHcloud**,
 > and **Kilo Gateway** are keyless (anonymous), and **LLM7** works without a key. So

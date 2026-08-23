@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import runpy
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,6 +43,26 @@ def test_public_count_claims_match_catalog():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_public_count_drift_detects_claim_wrapped_across_lines(tmp_path):
+    namespace = runpy.run_path(str(ROOT / "scripts" / "check-counts"))
+    (tmp_path / "README.md").write_text("", encoding="utf-8")
+    (tmp_path / "FAQ.md").write_text("", encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "wrapped.md").write_text(
+        "The catalog has 24 providers and 407\ncataloged chat models. Keyless start follows.\n",
+        encoding="utf-8",
+    )
+    counts = SimpleNamespace(
+        providers=24,
+        enabled_chat_models=226,
+        cataloged_chat_models=410,
+    )
+
+    errors = namespace["_check_public_drift"](tmp_path, counts)
+    assert any("cataloged model bucket drift" in error for error in errors)
 
 
 def test_proxy_stress_script_tiny_profile():

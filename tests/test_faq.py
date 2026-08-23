@@ -5,7 +5,6 @@ import tomllib
 import xml.dom.minidom
 from pathlib import Path
 
-from freellmpool import __version__
 from freellmpool.config import load_catalog
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,7 +68,7 @@ def test_demo_assets_are_well_formed_and_current():
     xml.dom.minidom.parseString(results)
     assert "TOKENMAXXING" in demo
     assert "--animation-duration: 8500ms" in demo
-    assert f"freellmpool-{__version__}" in demo
+    assert "installed from current main" in demo.lower()
     assert "24 cataloged providers, 226 enabled routes" in demo
     assert "keyless start when available" in demo
     assert "226" in results

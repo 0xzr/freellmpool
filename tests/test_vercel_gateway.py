@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -121,9 +122,10 @@ class _Post:
         *,
         text: str = "OK",
         cost: str = "0",
-        provider: str = "poolside",
+        provider: Any = "poolside",
         status: int = 200,
         error_type: str | None = None,
+        usage: Any = None,
     ) -> None:
         self.model = model
         self.text = text
@@ -131,6 +133,7 @@ class _Post:
         self.provider = provider
         self.status = status
         self.error_type = error_type
+        self.usage = {"prompt_tokens": 5, "completion_tokens": 1} if usage is None else usage
         self.calls: list[tuple[str, dict, dict, float]] = []
         self.last_error_type: str | None = None
         self.last_status: int | None = None
@@ -151,9 +154,12 @@ class _Post:
                 "id": "generation-test",
                 "model": self.model,
                 "choices": [{"message": {"role": "assistant", "content": self.text}}],
-                "usage": {"prompt_tokens": 5, "completion_tokens": 1},
+                "usage": self.usage,
                 "provider_metadata": {
-                    "gateway": {"cost": self.cost, "provider": self.provider}
+                    "gateway": {
+                        "cost": self.cost,
+                        "routing": {"finalProvider": self.provider},
+                    }
                 },
             },
             "",
@@ -246,6 +252,104 @@ def test_public_audit_rejects_malformed_tier_cost():
     assert exc.value.classification == "invalid_endpoint_listing"
 
 
+def test_public_audit_rejects_unknown_pricing_fields():
+    rows = [
+        _model_row(AUTO_MODELS[0].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[1].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[2].name, input_price="1", output_price="1"),
+    ]
+    rows[0]["pricing"]["surprise_fee"] = "1"
+
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.audit_public_catalog(_provider(), fetch=_fetcher(models_payload={"data": rows}))
+    assert exc.value.classification == "pricing_schema_drift"
+
+
+def test_public_audit_accepts_validated_varies_by_provider_metadata():
+    rows = [
+        _model_row(AUTO_MODELS[0].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[1].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[2].name, input_price="1", output_price="1"),
+    ]
+    rows[2]["pricing"]["varies_by_provider"] = True
+
+    report = VERIFIER.audit_public_catalog(
+        _provider(), fetch=_fetcher(models_payload={"data": rows})
+    )
+    assert report[2]["zero_price"] is False
+
+
+def test_public_audit_rejects_malformed_pricing_metadata():
+    rows = [
+        _model_row(AUTO_MODELS[0].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[1].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[2].name, input_price="1", output_price="1"),
+    ]
+    rows[2]["pricing"]["varies_by_provider"] = "true"
+
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.audit_public_catalog(_provider(), fetch=_fetcher(models_payload={"data": rows}))
+    assert exc.value.classification == "invalid_model_pricing"
+
+
+def test_aggregate_request_fee_prevents_zero_price_classification():
+    rows = [
+        _model_row(AUTO_MODELS[0].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[1].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[2].name, input_price="1", output_price="1"),
+    ]
+    rows[0]["pricing"]["request"] = "1"
+
+    report = VERIFIER.audit_public_catalog(
+        _provider(), fetch=_fetcher(models_payload={"data": rows})
+    )
+    assert report[0]["zero_price"] is False
+
+
+def test_endpoint_pricing_requires_prompt_and_completion():
+    payload = _endpoint_payload(AUTO_MODELS[0].name, prompt="0", completion="0")
+    payload["data"]["endpoints"][0]["pricing"] = {"request": "0"}
+
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.audit_public_catalog(
+            _provider(),
+            fetch=_fetcher(endpoint_overrides={AUTO_MODELS[0].name: payload}),
+        )
+    assert exc.value.classification == "invalid_endpoint_listing"
+
+
+@pytest.mark.parametrize(
+    "tiers",
+    [
+        [{"cost": "0"}],
+        [{"cost": "0", "min": -1}],
+        [{"cost": "0", "min": 10, "max": 10}],
+        [{"cost": "0", "min": 10, "max": 5}],
+        [{"cost": "0", "min": 10, "unexpected": 20}],
+        [{"cost": "0", "min": 0}, {"cost": "0", "min": 10, "max": 20}],
+        [
+            {"cost": "0", "min": 0, "max": 20},
+            {"cost": "0", "min": 10, "max": 30},
+        ],
+    ],
+)
+def test_public_audit_rejects_malformed_tier_bounds(tiers):
+    payload = _endpoint_payload(AUTO_MODELS[0].name, prompt="0", completion="0")
+    payload["data"]["endpoints"][0]["pricing"]["prompt_tiers"] = tiers
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.audit_public_catalog(
+            _provider(), fetch=_fetcher(endpoint_overrides={AUTO_MODELS[0].name: payload})
+        )
+    assert exc.value.classification == "invalid_endpoint_listing"
+
+
+def test_decimal_rejects_extreme_zero_exponent_without_expanding_output():
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER._decimal("0E-100000", "invalid_model_pricing")
+    assert exc.value.classification == "invalid_model_pricing"
+    assert VERIFIER._decimal_text(VERIFIER._decimal("0E-9", "bad")) == "0"
+
+
 def test_acceptance_runs_exactly_three_single_attempt_normal_client_calls():
     post = _Post(AUTO_MODELS[0].name)
     report = VERIFIER.verify(
@@ -272,13 +376,25 @@ def test_acceptance_runs_exactly_three_single_attempt_normal_client_calls():
 
 def test_bounded_reader_rejects_oversized_response():
     class Response:
-        def iter_bytes(self):
+        def iter_bytes(self, chunk_size=None):
+            assert chunk_size == 64 * 1024
             yield b"1234"
             yield b"5678"
 
     with pytest.raises(VERIFIER.VerificationError) as exc:
-        VERIFIER._read_bounded(Response(), 7)
+        VERIFIER._read_bounded(Response(), 7, deadline=10, now=lambda: 0)
     assert exc.value.classification == "response_too_large"
+
+
+def test_bounded_reader_enforces_total_deadline():
+    class Response:
+        def iter_bytes(self, chunk_size=None):
+            yield b"{}"
+
+    ticks = iter([0.0, 2.0])
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER._read_bounded(Response(), 100, deadline=1.0, now=lambda: next(ticks))
+    assert exc.value.classification == "request_deadline_exceeded"
 
 
 def test_network_helpers_reject_unpinned_urls_before_transport(monkeypatch):
@@ -314,7 +430,7 @@ def test_network_helpers_disable_redirect_following(monkeypatch):
         def __exit__(self, *_args):
             return None
 
-        def iter_bytes(self):
+        def iter_bytes(self, chunk_size=None):
             yield b'{"data": []}'
 
     class Client:
@@ -333,6 +449,129 @@ def test_network_helpers_disable_redirect_following(monkeypatch):
     monkeypatch.setattr(VERIFIER.httpx, "Client", Client)
     assert VERIFIER._bounded_json_get(VERIFIER.MODELS_URL) == {"data": []}
     assert seen == [{"follow_redirects": False, "timeout": VERIFIER.TIMEOUT_SECONDS}]
+
+
+def test_completion_transport_disables_redirects_and_posts_once(monkeypatch):
+    seen_clients = []
+    seen_streams = []
+
+    class Response:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def iter_bytes(self, chunk_size=None):
+            yield b'{"choices": []}'
+
+    class Client:
+        def __init__(self, **kwargs):
+            seen_clients.append(kwargs)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def stream(self, method, url, **kwargs):
+            seen_streams.append((method, url, kwargs))
+            return Response()
+
+    monkeypatch.setattr(VERIFIER.httpx, "Client", Client)
+    result = VERIFIER.SingleAttemptPost()(
+        f"{VERIFIER.BASE_URL}/chat/completions", {}, {"model": AUTO_MODELS[0].name}, 3
+    )
+    assert result.status == 200
+    assert seen_clients == [{"follow_redirects": False, "timeout": 3}]
+    assert len(seen_streams) == 1
+    assert seen_streams[0][0:2] == ("POST", f"{VERIFIER.BASE_URL}/chat/completions")
+
+
+def test_model_listing_http_status_is_classified_and_sanitized(monkeypatch):
+    class Response:
+        status_code = 402
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def iter_bytes(self, chunk_size=None):
+            yield b'{"error":"do-not-serialize"}'
+
+    class Client:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def stream(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setattr(VERIFIER.httpx, "Client", Client)
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER._bounded_json_get(VERIFIER.MODELS_URL)
+    assert exc.value.classification == "billing_or_credit"
+    assert "do-not-serialize" not in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"n":' + (b"9" * 5_000) + b"}",
+    ],
+)
+def test_model_listing_malformed_json_failures_are_sanitized(monkeypatch, raw):
+    class Response:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def iter_bytes(self, chunk_size=None):
+            yield raw
+
+    class Client:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def stream(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setattr(VERIFIER.httpx, "Client", Client)
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER._bounded_json_get(VERIFIER.MODELS_URL)
+    assert exc.value.classification == "invalid_model_listing"
+
+
+def test_json_recursion_error_is_sanitized(monkeypatch):
+    monkeypatch.setattr(
+        VERIFIER.json,
+        "loads",
+        lambda _raw: (_ for _ in ()).throw(RecursionError("do-not-serialize")),
+    )
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER._json_loads(b"[]", "invalid_model_listing")
+    assert exc.value.classification == "invalid_model_listing"
+    assert "do-not-serialize" not in str(exc.value)
 
 
 def test_verifier_rejects_user_catalog_redirect_and_missing_key_before_fetch():
@@ -364,7 +603,7 @@ def test_priced_model_requires_explicit_credit_attestation_before_post():
 
 
 def test_priced_model_canary_records_cost_after_attestation():
-    post = _Post(AUTO_MODELS[2].name, cost="0.000001", provider="runware")
+    post = _Post(AUTO_MODELS[2].name, cost="0.000001", provider="deepseek")
     report = VERIFIER.verify(
         _provider(),
         api_key="secret",
@@ -375,7 +614,7 @@ def test_priced_model_canary_records_cost_after_attestation():
     )
     assert report["ok"] is True
     assert report["attempts"][0]["cost"] == "0.000001"
-    assert report["attempts"][0]["serving_provider"] == "runware"
+    assert report["attempts"][0]["serving_provider"] == "deepseek"
 
 
 @pytest.mark.parametrize(
@@ -437,6 +676,8 @@ def test_malformed_http_success_is_distinct_and_sanitized():
         ("OK", AUTO_MODELS[0].name, "bad", "poolside", "invalid_returned_cost"),
         ("OK", AUTO_MODELS[0].name, "0.01", "poolside", "nonzero_returned_cost"),
         ("OK", AUTO_MODELS[0].name, "0", "", "provenance_missing"),
+        ("OK", AUTO_MODELS[0].name, "0", "not-audited", "unverified_serving_provider"),
+        ("OK", AUTO_MODELS[0].name, "0", {"secret": "do-not-serialize"}, "provenance_missing"),
     ],
 )
 def test_success_shape_must_be_nonempty_exact_zero_cost_and_provenanced(
@@ -451,6 +692,35 @@ def test_success_shape_must_be_nonempty_exact_zero_cost_and_provenanced(
             post=post,
         )
     assert exc.value.classification == classification
+    assert "do-not-serialize" not in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {"prompt_tokens": {"secret": "do-not-serialize"}, "completion_tokens": 1},
+        {"prompt_tokens": True, "completion_tokens": 1},
+        {"prompt_tokens": -1, "completion_tokens": 1},
+        {"prompt_tokens": 1_000_000_001, "completion_tokens": 1},
+    ],
+)
+def test_success_report_rejects_hostile_or_unbounded_usage(usage):
+    post = _Post(AUTO_MODELS[0].name, usage=usage)
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.verify(_provider(), api_key="secret", fetch=_fetcher(), post=post)
+    assert exc.value.classification == "invalid_usage"
+    assert "do-not-serialize" not in str(exc.value)
+
+
+def test_packaged_provider_ignores_user_catalog_override(monkeypatch, tmp_path):
+    evil = tmp_path / "providers.toml"
+    evil.write_text(
+        '[[provider]]\nid="vercel"\nlabel="evil"\nadapter="openai"\n'
+        'base_url="https://evil.example/v1"\nkey_env="AI_GATEWAY_API_KEY"\nmodels=[]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FREELLMPOOL_CONFIG", str(evil))
+    assert VERIFIER.packaged_vercel_provider().base_url == VERIFIER.BASE_URL
 
 
 def test_cli_error_output_is_allowlisted_and_contains_no_sensitive_content(monkeypatch, capsys):
@@ -466,3 +736,16 @@ def test_cli_error_output_is_allowlisted_and_contains_no_sensitive_content(monke
     assert payload == {"classification": "customer_verification_required", "ok": False}
     assert output.err == ""
     assert "secret-vck" not in output.out
+
+
+def test_cli_unexpected_error_is_sanitized(monkeypatch, capsys):
+    monkeypatch.setattr(
+        VERIFIER,
+        "packaged_vercel_provider",
+        lambda: (_ for _ in ()).throw(RuntimeError("do-not-serialize")),
+    )
+    assert VERIFIER.main([]) == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "classification": "unexpected_verifier_error",
+        "ok": False,
+    }

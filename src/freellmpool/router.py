@@ -106,11 +106,34 @@ def _is_health_failure(exc: Exception) -> bool:
     return True  # connection error, timeout, etc.
 
 
-def _is_account_quota_exhaustion(exc: ProviderHTTPError) -> bool:
+def _is_account_quota_exhaustion(
+    exc: ProviderHTTPError,
+    provider_id: str | None = None,
+) -> bool:
     """Recognize provider-wide credit exhaustion, not model/request errors."""
     if exc.status not in (402, 429):
         return False
     message = str(exc).lower()
+    error_type = (exc.error_type or "").lower()
+    if provider_id == "vercel" and exc.status == 402:
+        if error_type in {
+            "budget_exceeded",
+            "insufficient_credits",
+            "insufficient_funds",
+            "spend_limit_exceeded",
+        }:
+            return True
+        if any(
+            marker in message
+            for marker in (
+                "budget exceeded",
+                "insufficient funds",
+                "key budget",
+                "spend limit",
+                "spend quota",
+            )
+        ):
+            return True
     return any(
         marker in message
         for marker in (
@@ -124,10 +147,10 @@ def _is_account_quota_exhaustion(exc: ProviderHTTPError) -> bool:
     )
 
 
-def _health_failure_class(exc: Exception) -> str:
+def _health_failure_class(exc: Exception, provider_id: str | None = None) -> str:
     """Reduce failures to a privacy-safe class suitable for persistent state."""
     if isinstance(exc, ProviderHTTPError):
-        if _is_account_quota_exhaustion(exc):
+        if _is_account_quota_exhaustion(exc, provider_id):
             return "provider_quota"
         if exc.status == 429:
             return "rate_limit"
@@ -341,7 +364,7 @@ class Pool:
     ) -> None:
         if self.route_health is None:
             return
-        failure_class = _health_failure_class(exc)
+        failure_class = _health_failure_class(exc, target.provider.id)
         counts = _is_health_failure(exc)
         retry_after = exc.retry_after if isinstance(exc, ProviderHTTPError) else None
         updates = [
@@ -562,7 +585,7 @@ class Pool:
                     if (
                         isinstance(exc, ProviderHTTPError)
                         and not exc.retryable
-                        and not _is_account_quota_exhaustion(exc)
+                        and not _is_account_quota_exhaustion(exc, target.provider.id)
                         and client_error is None
                     ):
                         client_error = exc
@@ -639,7 +662,7 @@ class Pool:
                     if (
                         isinstance(exc, ProviderHTTPError)
                         and not exc.retryable
-                        and not _is_account_quota_exhaustion(exc)
+                        and not _is_account_quota_exhaustion(exc, target.provider.id)
                         and client_error is None
                     ):
                         client_error = exc
@@ -1148,7 +1171,7 @@ class Pool:
                     self._mark_cooldown(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)
                     emit(self._on_event, "cooldown", target=target.name, status=429)
-                account_exhausted = _is_account_quota_exhaustion(exc)
+                account_exhausted = _is_account_quota_exhaustion(exc, target.provider.id)
                 if account_exhausted:
                     self._mark_account_backoff(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)
@@ -1354,7 +1377,7 @@ class Pool:
                     self._mark_cooldown(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)
                     emit(self._on_event, "cooldown", target=target.name, status=429)
-                account_exhausted = _is_account_quota_exhaustion(exc)
+                account_exhausted = _is_account_quota_exhaustion(exc, target.provider.id)
                 if account_exhausted:
                     self._mark_account_backoff(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)

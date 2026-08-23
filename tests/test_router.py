@@ -6,6 +6,7 @@ import pytest
 from helpers import gemini_body, make_post, make_stream_post, openai_body
 
 from freellmpool.errors import AllProvidersExhausted, NoProvidersConfigured
+from freellmpool.models import Model, Provider
 from freellmpool.router import Pool
 
 
@@ -181,6 +182,74 @@ def test_stream_chat_account_quota_skips_provider_catalog_and_backs_off(
     second = pool.stream_chat(messages)
     assert next(second)["provider"] == "beta"
     assert "beta.test" in sp.calls[0]["url"]
+
+
+def test_vercel_insufficient_funds_402_backs_off_the_whole_provider(env, quota):
+    vercel = Provider(
+        id="vercel",
+        label="Vercel",
+        adapter="openai",
+        base_url="https://ai-gateway.vercel.sh/v1",
+        key_env="AI_GATEWAY_API_KEY",
+        models=(Model("free-a", rpd=0), Model("free-b", rpd=0)),
+    )
+    fallback = Provider(
+        id="beta",
+        label="Beta",
+        adapter="openai",
+        base_url="https://beta.test/v1",
+        key_env="BETA_KEY",
+        models=(Model("beta-1", rpd=0),),
+    )
+    post = make_post(
+        {
+            "ai-gateway.vercel.sh": (
+                402,
+                {"error": {"type": "insufficient_funds", "message": "Insufficient funds"}},
+            ),
+            "beta.test": (200, openai_body("fallback")),
+        }
+    )
+    pool = Pool(
+        [vercel, fallback],
+        quota=quota,
+        env={**env, "AI_GATEWAY_API_KEY": "secret"},
+        post=post,
+    )
+
+    assert pool.ask("hi").provider_id == "beta"
+    assert sum("ai-gateway.vercel.sh" in call["url"] for call in post.calls) == 1
+    assert pool.cooldown_snapshot(pool._clock())["vercel"] > 0
+
+    post.calls.clear()
+    assert pool.ask("again").provider_id == "beta"
+    assert "beta.test" in post.calls[0]["url"]
+
+
+def test_non_vercel_capability_402_remains_model_local(env, quota):
+    provider = Provider(
+        id="alpha",
+        label="Alpha",
+        adapter="openai",
+        base_url="https://alpha.test/v1",
+        key_env="ALPHA_KEY",
+        models=(Model("paid-only", rpd=0), Model("included", rpd=0)),
+    )
+
+    def response(_url, _headers, body):
+        if body["model"] == "paid-only":
+            return 402, {
+                "error": {"type": "insufficient_funds", "message": "Insufficient funds"}
+            }
+        return 200, openai_body("included")
+
+    post = make_post({"alpha.test": response})
+    pool = Pool([provider], quota=quota, env=env, post=post)
+    reply = pool.ask("hi")
+
+    assert reply.model == "included"
+    assert len(post.calls) == 2
+    assert "alpha" not in pool.cooldown_snapshot(pool._clock())
 
 
 def test_stream_chat_uses_one_overall_failover_timeout(providers, env, quota):

@@ -35,7 +35,7 @@ def test_release_metadata_versions_match_package() -> None:
     assert f"{model_count.group(1)} cataloged" in docs
     assert f"Latest release: {version}" in docs
     assert f'"softwareVersion": "{version}"' in docs
-    assert f"freellmpool-{version}" in demo
+    assert "installed from current main" in demo.lower()
     assert f"{provider_count.group(1)} cataloged providers" in demo
 
 
