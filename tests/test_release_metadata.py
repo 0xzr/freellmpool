@@ -176,6 +176,10 @@ def test_pages_dates_match_current_documentation_pass() -> None:
         "<loc>https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html</loc>"
         "<lastmod>2026-07-28</lastmod>"
     ) in sitemap
+    assert (
+        "<loc>https://0xzr.github.io/freellmpool/free-llm-api-providers-list.html</loc>"
+        "<lastmod>2026-08-23</lastmod>"
+    ) in sitemap
 
 
 def test_pages_expose_search_and_llm_discovery_metadata() -> None:
