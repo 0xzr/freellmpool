@@ -107,18 +107,43 @@ That's enough to start. Run `freellmpool ask "hello"`.
 
 ### Vercel AI Gateway — *$5 recurring monthly Hobby credit*
 1. <https://vercel.com/ai-gateway> → create or select a free Hobby team.
-2. Create an AI Gateway API key with a monthly spend quota no larger than the
+2. Complete Vercel's customer verification. As of the 2026-08-23 live check,
+   the gateway requires a valid card on file before it will serve requests,
+   even for a Hobby account and an explicitly zero-priced model.
+3. Create an AI Gateway API key with a monthly spend quota no larger than the
    included $5 credit.
-3. `export AI_GATEWAY_API_KEY=...`
-4. After verifying that the team has never purchased credits and automatic
-   top-up is disabled, explicitly opt in with
-   `export FREELLMPOOL_ENABLE_VERCEL=1`.
+4. `export AI_GATEWAY_API_KEY=...`
+5. Confirm automatic top-up is disabled. Vercel documents key budgets as soft
+   caps: the request that crosses a limit may finish before later requests are
+   rejected, so leave headroom below the included credit.
 
-   The Hobby team receives $5 of gateway credit each month. Do not purchase
+   A configured key intentionally enables Vercel automatic routing. The default
+   set includes the currently zero-priced `poolside/laguna-s-2.1-free` and
+   `nvidia/nemotron-3.5-lightning-free` routes plus the credit-consuming,
+   low-cost `deepseek/deepseek-v4-flash-0731`. Prices can change; the local RPD
+   value is a request-count hint, not a monetary ceiling. Five costlier frontier
+   routes remain available only when explicitly pinned.
+
+   A card on file is not itself proof that credits were purchased. The Hobby
+   team receives $5 of gateway credit each month. Do not purchase
    credits or enable automatic top-ups if you want to remain on the free tier;
-   purchasing credits upgrades the team to a paid tier. freellmpool deliberately
-   requires both the key and the opt-in flag so merely adding a Vercel credential
-   cannot enroll a paid account in automatic routing.
+   purchasing credits transitions the team to paid usage. Check current public
+   model and endpoint pricing without using the key:
+
+   ```bash
+   python3 scripts/verify_vercel_gateway.py --public-only
+   ```
+
+   After Vercel has cleared any required customer verification, run the bounded
+   three-call zero-price acceptance canary:
+
+   ```bash
+   python3 scripts/verify_vercel_gateway.py
+   ```
+
+   A priced canary is blocked unless `--attest-credit-spend` is supplied. See
+   [the dated Vercel acceptance audit](VERCEL_ACCEPTANCE_2026-08-23.md) for
+   pricing, provenance, privacy, and the current live-verification status.
 
 ### SiliconFlow — *free models, identity verification required*
 1. <https://cloud.siliconflow.cn/account/ak> → sign in and create an API key.

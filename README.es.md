@@ -6,10 +6,10 @@
 
 ![demostración de freellmpool tokenmax en terminal](assets/demo.svg)
 
-![223 rutas habilitadas, 24 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
+![226 rutas habilitadas, 24 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
 
-Agrupa los niveles gratuitos de 24 proveedores de LLM (223 rutas de chat
-habilitadas, 407 modelos de chat catalogados) detrás de un endpoint compatible
+Agrupa los niveles gratuitos de 24 proveedores de LLM (226 rutas de chat
+habilitadas, 410 modelos de chat catalogados) detrás de un endpoint compatible
 con OpenAI: como CLI, biblioteca de Python o proxy local. Puede empezar sin
 claves de API cuando hay un proveedor sin clave disponible.
 

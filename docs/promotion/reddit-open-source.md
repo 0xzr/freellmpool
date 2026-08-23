@@ -39,7 +39,7 @@ Features:
 - keyless start when default keyless routes are available; optional free-tier
   keys unlock more models and capacity
 
-The current packaged catalog has 24 cataloged providers, 223 enabled chat routes, and 407
+The current packaged catalog has 24 cataloged providers, 226 enabled chat routes, and 407
 cataloged chat models.
 
 The project is intentionally honest about limitations:
