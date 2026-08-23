@@ -5,7 +5,7 @@
 # Works out of the box with no keys (keyless providers). Add provider keys as
 # env vars to unlock more, e.g. `-e GROQ_API_KEY=...`. When exposing the proxy
 # beyond localhost, set FREELLMPOOL_PROXY_KEY to require a Bearer token.
-FROM python:3.14-alpine@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
+FROM python:3.14-alpine@sha256:05b2b8b732ecd268fee8727a369f936f022d1321b59befd13c30ede22769dcdc
 
 WORKDIR /app
 COPY pyproject.toml README.md ./
