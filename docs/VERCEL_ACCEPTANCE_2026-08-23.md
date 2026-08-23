@@ -54,12 +54,14 @@ the model's active providers from the audited endpoint listing. Missing or
 unrecognized metadata and nonzero cost fail closed. Priced-model canaries
 require `--attest-credit-spend`.
 
-Vercel insufficient-funds and spend-budget HTTP 402 responses back off the
-account rather than retiring a model; generic capability/payment 402 responses
-remain model-local. Tests cover 401/403 authentication, customer verification,
-402 billing, 429 rate limits, malformed/empty discovery, bad pricing,
-empty/malformed completions, provenance/cost drift, response bounds, and
-secret/content redaction.
+Every Vercel HTTP 402 fails closed as provider-wide account exhaustion and
+backs off the account rather than trying another Vercel model. This intentionally
+uses the status code as the durable budget signal even if the response body is
+empty or changes shape. Generic capability/payment 402 responses from
+non-Vercel providers remain model-local. Tests cover 401/403 authentication,
+customer verification, 402 billing, 429 rate limits, malformed/empty discovery,
+bad pricing, empty/malformed completions, provenance/cost drift, response
+bounds, and secret/content redaction.
 
 ## Terms and privacy
 

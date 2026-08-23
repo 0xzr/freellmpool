@@ -168,11 +168,14 @@ def test_pages_dates_match_current_documentation_pass() -> None:
     sitemap = (ROOT / "docs" / "sitemap.xml").read_text(encoding="utf-8")
     index = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
     assert "Page updated 2026-08-23" in index
-    for page in (
-        "https://0xzr.github.io/freellmpool/",
-        "https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html",
-    ):
-        assert f"<loc>{page}</loc><lastmod>2026-07-28</lastmod>" in sitemap
+    assert (
+        "<loc>https://0xzr.github.io/freellmpool/</loc>"
+        "<lastmod>2026-08-23</lastmod>"
+    ) in sitemap
+    assert (
+        "<loc>https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html</loc>"
+        "<lastmod>2026-07-28</lastmod>"
+    ) in sitemap
 
 
 def test_pages_expose_search_and_llm_discovery_metadata() -> None:
@@ -199,7 +202,7 @@ def test_pypi_metadata_has_launch_surfaces() -> None:
 
     assert len(project["description"]) <= 120
     assert f"> {project['description']}" in discovery
-    assert "Current main catalog (unreleased)" in promotion
+    assert "Current checkout / target catalog (unreleased)" in promotion
 
     urls = project["urls"]
     for name in ("Docs", "Changelog", "Issues", "Repository"):

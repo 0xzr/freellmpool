@@ -18,8 +18,9 @@ containing those counts is available.
 - Interfaces: CLI, Python library, OpenAI-compatible proxy, experimental
   Anthropic-compatible proxy path, and MCP server.
 - Audio: OpenAI-compatible speech-to-text through the transcription endpoint.
-- Current main catalog (unreleased): 24 cataloged providers, 226 enabled chat
-  routes, 410 cataloged chat models.
+- Current checkout / target catalog (unreleased): 24 cataloged providers, 226
+  enabled chat routes, 410 cataloged chat models. Relabel this as current main
+  only after the catalog change merges.
 - Strongest visual assets:
   - `assets/social-preview.png`
   - `assets/demo.png`
