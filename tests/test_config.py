@@ -288,22 +288,21 @@ def test_packaged_catalog_includes_frontier_free_providers():
     vercel = providers["vercel"]
     assert vercel.base_url == "https://ai-gateway.vercel.sh/v1"
     assert vercel.key_env == "AI_GATEWAY_API_KEY"
-    assert vercel.extra_env == ("FREELLMPOOL_ENABLE_VERCEL",)
-    assert not vercel.is_configured({"AI_GATEWAY_API_KEY": "free-tier-key"})
-    assert vercel.is_configured(
-        {
-            "AI_GATEWAY_API_KEY": "free-tier-key",
-            "FREELLMPOOL_ENABLE_VERCEL": "1",
-        }
-    )
-    assert {model.name for model in vercel.models if model.enabled} == {
+    assert vercel.extra_env == ()
+    assert vercel.is_configured({"AI_GATEWAY_API_KEY": "free-tier-key"})
+    assert {model.name for model in vercel.models if model.enabled and model.auto} == {
+        "poolside/laguna-s-2.1-free",
+        "nvidia/nemotron-3.5-lightning-free",
+        "deepseek/deepseek-v4-flash-0731",
+    }
+    assert {model.name for model in vercel.models if model.enabled and not model.auto} == {
         "zai/glm-5.2",
         "minimax/minimax-m3",
         "deepseek/deepseek-v4-pro",
         "moonshotai/kimi-k2.6",
         "xiaomi/mimo-v2.5-pro",
     }
-    assert sum(model.rpd for model in vercel.models if model.enabled) <= 5
+    assert vercel.model("deepseek/deepseek-v4-flash-0731").rpd == 50
 
     modelscope = providers["modelscope"]
     assert all(model.rpd == 200 for model in modelscope.models if model.enabled)

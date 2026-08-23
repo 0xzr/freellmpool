@@ -5,16 +5,22 @@ registry polish. Use this pack when posting externally.
 
 ## Current launch facts
 
+Release facts and unreleased repository facts are separated below. Do not pair
+the current-main catalog counts with the published PyPI package until a release
+containing those counts is available.
+
 - Repository: <https://github.com/0xzr/freellmpool>
 - Docs: <https://0xzr.github.io/freellmpool/>
 - PyPI: <https://pypi.org/project/freellmpool/>
 - Version: `0.11.4`
-- Catalog: 24 cataloged providers, 223 enabled chat routes, 407 cataloged chat models
 - First-run hook: installs with `pip install freellmpool` and can answer with no
   API keys through default keyless/key-optional routes.
 - Interfaces: CLI, Python library, OpenAI-compatible proxy, experimental
   Anthropic-compatible proxy path, and MCP server.
 - Audio: OpenAI-compatible speech-to-text through the transcription endpoint.
+- Current checkout / target catalog (unreleased): 24 cataloged providers, 226
+  enabled chat routes, 410 cataloged chat models. Relabel this as current main
+  only after the catalog change merges.
 - Strongest visual assets:
   - `assets/social-preview.png`
   - `assets/demo.png`

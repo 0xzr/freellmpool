@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
   <title id="title">freellmpool social preview</title>
-  <desc id="desc">Free LLM API pool with keyless start support, 24 cataloged providers, 223 routes, 407 cataloged chat models, OpenAI proxy and experimental Anthropic path, failover, MCP, quota tracking, and transcription.</desc>
+  <desc id="desc">Free LLM API pool with keyless start support, 24 cataloged providers, 226 routes, 410 cataloged chat models, OpenAI proxy and experimental Anthropic path, failover, MCP, quota tracking, and transcription.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#101317"/>
@@ -38,7 +38,7 @@
 
         <rect x="304" y="0" width="244" height="116" rx="18" fill="#202630" stroke="#7cc7ff" stroke-opacity="0.42"/>
         <text x="332" y="48" fill="#7cc7ff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="27" font-weight="800">24 cataloged</text>
-        <text x="332" y="82" fill="#f7fbff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">223 routes</text>
+        <text x="332" y="82" fill="#f7fbff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">226 routes</text>
 
         <rect x="572" y="0" width="284" height="116" rx="18" fill="#2a2430" stroke="#ffbd59" stroke-opacity="0.44"/>
         <text x="600" y="48" fill="#ffbd59" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="27" font-weight="800">OpenAI proxy</text>

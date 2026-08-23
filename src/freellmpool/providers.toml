@@ -219,24 +219,26 @@ models = [
 ]
 
 # Vercel AI Gateway: the Hobby team receives $5/month of recurring gateway
-# credit. These are the highest Artificial Analysis-rated models currently in
-# its live catalog. One request/model/day is a conservative spend hint; actual
-# use is metered in tokens. Models and pricing checked 2026-07-19.
+# credit. A configured key intentionally enables the two explicit zero-price
+# routes plus low-cost DeepSeek V4 Flash for automatic routing. The remaining
+# frontier routes are pinnable but excluded from automatic fan-out. RPD is only
+# a request-count hint, never a monetary ceiling; use a Vercel-side key budget.
+# Model IDs and public aggregate/endpoint pricing checked 2026-08-23.
 [[provider]]
 id = "vercel"
 label = "Vercel AI Gateway"
 adapter = "openai"
 base_url = "https://ai-gateway.vercel.sh/v1"
 key_env = "AI_GATEWAY_API_KEY"
-# Explicit billing-risk acknowledgement. A key alone must never enroll an
-# account that has purchased credits or enabled auto top-up in automatic routing.
-extra_env = ["FREELLMPOOL_ENABLE_VERCEL"]
 models = [
-    { name = "zai/glm-5.2", rpd = 1 },
-    { name = "minimax/minimax-m3", rpd = 1 },
-    { name = "deepseek/deepseek-v4-pro", rpd = 1 },
-    { name = "moonshotai/kimi-k2.6", rpd = 1 },
-    { name = "xiaomi/mimo-v2.5-pro", rpd = 1 },
+    { name = "poolside/laguna-s-2.1-free", rpd = 0 },
+    { name = "nvidia/nemotron-3.5-lightning-free", rpd = 0 },
+    { name = "deepseek/deepseek-v4-flash-0731", rpd = 50 },
+    { name = "zai/glm-5.2", rpd = 1, auto = false },
+    { name = "minimax/minimax-m3", rpd = 1, auto = false },
+    { name = "deepseek/deepseek-v4-pro", rpd = 1, auto = false },
+    { name = "moonshotai/kimi-k2.6", rpd = 1, auto = false },
+    { name = "xiaomi/mimo-v2.5-pro", rpd = 1, auto = false },
 ]
 
 # SiliconFlow: OpenAI-compatible API with fixed-rate free models. Free access

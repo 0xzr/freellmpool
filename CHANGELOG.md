@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- A bounded Vercel AI Gateway acceptance verifier that checks every automatic
+  route's aggregate and endpoint pricing before credential use, performs
+  single-attempt secret-safe canaries, and fails closed on missing provenance
+  or cost evidence.
 - Provider-neutral task-aware quality routing for grounded Markdown reading,
   including a local classifier, explicit CLI/MCP/proxy task hints, a faithful
   reader role, sanitized versioned regression fixture, and exact-identity
@@ -38,6 +42,11 @@ All notable changes to this project are documented here. The format is based on
 - Weekly Dependabot coverage for Python, GitHub Actions, and container images.
 
 ### Changed
+- Vercel AI Gateway now activates when `AI_GATEWAY_API_KEY` is configured. Its
+  automatic set favors two currently zero-priced routes plus low-cost DeepSeek
+  V4 Flash; five costlier frontier routes remain explicitly pinnable but are
+  excluded from automatic fan-out. Public catalog metadata now reports 226
+  enabled chat routes and 410 cataloged chat models.
 - Refreshed Pollinations against its authoritative public listing and repeat
   anonymous completion probes: added the working `gpt-oss` selector, removed
   the retired `mistral` row, and synchronized the 223-route metadata and assets.
