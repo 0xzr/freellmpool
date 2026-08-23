@@ -43,20 +43,10 @@ def test_server_json_is_registry_ready_for_stdio_package():
         "url": "https://github.com/0xzr/freellmpool",
         "source": "github",
     }
+    assert len(server["description"]) <= 100
     assert "24 LLM providers" in server["description"]
-    assert "tokenmax" in server["description"]
-    # WU-011: registry description surfaces the new UX tools too.
-    for new_tool in (
-        "second-opinion",
-        "battle",
-        "recipe",
-        "roles",
-        "tailnet",
-        "quota-wise",
-    ):
-        assert new_tool in server["description"].lower(), (
-            f"server.json description should mention {new_tool}"
-        )
+    assert "OpenAI-compatible" in server["description"]
+    assert "MCP" in server["description"]
     assert package["registryType"] == "pypi"
     assert package["identifier"] == "freellmpool"
     assert package["version"] == __version__
