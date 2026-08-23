@@ -175,7 +175,7 @@ def test_unpublished_registry_install_is_labelled_pending_everywhere() -> None:
         assert "opencode-freellmpool-tui" in text
 
 
-def test_opencode_docs_distinguish_released_sources_from_registry_hardening() -> None:
+def test_opencode_docs_include_current_release_and_registry_hardening() -> None:
     paths = [
         ROOT / "docs" / "run-opencode-on-free-models.html",
         ROOT / "integrations" / "opencode" / "README.md",
@@ -183,9 +183,9 @@ def test_opencode_docs_distinguish_released_sources_from_registry_hardening() ->
     ]
     for path in paths:
         text = path.read_text(encoding="utf-8")
-        assert "plugin sources are included in 0.11.4" in text
+        assert "plugin sources are included in 0.12.0" in text
         assert "registry-readiness hardening" in text
-        assert "unreleased repository additions" not in text
+        assert "0.11.4" not in text
 
 
 def test_opencode_config_examples_forward_protected_proxy_auth() -> None:

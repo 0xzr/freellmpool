@@ -7,17 +7,11 @@ rate-limits you mid-run (exactly when long agent loops tend to die).
 
 ## Release status
 
-- **Latest release: 0.11.4.** GitHub and PyPI both provide 0.11.4, including
-  `freellmpool/spread` routing.
-- **Current main includes unreleased changes**: the Hermes profile, public
-  `/livez` and `/readyz`, authenticated `/v1/providers`,
-  `/v1/models?ready=true`, and registry-readiness hardening for the existing
-  repository-local OpenCode plugins. Replace the released package in your agent
-  environment to test that source:
-
-  ```bash
-  python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
-  ```
+- **Latest release: 0.12.0.** GitHub and PyPI both provide 0.12.0, including
+  the Hermes profile, `freellmpool/spread` routing, public `/livez` and
+  `/readyz`, authenticated `/v1/providers`, `/v1/models?ready=true`, refreshed
+  providers, Vercel AI Gateway support, and OpenCode registry-readiness hardening.
+  Install it with `python -m pip install freellmpool`.
 
 - **Registry publication status: pending.** `opencode-freellmpool` and
   `opencode-freellmpool-tui` were not published on npm as of 2026-07-19; use
@@ -33,7 +27,7 @@ export OPENAI_API_KEY=anything   # ignored by freellmpool
 
 Then wire up your tool of choice.
 
-On current `main`, orchestrators can use `/livez` for liveness, `/readyz` for an
+Orchestrators can use `/livez` for liveness, `/readyz` for an
 advisory local quota/cooldown snapshot, authenticated `/v1/providers` for
 secret-free provider readiness, and `/v1/models?ready=true` for ready targets.
 These endpoints do not probe upstream providers.
@@ -100,7 +94,7 @@ codex --config model_provider=openai   # or set base URL in ~/.codex/config.toml
 > running Codex/agents on free inference for everyday coding; tool-calling and
 > richer Responses features are a work in progress.
 
-## Hermes Agent (current main; unreleased)
+## Hermes Agent (released in 0.12.0)
 
 Hermes supports an OpenAI-compatible custom endpoint. The first-class profile
 prints the supported config and never edits `~/.hermes/config.yaml`:

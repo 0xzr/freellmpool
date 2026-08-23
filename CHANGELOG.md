@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-08-23
+
 ### Added
 - A bounded Vercel AI Gateway acceptance verifier that checks every automatic
   route's aggregate and endpoint pricing before credential use, performs

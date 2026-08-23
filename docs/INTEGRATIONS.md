@@ -17,17 +17,11 @@ model setting untouched — just set the base URL and any API key.
 
 ## Release status
 
-The latest GitHub and PyPI release is 0.11.4. Current `main` includes unreleased
-changes documented below: the Hermes profile, the readiness/provider operations
-APIs, and registry-readiness hardening for the existing repository-local
-OpenCode plugins. To test those additions before the next release, replace the
-released package in your integration environment with `main`:
-
-```bash
-python -m pip install --force-reinstall 'git+https://github.com/0xzr/freellmpool.git@main'
-```
-
-Released 0.11.4 already includes `spread` routing.
+Latest release: 0.12.0. GitHub and PyPI both provide the Hermes profile, the
+readiness/provider operations APIs, refreshed providers, Vercel AI Gateway
+support, `spread` routing, and registry-readiness hardening for the existing
+repository-local OpenCode plugins. Install it with
+`python -m pip install freellmpool`.
 
 ---
 
@@ -77,7 +71,7 @@ Anthropic bridge, `/v1/models` for concrete `provider/model` ids, `/dashboard`
 for operations, `/playground` for browser-side battle runs, and
 `/freellmpool/battle` for JSON/Markdown comparison results.
 
-On current `main`, automation can use `/healthz` and `/livez` as public liveness aliases;
+In release 0.12.0, automation can use `/healthz` and `/livez` as public liveness aliases;
 `/readyz` is a public advisory local-capacity probe (200 or 503), and
 `/v1/providers` is the authenticated secret-free inventory. Use
 `/v1/models?ready=true` to keep the normal OpenAI/Anthropic model-list shape
@@ -172,8 +166,8 @@ escalation/final-review tools.
 
 ### Hermes Agent
 
-The Hermes profile is on current `main` and is not part of released 0.11.4.
-Hermes supports OpenAI-compatible custom endpoints. Start the proxy, then either
+The Hermes profile is included in release 0.12.0. Hermes supports
+OpenAI-compatible custom endpoints. Start the proxy, then either
 run `hermes model` and choose **Custom endpoint**, or inspect the print-only
 profile:
 

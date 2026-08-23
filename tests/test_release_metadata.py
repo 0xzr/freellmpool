@@ -18,6 +18,7 @@ def test_release_metadata_versions_match_package() -> None:
     demo = (ROOT / "assets" / "demo.svg").read_text()
     readme = (ROOT / "README.md").read_text()
 
+    assert version == "0.12.0"
     assert __version__ == version
     assert server["version"] == version
     assert server["packages"][0]["version"] == version
@@ -92,7 +93,7 @@ def test_readme_has_current_adoption_paths_and_pinned_comparison_sources() -> No
         assert "/v1/models?ready=true" in text
 
 
-def test_public_docs_separate_release_from_current_main() -> None:
+def test_public_docs_describe_the_current_release() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
     version = pyproject["project"]["version"]
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -113,17 +114,16 @@ def test_public_docs_separate_release_from_current_main() -> None:
         ),
     )
 
+    for text in source_docs:
+        normalized = text.casefold().replace("`", "")
+        assert version in text
+        assert "pip install" in text
+        assert "unreleased" not in normalized
+        assert re.search(r"\bcurrent[- ]+main\b", normalized) is None
+        assert "0.11.4" not in text
+
     for text in (readme, index):
         assert f"Latest release: {version}" in text
-        assert "Current main includes unreleased changes" in text
-
-    for text in source_docs:
-        assert "python -m pip install" in text
-        assert "git+https://github.com/0xzr/freellmpool.git@main" in text
-        assert (
-            "uvx --from git+https://github.com/0xzr/freellmpool.git@main "
-            "freellmpool --version"
-        ) not in text
 
     assert f'"softwareVersion": "{version}"' in index
 
@@ -167,14 +167,26 @@ def test_pages_describe_current_main_agent_and_operations_surfaces() -> None:
 def test_pages_dates_match_current_documentation_pass() -> None:
     sitemap = (ROOT / "docs" / "sitemap.xml").read_text(encoding="utf-8")
     index = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+    agent_guide = (ROOT / "docs" / "run-coding-agents-on-free-models.html").read_text(
+        encoding="utf-8"
+    )
+    opencode_guide = (ROOT / "docs" / "run-opencode-on-free-models.html").read_text(
+        encoding="utf-8"
+    )
     assert "Page updated 2026-08-23" in index
+    assert "Updated 2026-08-23" in agent_guide
+    assert "Updated 2026-08-23" in opencode_guide
     assert (
         "<loc>https://0xzr.github.io/freellmpool/</loc>"
         "<lastmod>2026-08-23</lastmod>"
     ) in sitemap
     assert (
+        "<loc>https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html</loc>"
+        "<lastmod>2026-08-23</lastmod>"
+    ) in sitemap
+    assert (
         "<loc>https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html</loc>"
-        "<lastmod>2026-07-28</lastmod>"
+        "<lastmod>2026-08-23</lastmod>"
     ) in sitemap
     assert (
         "<loc>https://0xzr.github.io/freellmpool/free-llm-api-providers-list.html</loc>"
@@ -206,7 +218,7 @@ def test_pypi_metadata_has_launch_surfaces() -> None:
 
     assert len(project["description"]) <= 120
     assert f"> {project['description']}" in discovery
-    assert "Current checkout / target catalog (unreleased)" in promotion
+    assert "Released catalog: 24 cataloged providers, 226 enabled chat routes" in promotion
 
     urls = project["urls"]
     for name in ("Docs", "Changelog", "Issues", "Repository"):

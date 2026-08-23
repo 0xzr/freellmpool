@@ -1,6 +1,6 @@
 # MCP Registry Listing Status
 
-Updated on 2026-06-19 after the `freellmpool 0.11.4` release docs pass. The official MCP
+Updated on 2026-08-23 for the `freellmpool 0.12.0` release. The official MCP
 Registry entry and MCP.so submission are complete; Smithery, Glama, and PulseMCP
 still need account/web UI actions.
 
@@ -10,7 +10,7 @@ still need account/web UI actions.
 
 - Schema: `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`
 - Name: `io.github.0xzr/freellmpool`
-- Version: `0.11.4`
+- Version: `0.12.0`
 - Repository: `https://github.com/0xzr/freellmpool`
 - Package: PyPI `freellmpool`, runtime hint `uvx`
 - Transport: stdio

@@ -66,12 +66,12 @@ def test_all_agent_keys_appear_in_integrations_guide():
         assert name.casefold() in coding_agents_section
 
 
-def test_agents_guide_tracks_current_release_and_main_surfaces():
+def test_agents_guide_tracks_current_release_surfaces():
     guide = (ROOT / "docs" / "AGENTS.md").read_text(encoding="utf-8")
 
-    assert "Latest release: 0.11.4" in guide
-    assert "Current main includes unreleased changes" in guide
-    assert "git+https://github.com/0xzr/freellmpool.git@main" in guide
+    assert "Latest release: 0.12.0" in guide
+    assert "Current main includes unreleased changes" not in guide
+    assert "0.11.4" not in guide
     assert "Registry publication status: pending" in guide
     for marker in (
         "Hermes",
