@@ -272,6 +272,35 @@ def test_streamlines_splits_lines_and_releases():
     assert closed  # connection released on exhaustion
 
 
+def test_streamlines_accepts_exact_buffer_cap_and_resets_at_newline():
+    sl = C._StreamLines(
+        _NoopCM(),
+        _FakeStreamResp(["1234", "5678\nab", "cdefgh\n", "8765", "4321"]),
+        deadline=None,
+        max_line_chars=8,
+    )
+    assert list(sl) == ["12345678", "abcdefgh", "87654321"]
+
+
+def test_streamlines_rejects_multichunk_line_over_cap_and_releases():
+    closed = []
+    cm = _NoopCM()
+    cm.__exit__ = lambda *a: (closed.append(True), False)[1]  # noqa: E731
+    sl = C._StreamLines(
+        cm,
+        _FakeStreamResp(["123", "456", "78", "9"]),
+        deadline=None,
+        max_line_chars=8,
+    )
+
+    with pytest.raises(ProviderHTTPError) as exc_info:
+        list(sl)
+
+    assert exc_info.value.status == 502
+    assert exc_info.value.retryable is True
+    assert closed  # overflow releases the upstream connection
+
+
 def test_streamlines_deadline_fires_without_a_newline():
     # the Codex blocker: a slow-drip upstream that never sends a newline must still
     # hit the deadline (checked per chunk, not only between completed lines).

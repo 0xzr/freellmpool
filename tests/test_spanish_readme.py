@@ -26,10 +26,10 @@ def test_spanish_readme_tracks_current_launch_surface():
 
     assert "Puede quedar por detrás" in spanish
     assert "![demostración de freellmpool tokenmax en terminal](assets/demo.svg)" in spanish
-    assert "24 proveedores" in spanish
-    assert "226 rutas de chat" in spanish
-    assert "410 modelos de chat" in spanish
-    assert "Última versión: 0.12.0" in spanish
+    assert "22 proveedores" in spanish
+    assert "177 rutas de chat" in spanish
+    assert "431 modelos de chat" in spanish
+    assert "Última versión: 0.12.1" in spanish
     assert "main contiene cambios aún no publicados" not in spanish
     assert "0.11.4" not in spanish
     assert "Estado de publicación en npm: pendiente" in spanish
@@ -37,6 +37,11 @@ def test_spanish_readme_tracks_current_launch_surface():
     assert "opencode-freellmpool-tui" in spanish
     assert "freellmpool/spread" in spanish
     assert "hermes" in spanish
+    assert "[plugins/llm-freellmpool](plugins/llm-freellmpool/)" in spanish
+    assert "https://github.com/0xzr/llm-freellmpool" not in spanish
+    assert "solo en main" not in spanish
+    assert "ruta experimental compatible con Anthropic" in spanish
+    assert "habla tanto la API de OpenAI como la de Anthropic" not in spanish
 
     for heading in (
         "## Inicio rápido en 30 segundos",

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Free alternative to OpenRouter — open-source, keyless, OpenAI-compatible</title>
-<meta name="description" content="Looking for a free alternative to OpenRouter? freellmpool is an open-source tool that pools the providers' own free tiers (Groq, Cerebras, NVIDIA, Gemini, Cloudflare and more) behind one OpenAI-compatible endpoint, with failover and keyless start when routes are available.">
+<meta name="description" content="Looking for an open-source alternative to OpenRouter? freellmpool pools enabled routes you can access across recurring free, keyless, trial, and pin-only provider categories, with failover and conditional keyless start.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/free-alternative-to-openrouter.html">
 <meta property="og:title" content="Free alternative to OpenRouter">
 <meta property="og:description" content="Pool the providers' own free tiers behind one OpenAI-compatible endpoint — open source, keyless when routes are available.">
@@ -30,15 +30,15 @@
 
 <p class="lead"><strong>OpenRouter is a hosted aggregator you pay per token (with a handful of
 rate-limited free models). If you want a <em>free</em>, open-source alternative, <a
-href="https://github.com/0xzr/freellmpool">freellmpool</a> pools the providers' own free tiers — Groq,
-Cerebras, NVIDIA, Gemini, Cloudflare, Mistral, Cohere and more — behind one OpenAI-compatible endpoint
-you run locally, with automatic failover, and keyless start when routes are available (<code>pip install
-freellmpool</code>).</strong></p>
+    href="https://github.com/0xzr/freellmpool">freellmpool</a> catalogs 22 provider groups spanning recurring
+    free tiers, keyless endpoints, finite trials, pin-only routes, and disabled candidates. It pools only
+    enabled routes you can access behind one local OpenAI-compatible endpoint, with automatic failover and
+    keyless start when an enabled route is available.</strong></p>
 
 <h2>How they differ</h2>
 <table>
 <tr><th></th><th>OpenRouter</th><th>freellmpool</th></tr>
-<tr><td>Cost</td><td>Pay per token (some free models)</td><td>Free — pools providers' free tiers</td></tr>
+<tr><td>Cost</td><td>Pay per token (some free models)</td><td>OSS; upstream route terms vary</td></tr>
 <tr><td>Hosting</td><td>Hosted service</td><td>Local, open source (MIT)</td></tr>
 <tr><td>Keyless start</td><td>No (account + key)</td><td>Yes (3 keyless providers, plus LLM7 key-optional)</td></tr>
 <tr><td>Interface</td><td>API</td><td>CLI + Python library + proxy + MCP server</td></tr>
@@ -49,7 +49,7 @@ freellmpool</code>).</strong></p>
 <ul>
 <li><strong>Use OpenRouter</strong> when you want one bill, hosted reliability, and access to many paid
 frontier models through a single account.</li>
-<li><strong>Use freellmpool</strong> when you want to run on the free tiers for free, keep everything
+<li><strong>Use freellmpool</strong> when you want to combine provider-operated free/keyless routes, finite trials, or explicit pins, keep the gateway
 local and open source, install with <code>pip</code>, and use it from the CLI or as a library — not just
 an API. You can even point it at OpenRouter's free models as one of its pooled providers.</li>
 </ul>
@@ -62,14 +62,14 @@ See the <a href="https://github.com/0xzr/freellmpool/blob/main/FAQ.md">FAQ</a>.<
 
 <h2>FAQ</h2>
 <h3>Is there a free version of OpenRouter?</h3>
-<p>OpenRouter has a few rate-limited free models, but it's a paid hosted aggregator. For a fully free,
-open-source path, freellmpool pools the LLM providers' own free tiers behind one OpenAI-compatible
-endpoint and can start keyless when routes are available.</p>
+<p>OpenRouter has a few rate-limited free models, but it is a paid hosted aggregator. For an open-source
+gateway, freellmpool pools enabled provider routes you can access behind one OpenAI-compatible endpoint
+and can start keyless when an enabled route is available.</p>
 <h3>Can freellmpool use OpenRouter too?</h3>
-<p>Yes — OpenRouter is one of the 24 providers freellmpool can pool, so its free models become part of
-the failover pool alongside Groq, Cerebras, Gemini and the rest.</p>
+<p>Yes — OpenRouter is one of 22 cataloged provider groups. Its enabled <code>:free</code> routes can join
+the failover pool when an OpenRouter key is configured.</p>
 
-<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-06-03.</p>
+<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-08-29.</p>
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Free alternative to OpenRouter", "item": "https://0xzr.github.io/freellmpool/free-alternative-to-openrouter.html"}]}</script>
 </body></html>

@@ -95,7 +95,10 @@ def _provider_capacity(
     quota_hint = sum(m.rpd for m in provider.models if m.enabled and m.rpd > 0)
     expires_at = _soonest_expiry(inventory)
 
-    if not configured:
+    if enabled_models == 0:
+        status = "disabled"
+        reason = "no enabled models"
+    elif not configured:
         status = "missing"
         if provider.key_env:
             reason = f"set {provider.key_env}"

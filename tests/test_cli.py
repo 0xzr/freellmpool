@@ -1136,7 +1136,9 @@ def test_cli_tailnet_serve_refuses_when_tailscale_missing(monkeypatch, capsys):
 
 
 def test_cli_tailnet_serve_generates_session_token_when_no_key(monkeypatch, capsys):
-    """When no key is configured, a session token is generated and printed."""
+    """An interactive run shows its generated key once, outside setup hints."""
+    import sys
+
     from freellmpool import tailnet
     from freellmpool.cli import main
 
@@ -1151,19 +1153,50 @@ def test_cli_tailnet_serve_generates_session_token_when_no_key(monkeypatch, caps
     captured = {}
     _patch_pool(monkeypatch)
     _patch_serve(monkeypatch, captured=captured)
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
 
     assert main(["tailnet", "serve", "--port", "1234"]) == 0
     out = capsys.readouterr().err
     assert "session proxy key" in out.lower()
     assert "100.64.0.5" in out
     assert "1234" in out
-    assert captured["api_key"] in out
-    assert f"OPENAI_API_KEY='{captured['api_key']}'" in out
+    assert out.count(captured["api_key"]) == 1
+    assert "OPENAI_API_KEY='<session-token-shown-above>'" in out
     assert "OPENAI_API_KEY=anything" not in out
     # No provider API keys appear in the output.
     assert "GROQ_API_KEY" not in out
     assert "ALPHA_KEY" not in out
     assert "BETA_KEY" not in out
+
+
+def test_cli_tailnet_serve_refuses_generated_key_without_tty(monkeypatch, capsys):
+    """Redirected stderr must never receive an auto-generated bearer key."""
+    import sys
+
+    from freellmpool import tailnet
+    from freellmpool.cli import main
+
+    monkeypatch.setattr(tailnet.shutil, "which", lambda _: "/usr/bin/tailscale")
+    monkeypatch.setattr(
+        tailnet,
+        "detect_tailnet",
+        lambda *, binary=None, runner=tailnet._run_tailscale, timeout=4.0: tailnet.TailnetStatus(
+            state=tailnet.STATE_USABLE, ipv4="100.64.0.5", raw="100.64.0.5\n",
+        ),
+    )
+    monkeypatch.setattr(tailnet, "generate_session_token", lambda: "generated-secret")
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: False)
+    captured = {}
+    _patch_pool(monkeypatch)
+    _patch_serve(monkeypatch, captured=captured)
+
+    assert main(["tailnet", "serve", "--port", "1234"]) == 2
+    out = capsys.readouterr().err
+    assert "non-interactive" in out.lower()
+    assert "--api-key" in out
+    assert "FREELLMPOOL_PROXY_KEY" in out
+    assert "generated-secret" not in out
+    assert captured == {}
 
 
 def test_cli_tailnet_serve_uses_explicit_api_key_without_generating(monkeypatch, capsys):
@@ -1191,6 +1224,38 @@ def test_cli_tailnet_serve_uses_explicit_api_key_without_generating(monkeypatch,
     # The token *value* itself must not appear in the banner.
     assert "user-supplied-key" not in out
     assert "OPENAI_API_KEY='<your-proxy-key>'" in out
+
+
+def test_cli_tailnet_secret_never_enters_setup_formatter(monkeypatch, capsys):
+    from freellmpool import tailnet
+    from freellmpool.cli import main
+
+    monkeypatch.setattr(tailnet.shutil, "which", lambda _: "/usr/bin/tailscale")
+    monkeypatch.setattr(
+        tailnet,
+        "detect_tailnet",
+        lambda *, binary=None, runner=tailnet._run_tailscale, timeout=4.0: tailnet.TailnetStatus(
+            state=tailnet.STATE_USABLE, ipv4="100.64.0.5", raw="100.64.0.5\n",
+        ),
+    )
+    formatter_calls = []
+    monkeypatch.setattr(
+        tailnet,
+        "format_setup_hints",
+        lambda **kwargs: formatter_calls.append(kwargs) or "safe setup block\n",
+    )
+    captured = {}
+    _patch_pool(monkeypatch)
+    _patch_serve(monkeypatch, captured=captured)
+
+    assert main(["tailnet", "serve", "--api-key", "sentinel-proxy-secret"]) == 0
+    assert captured["api_key"] == "sentinel-proxy-secret"
+    assert len(formatter_calls) == 1
+    assert set(formatter_calls[0]) == {"base_url", "auth_enabled", "token_label"}
+    assert formatter_calls[0]["auth_enabled"] is True
+    assert formatter_calls[0]["token_label"] is tailnet.SetupTokenLabel.YOUR_PROXY_KEY
+    assert "sentinel-proxy-secret" not in repr(formatter_calls[0])
+    assert "sentinel-proxy-secret" not in capsys.readouterr().err
 
 
 def test_cli_tailnet_serve_refuses_allow_lan_without_auth(monkeypatch, capsys):
@@ -1303,13 +1368,39 @@ def test_cli_proxy_allows_unsafe_bind_with_allow_lan_and_key(monkeypatch, capsys
     from freellmpool.cli import main
 
     captured = {}
+    formatter_calls = []
+    from freellmpool import tailnet
+
+    monkeypatch.setattr(
+        tailnet,
+        "format_setup_hints",
+        lambda **kwargs: formatter_calls.append(kwargs) or "safe setup block\n",
+    )
     _patch_pool(monkeypatch)
     _patch_serve(monkeypatch, captured=captured)
 
     assert main(
-        ["proxy", "--host", "192.168.1.10", "--port", "8080", "--allow-lan", "--api-key", "k"]
+        [
+            "proxy",
+            "--host",
+            "192.168.1.10",
+            "--port",
+            "8080",
+            "--allow-lan",
+            "--api-key",
+            "sentinel-lan-proxy-secret",
+        ]
     ) == 0
-    assert captured == {"host": "192.168.1.10", "port": 8080, "api_key": "k"}
+    assert captured == {
+        "host": "192.168.1.10",
+        "port": 8080,
+        "api_key": "sentinel-lan-proxy-secret",
+    }
+    assert len(formatter_calls) == 1
+    assert set(formatter_calls[0]) == {"base_url", "auth_enabled", "token_label"}
+    assert formatter_calls[0]["auth_enabled"] is True
+    assert formatter_calls[0]["token_label"] is tailnet.SetupTokenLabel.YOUR_PROXY_KEY
+    assert "sentinel-lan-proxy-secret" not in repr(formatter_calls[0])
 
 
 def test_cli_proxy_loopback_no_key_unchanged(monkeypatch, capsys):

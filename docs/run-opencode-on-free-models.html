@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Run OpenCode agentically on free LLM models — long sessions without stalls</title>
-<meta name="description" content="Run the OpenCode coding agent on strong free LLMs with freellmpool, which pools 24 free providers with strongest-tier agent routing, 10-minute request timeouts, failover, and an embedded TUI dashboard.">
+<meta name="description" content="Run OpenCode through freellmpool's 177 enabled chat routes across 22 cataloged provider groups, with strongest-tier routing, long timeouts, failover, and an embedded TUI dashboard.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html">
 <meta property="og:title" content="Run OpenCode agentically on strong free LLMs">
 <meta property="og:description" content="Strongest-tier agent routing, long stream timeouts, automatic failover, and a live dashboard for sustained OpenCode sessions.">
@@ -40,20 +40,21 @@
 
 <p class="lead"><strong>You can run the <a href="https://opencode.ai">OpenCode</a> coding agent on
 free LLM tiers — no API bill — by pointing it at a local proxy that speaks the OpenAI API. The
-open-source tool <a href="https://github.com/0xzr/freellmpool">freellmpool</a> is that proxy: it pools
-the free tiers of 24 providers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Morph, Vercel, Mistral, Cohere
-and more) behind one endpoint, with automatic failover. Several providers need no API key, so you can
-start for free in under a minute. It also ships an OpenCode plugin with a <strong>live dashboard, quality
+    open-source tool <a href="https://github.com/0xzr/freellmpool">freellmpool</a> is that proxy. It catalogs
+    22 provider groups spanning recurring free tiers, keyless endpoints, finite trials, pin-only routes, and
+    disabled candidates (177 enabled chat routes), and automatically fails over only across enabled routes you
+    can access. It can start without provider credentials when an enabled keyless route is available. It also
+    ships an OpenCode plugin with a <strong>live dashboard, quality
 routing, and usage tools</strong> built in.</strong></p>
 
-<div class="note"><strong>Release status:</strong> Latest release: 0.12.0. GitHub and PyPI include
+<div class="note"><strong>Release status:</strong> Latest release: 0.12.1. GitHub and PyPI include
 <code>spread</code> routing and the operations APIs described below. Repository-local OpenCode plugin sources are included in 0.12.0 with registry-readiness hardening and corrected defaults.</div>
 
 <h2>1. Install the release, then start the proxy</h2>
 <pre><code>python -m pip install freellmpool
 freellmpool proxy            # serves http://localhost:8080</code></pre>
-<p>The proxy now routes OpenAI-style requests to a free provider and fails over when one is
-rate-limited.</p>
+<p>The proxy routes OpenAI-style requests to enabled targets you can access and fails over when one is
+    rate-limited.</p>
 
 <h2>2. Add freellmpool as an OpenCode provider</h2>
 <p>In your <code>opencode.json</code> (or <code>~/.config/opencode/opencode.jsonc</code>), add a
@@ -103,7 +104,7 @@ tools you can ask for in any session.</p>
 <p><strong>Registry publication status: pending.</strong>
 The planned packages are <code>opencode-freellmpool</code> and
 <code>opencode-freellmpool-tui</code>. Their tarballs are clean-install/load-tested,
-but neither package was published on npm as of 2026-07-19. Use the linked
+but neither package was published on npm as of 2026-08-29. Use the linked
 local-file setup until both registry versions are verified.</p>
 
 <h2>5. Operational checks</h2>
@@ -115,14 +116,16 @@ released operations, and readiness does not probe upstream providers.</p>
 
 <div class="note">Free-tier models are smaller than frontier models. They're great for scaffolding,
 refactors, tests, commit messages, and everyday edits — not a substitute for a frontier model on the
-hardest reasoning. Limits reset at UTC midnight; <code>freellmpool/quality</code> keeps effective quality
-high as caps fill.</div>
+    hardest reasoning. freellmpool's local per-day counters reset at UTC midnight; upstream providers
+    use their own limit and reset windows. <code>freellmpool/quality</code> keeps effective quality high as
+    local counters fill.</div>
 
-<h2>6. (Optional) add free keys for more capacity</h2>
-<p>The keyless providers get you started; adding free API keys for Groq, Cerebras, Gemini and others
-unlocks more models and higher daily limits — see the
+<h2>6. (Optional) add credentials for more capacity</h2>
+<p>If a keyless route is available it can get you started; applicable credentials for recurring free tiers
+    such as Groq or Gemini can unlock more routes and capacity. Finite trials and priced or pin-only routes
+    remain distinct — see the
 <a href="https://github.com/0xzr/freellmpool/blob/main/docs/ACCOUNTS.md">accounts guide</a>. freellmpool
-spreads load across whatever you have and tracks per-day usage so each tier drains evenly. Track your
+    spreads load across enabled routes you can access and tracks local per-day usage. Track your
 running total with <code>freellmpool stats</code> or embed a <code>freellmpool badge</code> in your README.</p>
 
 <h2>FAQ</h2>
@@ -141,7 +144,7 @@ for local and custom models. You're using the LLM providers' own free tiers; don
 <code>freellmpool_status</code> tool, or curl the proxy's <code>/status</code> endpoint.</p>
 
 <p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open
-source). Updated 2026-08-23.</p>
+source). Updated 2026-08-29.</p>
 
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "How to run OpenCode on free LLM models", "item": "https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html"}]}</script>

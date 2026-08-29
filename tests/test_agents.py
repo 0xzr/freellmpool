@@ -69,7 +69,7 @@ def test_all_agent_keys_appear_in_integrations_guide():
 def test_agents_guide_tracks_current_release_surfaces():
     guide = (ROOT / "docs" / "AGENTS.md").read_text(encoding="utf-8")
 
-    assert "Latest release: 0.12.0" in guide
+    assert "Latest release: 0.12.1" in guide
     assert "Current main includes unreleased changes" not in guide
     assert "0.11.4" not in guide
     assert "Registry publication status: pending" in guide

@@ -32,7 +32,7 @@ freellmpool makes those tiers usable from one local interface:
 - provider failover and local quota tracking
 - keyless start when default keyless routes are available
 
-Current catalog: 24 cataloged providers, 226 enabled chat routes, and 410 cataloged chat
+Current catalog: 22 cataloged providers, 177 enabled chat routes, and 431 cataloged chat
 models.
 
 This is not meant to replace paid frontier models or bypass provider limits. It
@@ -68,5 +68,6 @@ https://github.com/0xzr/freellmpool/blob/main/FAQ.md
 
 OpenRouter is a polished hosted aggregator. LiteLLM is the mature
 bring-your-own-keys proxy/SDK. freellmpool is narrower: it is local,
-pip-installable, starts without a key, focuses on legitimate free tiers, and
-ships a CLI plus MCP tools.
+pip-installable, can start without credentials while an enabled keyless route
+is available, focuses on legitimate provider-operated access, and ships a CLI
+plus MCP tools.

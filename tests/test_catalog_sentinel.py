@@ -7,7 +7,7 @@ import socketserver
 import sys
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -79,6 +79,12 @@ def test_model_listing_normalization_is_bounded_and_strict():
         "model-c",
         "model-d",
     )
+
+
+def test_aion_top_level_models_listing_is_normalized():
+    assert SENTINEL.normalize_model_listing(
+        {"models": [{"id": "aion-labs/aion-3.0"}, {"name": "aion-labs/aion-3.0-mini"}]}
+    ) == ("aion-labs/aion-3.0", "aion-labs/aion-3.0-mini")
 
 
 def test_pollinations_listing_normalizes_name_and_aliases():
@@ -376,7 +382,14 @@ def test_probe_lifecycle_increments_and_unexpected_errors_are_sanitized(monkeypa
 
 
 def test_probe_repeated_failure_and_recovery_are_advisory_drift(monkeypatch):
-    provider = _provider()
+    provider = Provider(
+        id="example",
+        label="Example",
+        adapter="openai",
+        base_url="https://example.test/v1",
+        key_env="EXAMPLE_KEY",
+        models=(Model("kept"),),
+    )
 
     def rate_limited(*_args, **_kwargs):
         raise ProviderHTTPError(429, "quota response must not leak", retryable=True)
@@ -454,6 +467,154 @@ def test_probe_empty_http_success_has_non_success_classification(monkeypatch):
     assert row["ok"] is False
     assert row["status"] == 200
     assert row["failure_classification"] == "empty_completion"
+
+
+def test_probe_rotates_across_every_enabled_auto_route_with_bounded_calls(monkeypatch):
+    def provider(provider_id: str, *models: Model) -> Provider:
+        return Provider(
+            id=provider_id,
+            label=provider_id,
+            adapter="openai",
+            base_url=f"https://{provider_id}.test/v1",
+            key_env=f"{provider_id.upper()}_KEY",
+            models=models,
+        )
+
+    providers = [
+        provider(
+            "alpha",
+            Model("auto-a"),
+            Model("auto-b"),
+            Model("manual", auto=False),
+            Model("disabled", enabled=False),
+        ),
+        provider("beta", Model("auto-a"), Model("auto-b")),
+        provider("gamma", Model("auto-a")),
+    ]
+    secrets = {f"{name.upper()}_KEY": f"{name}-secret" for name in ("alpha", "beta", "gamma")}
+    calls: list[tuple[str, str]] = []
+
+    def succeed(current_provider, model, *_args, **_kwargs):
+        calls.append((current_provider.id, model))
+        return Reply("pong", current_provider.id, model, {})
+
+    monkeypatch.setattr(SENTINEL.flp_client, "call", succeed)
+    eligible = {
+        ("alpha", "auto-a"),
+        ("alpha", "auto-b"),
+        ("beta", "auto-a"),
+        ("beta", "auto-b"),
+        ("gamma", "auto-a"),
+    }
+    observed: set[tuple[str, str]] = set()
+    previous = None
+    start = datetime(2026, 8, 26, 12, tzinfo=UTC)
+
+    for week in range(3):
+        before = len(calls)
+        report = SENTINEL.probe(
+            providers,
+            secrets,
+            timeout=1,
+            max_providers=2,
+            max_models_per_provider=1,
+            now=start + timedelta(days=7 * week),
+            previous=previous,
+        )
+        selected = {(row["provider"], row["model"]) for row in report["probes"]}
+        run_calls = calls[before:]
+
+        assert selected == set(run_calls)
+        assert len(selected) <= 2
+        assert len({provider_id for provider_id, _model in selected}) <= 2
+        assert selected <= eligible
+        assert report["selection"]["eligible_routes"] == len(eligible)
+        assert report["selection"]["batch_count"] == 3
+        observed.update(selected)
+        previous = report
+
+    assert observed == eligible
+    assert all(model not in {"manual", "disabled"} for _provider, model in observed)
+
+
+def test_probe_uses_utc_week_batches_when_rotation_state_is_unavailable(monkeypatch):
+    providers = [
+        Provider(
+            id=f"provider-{index}",
+            label=f"Provider {index}",
+            adapter="openai",
+            base_url=f"https://provider-{index}.test/v1",
+            key_env=f"PROVIDER_{index}_KEY",
+            models=(Model("auto"),),
+        )
+        for index in range(7)
+    ]
+    secrets = {f"PROVIDER_{index}_KEY": "secret" for index in range(7)}
+    monkeypatch.setattr(
+        SENTINEL.flp_client,
+        "call",
+        lambda provider, model, *_args, **_kwargs: Reply(
+            "pong", provider.id, model, {}
+        ),
+    )
+    observed: set[tuple[str, str]] = set()
+    start = datetime(2026, 8, 26, 12, tzinfo=UTC)
+
+    for week in range(4):
+        report = SENTINEL.probe(
+            providers,
+            secrets,
+            timeout=1,
+            max_providers=2,
+            max_models_per_provider=1,
+            now=start + timedelta(days=7 * week),
+        )
+        selected = {(row["provider"], row["model"]) for row in report["probes"]}
+        assert len(selected) <= 2
+        assert report["selection"]["batch_count"] == 4
+        observed.update(selected)
+
+    assert observed == {(f"provider-{index}", "auto") for index in range(7)}
+
+
+def test_probe_rotation_preserves_failure_state_for_routes_skipped_between_runs(monkeypatch):
+    provider = Provider(
+        id="example",
+        label="Example",
+        adapter="openai",
+        base_url="https://example.test/v1",
+        key_env="EXAMPLE_KEY",
+        models=(Model("auto-a"), Model("auto-b")),
+    )
+
+    def rate_limited(*_args, **_kwargs):
+        raise ProviderHTTPError(429, "secret provider response", retryable=True)
+
+    monkeypatch.setattr(SENTINEL.flp_client, "call", rate_limited)
+    previous = None
+    selected: list[str] = []
+    reports = []
+    start = datetime(2026, 8, 26, 12, tzinfo=UTC)
+    for week in range(3):
+        report = SENTINEL.probe(
+            [provider],
+            {"EXAMPLE_KEY": "secret"},
+            timeout=1,
+            max_providers=1,
+            max_models_per_provider=1,
+            now=start + timedelta(days=7 * week),
+            previous=previous,
+        )
+        selected.append(report["probes"][0]["model"])
+        reports.append(report)
+        previous = report
+
+    assert selected[0] != selected[1]
+    assert selected[2] == selected[0]
+    assert reports[2]["probes"][0]["consecutive_failures"] == 2
+    assert reports[2]["probes"][0]["failure_threshold_crossed"] is True
+    assert len(reports[2]["probe_state"]) == 2
+    assert "secret provider response" not in json.dumps(reports)
 
 
 def test_listing_failure_after_threshold_does_not_repeat_drift_event():
@@ -675,6 +836,10 @@ def test_secret_map_is_strict_and_bounded(monkeypatch):
     with pytest.raises(ValueError, match="object"):
         SENTINEL.load_secret_map()
 
+    monkeypatch.setenv("FREELLMPOOL_SENTINEL_KEYS_JSON", "{}")
+    with pytest.raises(ValueError, match="non-empty"):
+        SENTINEL.load_secret_map()
+
 
 def test_workflow_is_advisory_least_privilege_and_fork_safe():
     workflow = (ROOT / ".github" / "workflows" / "catalog-sentinel.yml").read_text(
@@ -714,6 +879,19 @@ def test_workflow_is_advisory_least_privilege_and_fork_safe():
     assert "--previous" in workflow
     assert "FREELLMPOOL_SENTINEL_KEYS_JSON" in workflow
     assert "Never mutates providers.toml" in workflow
+
+
+def test_authenticated_workflow_fails_visibly_when_protected_credentials_are_missing():
+    workflow = (ROOT / ".github" / "workflows" / "catalog-sentinel.yml").read_text(
+        encoding="utf-8"
+    )
+    protected = workflow.split("  authenticated-probes:", 1)[1]
+
+    assert "FREELLMPOOL_SENTINEL_KEYS_JSON" in protected
+    assert "::error" in protected
+    assert "exit 1" in protected
+    assert "configured=false" not in protected
+    assert "steps.probe-config.outputs.configured" not in protected
 
 
 def test_authenticated_workflow_timeout_covers_declared_probe_budget():

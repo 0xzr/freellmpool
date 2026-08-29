@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Free Mistral API guide — Codestral for code, free tier, limits, pooling</title>
-<meta name="description" content="A practical guide to Mistral's free API: the free experimentation tier, Codestral for code (and fill-in-the-middle), the free models, how to get a key, the European data angle, limits, and how to pool Mistral with other free tiers.">
+<title>Free Mistral API guide — experimentation tier, lifecycle, limits, pooling</title>
+<meta name="description" content="A practical guide to Mistral's experimentation API: current model selection, how to get a key, account-specific limits, lifecycle gotchas, and how to pool Mistral with other tiers.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/free-mistral-api.html">
 <meta property="og:title" content="Free Mistral API guide"><meta property="og:type" content="article">
 <style>
@@ -17,59 +17,62 @@
  .lead{font-size:17px}.meta{color:var(--mut);font-size:13px;margin-top:34px;border-top:1px solid var(--bd);padding-top:14px}ul{padding-left:20px}
 </style>
 <meta property="og:url" content="https://0xzr.github.io/freellmpool/free-mistral-api.html">
-<meta property="og:description" content="A practical guide to Mistral&#x27;s free API: the free experimentation tier, Codestral for code (and fill-in-the-middle), the free models, how to get a key, the European data angle, limits, and how to pool Mistral with other free tiers.">
+<meta property="og:description" content="A practical guide to Mistral&#x27;s experimentation API: current model selection, how to get a key, account-specific limits, lifecycle gotchas, and how to pool Mistral with other tiers.">
 <meta name="twitter:card" content="summary_large_image">
 <meta property="og:image" content="https://0xzr.github.io/freellmpool/assets/social-preview.png">
 <meta name="twitter:image" content="https://0xzr.github.io/freellmpool/assets/social-preview.png">
 </head>
 <body><div class="wrap">
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › providers › Mistral</p>
-<h1>Free Mistral API: the code one</h1>
+<h1>Free Mistral API: the experimentation tier</h1>
 
-<p class="lead"><strong>Mistral's free experimentation tier stands out for code: Codestral is a
-code-specialized model with fill-in-the-middle support, which makes it a genuinely useful free option for
-code completion and generation, not just chat. Mistral is also a European provider, which some teams prefer
-for data-residency reasons. Get a key free at
+<p class="lead"><strong>Mistral's free mode is useful for bounded experimentation, with included monthly
+usage shown in each account's Limits page. Model access and lifecycle status change, so this guide uses
+<code>mistral-small-latest</code> as the conservative current example rather than promising that an
+undocumented code alias is recurring-free. Get a key at
 <a href="https://console.mistral.ai/api-keys">console.mistral.ai/api-keys</a> and call the OpenAI-compatible
 endpoint at <code>https://api.mistral.ai/v1</code>. Pool it with other tiers via
 <a href="https://github.com/0xzr/freellmpool">freellmpool</a> so a rate limit doesn't interrupt a coding
 session.</strong></p>
 
 <h2>What Mistral's free tier is good for</h2>
-<p>Two things stand out. First, <strong>code</strong>: <code>codestral-latest</code> is tuned for programming
-and supports fill-in-the-middle (completing code given a prefix and suffix), which most general chat models
-don't do natively. Second, <strong>European hosting</strong>, which matters to teams with EU data
-preferences. For general chat it's solid but not the fastest free tier — pair it with Groq or Cerebras for
-latency-sensitive work.</p>
+<p>Use it for evaluation and general chat within the included account allowance.
+Mistral publishes EU/GDPR-oriented privacy material, but freellmpool's catalog
+does not pin a serving region, so do not infer data residency from the provider's
+headquarters. Pair it with another provider when availability or latency matters.</p>
 
-<h2>Free models</h2>
+<h2>Conservative current model</h2>
+<p>Mistral's current <a href="https://docs.mistral.ai/models">model catalog</a>
+supports this conservative example:</p>
 <ul>
-<li><code>codestral-latest</code> — code generation and completion (fill-in-the-middle).</li>
 <li><code>mistral-small-latest</code> — capable, efficient general model.</li>
-<li><code>open-mistral-nemo</code> — small open model, good for cheap drafts.</li>
 </ul>
+<p>Invalid and retired spellings are disabled. Undocumented code/vibe aliases
+and routes explicitly marked pin-only are excluded from automatic capacity.
+<code>zai-glm-5-2</code> and <code>labs-leanstral-1-5</code> are disabled exact
+pins pending credentialed canaries.</p>
 
 <h2>Get a key and call it</h2>
 <pre><code>curl https://api.mistral.ai/v1/chat/completions \
   -H "Authorization: Bearer $MISTRAL_API_KEY" -H "Content-Type: application/json" \
-  -d '{"model":"codestral-latest","messages":[{"role":"user","content":"Write a Python LRU cache"}]}'</code></pre>
+  -d '{"model":"mistral-small-latest","messages":[{"role":"user","content":"Write a Python LRU cache"}]}'</code></pre>
 
 <h2>Limits and gotchas</h2>
 <ul>
-<li>The free tier is for experimentation and is rate-limited per minute and per month; verify current
-numbers in the console.</li>
-<li>Codestral has its own dedicated completion endpoint for true fill-in-the-middle; the chat endpoint
-shown above is fine for instruct-style code generation.</li>
-<li>Some newer Mistral models are paid-only — the free tier centers on Small, Nemo, and Codestral.</li>
+<li>The free tier is for experimentation. Included monthly usage and rate limits are
+account- and model-specific; verify them on the current
+<a href="https://docs.mistral.ai/admin/billing-usage/usage-limits">usage-limits page</a>.</li>
+<li>Labs models are experimental and do not provide the same lifecycle guarantees as production models.</li>
+<li>Mistral's <a href="https://docs.mistral.ai/inference/model-lifecycle">lifecycle policy</a>
+says retired model IDs return <code>404</code>; prefer documented current aliases.</li>
 </ul>
 
 <h2>Pool Mistral with other free tiers</h2>
-<p>A nice setup for developers: Codestral via Mistral for code tasks, and a fast general tier for
-everything else, all behind one endpoint. freellmpool lets you pin Codestral when you want it and pool the
-rest:</p>
+<p>Use Mistral for bounded experiments and a recurring tier for routine traffic, all behind one endpoint.
+freellmpool lets you pin the conservative Mistral route when you want it and pool the rest:</p>
 <pre><code>pip install freellmpool
 export MISTRAL_API_KEY=...               # plus other free keys
-freellmpool ask -m codestral-latest "Refactor this function" &lt; code.py
+freellmpool ask -m mistral/mistral-small-latest "Refactor this function" &lt; code.py
 freellmpool ask "..."                    # pool + fail over for general tasks</code></pre>
 <p>See also <a href="run-coding-agents-on-free-models.html">running coding agents on free models</a> and
 <a href="use-multiple-free-llm-apis.html">using multiple free LLM APIs together</a>.</p>
@@ -78,13 +81,14 @@ freellmpool ask "..."                    # pool + fail over for general tasks</c
 <h3>Is the Mistral API free?</h3>
 <p>Yes, Mistral has a free experimentation tier. Create a key at console.mistral.ai/api-keys and call the
 OpenAI-compatible endpoint at api.mistral.ai/v1. It's rate-limited; verify current limits.</p>
-<h3>Is Codestral free, and what makes it useful?</h3>
-<p>Codestral is available on the free tier via <code>codestral-latest</code>. It's tuned for code and
-supports fill-in-the-middle completion, which makes it a strong free choice for editor-style code tasks.</p>
+<h3>Can I rely on a Codestral alias as recurring-free capacity?</h3>
+<p>No. Even a documented, enabled alias has account-specific free-mode limits and can change lifecycle
+status. Undocumented code aliases are excluded from automatic routing; check Mistral's current model list
+and your Limits page before depending on one.</p>
 <h3>Why pick Mistral over other free tiers?</h3>
-<p>For code (Codestral) and for European data residency. For pure speed, Groq or Cerebras are better — which
-is why pooling them with freellmpool gives you the best of each.</p>
+<p>For bounded access to Mistral's own models through its direct API. Pool it with other providers for
+failover, and use Mistral's privacy controls rather than assuming a catalog-pinned region.</p>
 
-<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, open source). Limits and model availability change — check Mistral's docs. Updated 2026-06-03.</p>
+<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, open source). Limits and model availability change — check Mistral's docs. Updated 2026-08-29.</p>
 </div><script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Free Mistral API guide", "item": "https://0xzr.github.io/freellmpool/free-mistral-api.html"}]}</script>
 </body></html>

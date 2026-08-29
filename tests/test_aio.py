@@ -13,6 +13,7 @@ from helpers import gemini_body, make_post
 from freellmpool import client as sync_client
 from freellmpool.aio import AsyncPool
 from freellmpool.errors import AllProvidersExhausted, ProviderHTTPError
+from freellmpool.models import Model, Provider
 from freellmpool.router import Pool
 
 
@@ -117,6 +118,32 @@ def test_async_gemini_shape(providers, env, quota):
     pool = AsyncPool(Pool(providers, quota=quota, env=env), apost=apost)
     reply = asyncio.run(pool.achat([{"role": "user", "content": "hi"}], providers=["gee"]))
     assert reply.text == "hi from gemini"
+
+
+@pytest.mark.parametrize("model", ["gemini-3.6-flash", "gemini-3.7-flash"])
+def test_async_gemini_36_and_37_omit_sampling_and_receive_thinking_headroom(model, quota):
+    provider = Provider(
+        id="gemini",
+        label="Gemini",
+        adapter="gemini",
+        base_url="https://gee.test",
+        key_env="GEMINI_API_KEY",
+        models=(Model(model),),
+    )
+    apost = _async_post({"gee.test": (200, gemini_body("ok"))})
+    pool = AsyncPool(Pool([provider], quota=quota, env={"GEMINI_API_KEY": "g"}), apost=apost)
+
+    reply = asyncio.run(
+        pool.achat(
+            [{"role": "user", "content": "hi"}],
+            model=model,
+            max_tokens=512,
+            temperature=0.7,
+        )
+    )
+
+    assert reply.text == "ok"
+    assert apost.calls[0]["body"]["generationConfig"] == {"maxOutputTokens": 4096}
 
 
 def test_async_records_quota_and_stats(providers, env, quota):

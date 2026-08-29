@@ -5,18 +5,18 @@ registry polish. Use this pack when posting externally.
 
 ## Current launch facts
 
-These facts describe the 0.12.0 GitHub and PyPI release.
+These facts describe the 0.12.1 GitHub and PyPI release.
 
 - Repository: <https://github.com/0xzr/freellmpool>
 - Docs: <https://0xzr.github.io/freellmpool/>
 - PyPI: <https://pypi.org/project/freellmpool/>
-- Version: `0.12.0`
+- Version: `0.12.1`
 - First-run hook: installs with `pip install freellmpool` and can answer with no
-  API keys through default keyless/key-optional routes.
+  provider credentials while an enabled keyless/key-optional route is available.
 - Interfaces: CLI, Python library, OpenAI-compatible proxy, experimental
   Anthropic-compatible proxy path, and MCP server.
 - Audio: OpenAI-compatible speech-to-text through the transcription endpoint.
-- Released catalog: 24 cataloged providers, 226 enabled chat routes, 410
+- Released catalog: 22 cataloged providers, 177 enabled chat routes, 431
   cataloged chat models.
 - Strongest visual assets:
   - `assets/social-preview.png`
@@ -63,9 +63,9 @@ These facts describe the 0.12.0 GitHub and PyPI release.
 
 Keep the message narrow:
 
-> A local, open-source pool for legitimate free LLM tiers. One CLI/proxy/MCP
-> interface, automatic failover, no API keys needed to start, add your own free
-> keys for more capacity.
+> A local, open-source gateway over enabled LLM routes you can access. One
+> CLI/proxy/MCP interface, automatic failover, conditional keyless start, and
+> optional provider credentials for more routes and capacity.
 
 Avoid overclaiming:
 

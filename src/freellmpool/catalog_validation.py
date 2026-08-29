@@ -21,7 +21,12 @@ _SAFE_MODEL_ID = re.compile(r"^[A-Za-z0-9@][A-Za-z0-9._:/@+-]{0,199}$")
 def normalize_model_listing(payload: Any) -> tuple[str, ...]:
     """Return bounded, safe canonical model names and aliases from common listings."""
 
-    rows = payload.get("data") if isinstance(payload, dict) else payload
+    if isinstance(payload, dict):
+        rows = payload.get("data")
+        if rows is None:
+            rows = payload.get("models")
+    else:
+        rows = payload
     if not isinstance(rows, list):
         return ()
     found: set[str] = set()

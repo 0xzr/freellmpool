@@ -3,8 +3,8 @@
     llm install llm-freellmpool
     llm -m freellmpool "Explain the CAP theorem in one sentence."
 
-Works with zero API keys (freellmpool's keyless providers). Add provider keys
-as env vars to unlock more — see https://github.com/0xzr/freellmpool.
+Can start with zero API keys when a freellmpool keyless provider is available.
+Add provider keys as env vars to unlock more — see https://github.com/0xzr/freellmpool.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ class Freellmpool(llm.Model):
     can_stream = False
 
     class Options(llm.Options):
-        target: str | None = None  # "auto" | "groq" | "groq/llama-3.3-70b-versatile"
+        target: str | None = None  # "auto" | "groq" | "groq/openai/gpt-oss-20b"
 
     def execute(self, prompt, stream, response, conversation):
         pool = Pool.from_default_config()

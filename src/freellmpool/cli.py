@@ -1,7 +1,7 @@
 """Command-line interface for freellmpool.
 
 freellmpool ask "question"        one-shot completion (reads stdin too)
-freellmpool tokenmax "question"   🌈 blast every model, synthesize the swarm
+freellmpool tokenmax "question"   🌈 fan out to eligible targets, synthesize the swarm
 freellmpool providers            list configured / available providers
 freellmpool quota                show today's per-provider usage
 freellmpool proxy                run the OpenAI-compatible proxy server
@@ -229,9 +229,12 @@ def cmd_roles(args: argparse.Namespace) -> int:
 
 
 def cmd_tokenmax(args: argparse.Namespace) -> int:
-    """🌈 Blast one prompt to EVERY model across EVERY provider, then (by default)
-    synthesize the swarm into one answer. The genuine rainbow animation runs on a
-    real terminal."""
+    """🌈 Fan out to automatically eligible ranked targets across configured providers.
+
+    The hard cap is 256; ``--max-models``, routing, and wise mode can narrow the
+    swarm. By default its returned answers are synthesized into one answer. The
+    genuine rainbow animation runs on a real terminal.
+    """
     from .tokenmax import HARD_CAP, RAINBOW_BANNER, RainbowThrob, fan_out, select_targets
 
     stdin = _read_stdin()
@@ -1134,6 +1137,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 def cmd_proxy(args: argparse.Namespace) -> int:
     from .proxy import serve  # lazy: avoids http.server import on other paths
     from .tailnet import (
+        SetupTokenLabel,
         UnsafeBindError,
         assert_bind_safe,
         format_setup_hints,
@@ -1198,7 +1202,8 @@ def cmd_proxy(args: argparse.Namespace) -> int:
 
     httpd = serve(pool, host=args.host, port=args.port, api_key=proxy_key)
     n_models = sum(len(p.models) for p in pool.providers)
-    auth_note = "  auth: Bearer key required\n" if proxy_key else ""
+    auth_enabled = proxy_key is not None
+    auth_note = "  auth: Bearer key required\n" if auth_enabled else ""
     base_url = safe_base_url(args.host, args.port)
     print(
         f"freellmpool proxy on {base_url}/v1  "
@@ -1206,7 +1211,7 @@ def cmd_proxy(args: argparse.Namespace) -> int:
         f"{auth_note}"
         f"  point your OpenAI client at:  OPENAI_BASE_URL={base_url}/v1\n"
         f"  dashboard:  {base_url}/dashboard\n"
-        f"{format_setup_hints(base_url=base_url, token=proxy_key)}"
+        f"{format_setup_hints(base_url=base_url, auth_enabled=auth_enabled, token_label=SetupTokenLabel.YOUR_PROXY_KEY)}"
         "  press Ctrl-C to stop",
         file=sys.stderr,
     )
@@ -1247,7 +1252,10 @@ def _run_tailnet_serve(
         STATE_LOGGED_OUT,
         STATE_MALFORMED,
         STATE_NO_IPV4,
+        SetupTokenLabel,
         UnsafeBindError,
+        _disclose_session_token_to_tty,
+        _NonTTYDisclosureError,
         assert_bind_safe,
         detect_tailnet,
         format_setup_hints,
@@ -1312,10 +1320,25 @@ def _run_tailnet_serve(
     # Non-Tailnet LAN binds need --allow-lan; even Tailnet binds need
     # auth unless --allow-no-auth is passed. assert_bind_safe enforces
     # the WU-001 spec rules.
-    if explicit_key is None and not allow_no_auth:
+    needs_session_token = explicit_key is None and not allow_no_auth
+    if (
+        needs_session_token
+        and not dry_run
+        and not bool(getattr(sys.stderr, "isatty", lambda: False)())
+    ):
+        print(
+            "freellmpool: refusing to print an auto-generated proxy key in a "
+            "non-interactive session. Pass --api-key, set "
+            "FREELLMPOOL_PROXY_KEY, or run from an interactive terminal.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if needs_session_token:
         # Default-on safety: generate a session token so a Tailnet serve
-        # never silently starts unauthenticated. The token is printed
-        # once and never persisted.
+        # never silently starts unauthenticated. Live runs reach this
+        # point only on a TTY, where the token is shown once and never
+        # persisted; dry-runs expose only a marker.
         explicit_key = generate_session_token()
         generated_session_token = True
     else:
@@ -1334,20 +1357,29 @@ def _run_tailnet_serve(
 
     base_url = safe_base_url(bind_host, port)
     if generated_session_token:
-        token_label = explicit_key if not dry_run else "<session-token-printed-on-real-run>"
+        token_label = (
+            SetupTokenLabel.SESSION_REAL_RUN
+            if dry_run
+            else SetupTokenLabel.SESSION_DISCLOSED
+        )
     elif explicit_key:
-        token_label = "<your-proxy-key>"
+        token_label = SetupTokenLabel.YOUR_PROXY_KEY
     else:
-        token_label = None
+        token_label = SetupTokenLabel.PROXY_KEY
+    auth_enabled = explicit_key is not None
     setup_block = format_setup_hints(
         base_url=base_url,
-        token=explicit_key,
+        auth_enabled=auth_enabled,
         token_label=token_label,
     )
-    auth_status = "Bearer key required (token generated for this session)" if generated_session_token else (
-        "Bearer key required (using --api-key / FREELLMPOOL_PROXY_KEY)"
-        if explicit_key
-        else "no auth (--allow-no-auth)"
+    auth_status = (
+        "Bearer key required (token generated for this session)"
+        if generated_session_token
+        else (
+            "Bearer key required (using --api-key / FREELLMPOOL_PROXY_KEY)"
+            if auth_enabled
+            else "no auth (--allow-no-auth)"
+        )
     )
 
     if dry_run:
@@ -1356,7 +1388,7 @@ def _run_tailnet_serve(
         # the actual token (the plan asks for a "token marker"; the
         # real token is only shown for live runs, never in --dry-run,
         # so a dry-run can be safely pasted into a chat / issue).
-        marker = token_label or "<none>"
+        marker = token_label.value if auth_enabled else "<none>"
         print(
             f"freellmpool tailnet serve (dry run)\n"
             f"  bind host      : {bind_host}\n"
@@ -1379,16 +1411,24 @@ def _run_tailnet_serve(
         return 3
 
     if generated_session_token:
-        # Real-run banner: this is the ONE place the session token
-        # is shown. Make it impossible to miss, and never include
-        # provider keys in the same output.
-        print(
-            f"\nfreellmpool: generated a one-session proxy key:\n"
-            f"  {explicit_key}\n"
-            f"  (use it as `Authorization: Bearer {explicit_key}` from your "
-            f"client; it is not saved anywhere)\n",
-            file=sys.stderr,
-        )
+        # The private helper is the sole intentional secret-output boundary.
+        # It re-checks TTY status and performs one direct write, keeping the
+        # secret out of generic printing, logging, setup, and banner paths.
+        if explicit_key is None:  # pragma: no cover - defensive invariant
+            print(
+                "freellmpool: failed to generate a one-session proxy key.",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            _disclose_session_token_to_tty(explicit_key, stream=sys.stderr)
+        except _NonTTYDisclosureError:
+            print(
+                "freellmpool: refusing to disclose an auto-generated proxy key "
+                "without an interactive terminal.",
+                file=sys.stderr,
+            )
+            return 2
 
     httpd = serve(pool, host=bind_host, port=port, api_key=explicit_key)
     n_models = sum(len(p.models) for p in pool.providers)
@@ -1469,7 +1509,7 @@ def cmd_tailnet_connect(args: argparse.Namespace) -> int:
     not resolve it (no DNS / no network). The user pastes the printed
     exports into the client machine.
     """
-    from .tailnet import format_setup_hints, safe_base_url
+    from .tailnet import SetupTokenLabel, format_setup_hints, safe_base_url
 
     host = args.host
     if not host:
@@ -1479,7 +1519,7 @@ def cmd_tailnet_connect(args: argparse.Namespace) -> int:
     base = safe_base_url(host, args.port)
     print(
         f"freellmpool tailnet connect: {host}:{args.port}\n"
-        f"{format_setup_hints(base_url=base, token='<proxy-key>', token_label='<proxy-key-from-server>')}"
+        f"{format_setup_hints(base_url=base, auth_enabled=True, token_label=SetupTokenLabel.PROXY_KEY_FROM_SERVER)}"
         "\n  If the server was started with --allow-no-auth, any placeholder API key works.",
         file=sys.stderr,
     )
@@ -2049,12 +2089,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_tokenmax = sub.add_parser(
         "tokenmax",
-        help="🌈 blast a prompt to EVERY model across EVERY provider, then synthesize",
+        help="🌈 fan out to eligible ranked targets (max 256), then synthesize",
+        description=(
+            "Fan a prompt out to automatically eligible ranked targets across configured "
+            "providers (hard cap 256; --max-models, routing, or wise mode may narrow the "
+            "swarm), then synthesize the returned responses."
+        ),
     )
     p_tokenmax.add_argument("prompt", nargs="?", default="", help="prompt text (stdin is appended)")
     p_tokenmax.add_argument("-s", "--system", help="system prompt")
     p_tokenmax.add_argument(
-        "--max-models", type=int, default=None, help="cap how many models to hit (default: ALL)"
+        "--max-models",
+        type=int,
+        default=None,
+        help="narrow the eligible ranked target set (default: all eligible, hard cap 256)",
     )
     p_tokenmax.add_argument(
         "--max-tokens", type=int, default=400, help="max output tokens per model"

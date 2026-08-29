@@ -20,16 +20,34 @@ REQUIRED_SURFACES = (
     ("README.md", "{providers} LLM providers"),
     ("README.md", "{enabled_chat_models} enabled chat routes"),
     ("README.md", "{cataloged_chat_models} cataloged"),
+    ("README.es.md", "{providers} proveedores de LLM"),
+    ("README.es.md", "{enabled_chat_models} rutas de chat"),
+    ("README.es.md", "{cataloged_chat_models} modelos de chat"),
     ("pyproject.toml", "{providers} LLM providers"),
-    ("pyproject.toml", "{enabled_chat_models} routes"),
+    ("pyproject.toml", "{enabled_chat_models} enabled chat routes"),
     ("pyproject.toml", "{cataloged_chat_models} cataloged"),
     ("server.json", "{providers} LLM providers"),
     ("docs/index.html", "{providers} cataloged LLM providers"),
     ("docs/index.html", "{enabled_chat_models} enabled chat routes"),
     ("docs/index.html", "{cataloged_chat_models} cataloged"),
+    (
+        "docs/free-alternative-to-openrouter.html",
+        "{providers} cataloged provider groups",
+    ),
+    ("docs/free-claude-api.html", "over {providers} cataloged chat providers"),
     ("docs/free-llm-api-providers-list.html", "These {providers} providers"),
-    ("docs/run-coding-agents-on-free-models.html", "pools {providers} free providers"),
-    ("docs/run-opencode-on-free-models.html", "pools {providers} free providers"),
+    ("docs/run-coding-agents-on-free-models.html", "{providers} cataloged provider groups"),
+    ("docs/run-opencode-on-free-models.html", "{providers} cataloged provider groups"),
+    ("assets/demo.svg", "{providers} cataloged providers"),
+    ("assets/demo.svg", "{enabled_chat_models} enabled chat routes"),
+    ("assets/social-preview.svg", "{providers} cataloged"),
+    ("assets/social-preview.svg", "{enabled_chat_models} enabled chat routes"),
+    ("assets/social-preview.svg", "{cataloged_chat_models} cataloged chat models"),
+    ("assets/tokenmax-results.svg", "{providers} cataloged providers"),
+    ("assets/tokenmax-results.svg", "{enabled_chat_models} enabled chat routes"),
+    ("assets/tokenmax-results.svg", "{cataloged_chat_models} cataloged chat models"),
+    ("plugins/llm-freellmpool/README.md", "{providers} cataloged providers"),
+    ("plugins/llm-freellmpool/pyproject.toml", "{providers} cataloged providers"),
 )
 
 EXTERNAL_CONTEXT = (
@@ -97,8 +115,19 @@ def _check_reference_table(root: Path, counts) -> list[str]:
 
 def _check_public_drift(root: Path, counts) -> list[str]:
     errors: list[str] = []
-    docs = [root / "README.md", root / "FAQ.md", *sorted((root / "docs").glob("**/*"))]
-    provider_claim = re.compile(r"\b(?P<n>\d+)\s+(?:LLM\s+)?(?:free\s+)?providers\b")
+    docs = [
+        root / "README.md",
+        root / "README.es.md",
+        root / "FAQ.md",
+        *sorted((root / "assets").glob("*.svg")),
+        root / "plugins" / "llm-freellmpool" / "README.md",
+        root / "plugins" / "llm-freellmpool" / "pyproject.toml",
+        *sorted((root / "docs").glob("**/*")),
+    ]
+    provider_claim = re.compile(
+        r"\b(?P<n>\d+)\s+(?:(?:cataloged|pooled|free|chat|LLM)\s+){0,4}providers\b",
+        flags=re.IGNORECASE,
+    )
     enabled_route_claim = re.compile(r"\b(?P<n>\d+)\s+enabled\s+chat\s+routes\b")
     cataloged_claim = re.compile(r"\b(?P<n>\d+)\s+cataloged\s+(?:chat\s+)?models\b")
     for path in docs:
@@ -106,7 +135,7 @@ def _check_public_drift(root: Path, counts) -> list[str]:
             path.name in {"POLISH_PLAN.md", "POLISH_REPORT.md"}
             or path.name.startswith("MODEL_ACTIVITY_AUDIT_")
             or not path.is_file()
-            or path.suffix not in {".md", ".html"}
+            or path.suffix not in {".html", ".md", ".svg", ".toml"}
         ):
             continue
         rel = path.relative_to(root)
@@ -146,7 +175,18 @@ def _check_public_drift(root: Path, counts) -> list[str]:
                 ]
                 context_end = min(context_ends, default=match.end())
                 claim_context = content[context_start:context_end].lower()
-                if any(token in claim_context for token in exemptions):
+                first_party_provider_claim = (
+                    label == "provider count drift"
+                    and re.match(
+                        r"\s+freellmpool\s+can\s+pool\b",
+                        content[match.end() :],
+                        flags=re.IGNORECASE,
+                    )
+                    is not None
+                )
+                if any(token in claim_context for token in exemptions) and not (
+                    first_party_provider_claim
+                ):
                     continue
                 if int(match.group("n")) == expected:
                     continue

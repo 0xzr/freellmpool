@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Free Cerebras API guide — fastest inference, big daily cap, pooling</title>
-<meta name="description" content="A practical guide to Cerebras' free inference API: wafer-scale speed, one of the largest free daily request caps, the free models (gpt-oss-120b, GLM 4.7), how to get a key, limits, and how to pool Cerebras with other free tiers.">
+<title>Cerebras API guide — fast inference, finite $5 trial, explicit pins</title>
+<meta name="description" content="A practical guide to Cerebras' inference API: wafer-scale speed, the finite $5 trial, documented GPT-OSS and Gemma models, explicit pinning, and pooling with recurring tiers.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/free-cerebras-api.html">
-<meta property="og:title" content="Free Cerebras API guide"><meta property="og:type" content="article">
+<meta property="og:title" content="Cerebras API guide"><meta property="og:type" content="article">
 <style>
  :root{--bg:#0b0e14;--fg:#e6e6e6;--mut:#8a93a2;--card:#141925;--bd:#232a39;--ac:#6ea8ff}
  *{box-sizing:border-box}body{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--fg);line-height:1.65}
@@ -17,34 +17,36 @@
  .lead{font-size:17px}.meta{color:var(--mut);font-size:13px;margin-top:34px;border-top:1px solid var(--bd);padding-top:14px}ul{padding-left:20px}
 </style>
 <meta property="og:url" content="https://0xzr.github.io/freellmpool/free-cerebras-api.html">
-<meta property="og:description" content="A practical guide to Cerebras&#x27; free inference API: wafer-scale speed, one of the largest free daily request caps, the free models (gpt-oss-120b, GLM 4.7), how to get a key, limits, and how to pool Cerebras with other free tiers.">
+<meta property="og:description" content="A practical guide to Cerebras&#x27; inference API: wafer-scale speed, the finite $5 trial, documented GPT-OSS and Gemma models, explicit pinning, and pooling with recurring tiers.">
 <meta name="twitter:card" content="summary_large_image">
 <meta property="og:image" content="https://0xzr.github.io/freellmpool/assets/social-preview.png">
 <meta name="twitter:image" content="https://0xzr.github.io/freellmpool/assets/social-preview.png">
 </head>
 <body><div class="wrap">
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › providers › Cerebras</p>
-<h1>Free Cerebras API: speed plus a big free cap</h1>
+<h1>Cerebras API: fast inference with finite trial credit</h1>
 
 <p class="lead"><strong>Cerebras runs inference on its wafer-scale engine, giving some of the highest
-tokens-per-second available — and unusually for a free tier, it pairs that speed with one of the largest
-free daily request allowances (on the order of ~14,400 requests/day; verify current numbers). That
-combination makes Cerebras an excellent <em>primary</em> free provider. Get a key free at
+tokens-per-second available. Its current pricing offers a finite $5 trial rather than recurring free daily
+capacity, so freellmpool keeps the documented Cerebras routes out of automatic routing. Get a key at
 <a href="https://cloud.cerebras.ai/">cloud.cerebras.ai</a> and call the OpenAI-compatible endpoint at
 <code>https://api.cerebras.ai/v1</code>. Use <a href="https://github.com/0xzr/freellmpool">freellmpool</a>
-to fall back to other tiers when you do exhaust it.</strong></p>
+to explicitly pin Cerebras and fall back to recurring tiers for normal traffic.</strong></p>
 
-<h2>What Cerebras' free tier is good for</h2>
-<p>Pick Cerebras when you want both throughput and volume: batch jobs, evaluations, agent loops, and any
-workload that makes thousands of calls a day. Its catalog is smaller than NVIDIA's, so it's about doing a
-lot with a few strong models rather than browsing many. If you need a specific niche model, pair Cerebras
-with a broad provider.</p>
+<h2>What the Cerebras trial is good for</h2>
+<p>Pick Cerebras when you want to evaluate its throughput within a bounded trial budget. Its documented
+shared catalog is deliberately small. It is a useful explicit experiment, not a source of automatic or
+recurring-free pool capacity.</p>
 
-<h2>Free models</h2>
+<h2>Documented trial models</h2>
+<p>Cerebras' current <a href="https://inference-docs.cerebras.ai/models/overview">shared model catalog</a>
+lists:</p>
 <ul>
 <li><code>gpt-oss-120b</code> — strong open reasoning model, served fast.</li>
-<li><code>zai-glm-4.7</code> — capable general model (GLM family).</li>
+<li><code>gemma-4-31b</code> — Google's current Gemma route.</li>
 </ul>
+<p><code>zai-glm-4.7</code> is no longer on Cerebras' official shared model list
+and is disabled in freellmpool.</p>
 
 <h2>Get a key and call it</h2>
 <pre><code>curl https://api.cerebras.ai/v1/chat/completions \
@@ -53,37 +55,35 @@ with a broad provider.</p>
 
 <h2>Limits and gotchas</h2>
 <ul>
-<li>The large daily cap is the draw, but there are still per-minute request and token limits — sustained
-bursts can hit the minute cap even when the daily budget is fine.</li>
+<li>The $5 trial is finite. Check <a href="https://www.cerebras.ai/pricing">current pricing</a>
+and do not treat an old requests-per-day figure as a recurring allowance.</li>
 <li>The model list is intentionally small; don't expect dozens of variants.</li>
 <li>gpt-oss is a reasoning model — give it enough <code>max_tokens</code> so hidden reasoning doesn't eat
 the whole budget and return empty content.</li>
 </ul>
 
 <h2>Pool Cerebras with other free tiers</h2>
-<p>Because of its capacity, Cerebras is a good default primary in a pool, with Groq, Gemini and NVIDIA as
-backups. freellmpool can prefer Cerebras and fail over only when needed, and its <code>benchmark</code>
-command times each provider so routing picks the fastest:</p>
+<p>Keep Cerebras outside automatic routing so the finite trial is intentional. freellmpool can explicitly
+pin a Cerebras model while recurring providers handle ordinary traffic:</p>
 <pre><code>pip install freellmpool
 export CEREBRAS_API_KEY=...              # plus other free keys
-freellmpool ask -p cerebras "..."        # pin Cerebras as primary
+freellmpool ask -m cerebras/gpt-oss-120b "..."  # explicitly spend trial credit
 freellmpool benchmark                    # time each provider you've configured</code></pre>
-<p>See also <a href="free-groq-api.html">Groq</a> (the other fast tier),
+<p>See also <a href="free-groq-api.html">Groq</a> (a recurring fast tier),
 <a href="best-free-llm-api-gateway.html">best free LLM API gateway</a>, and
 <a href="use-multiple-free-llm-apis.html">using multiple free LLM APIs together</a>.</p>
 
 <h2>FAQ</h2>
 <h3>Is the Cerebras API free?</h3>
-<p>Yes. Get a key at cloud.cerebras.ai and call the OpenAI-compatible endpoint at api.cerebras.ai/v1. The
-free tier has a comparatively large daily request cap (~14,400/day; verify current limits) plus per-minute
-limits.</p>
+<p>Cerebras currently offers a finite $5 trial rather than recurring free capacity. Get a key at
+cloud.cerebras.ai, review current pricing, and explicitly pin a documented model.</p>
 <h3>Is Cerebras faster than Groq?</h3>
 <p>Both are very fast and often trade the top spot depending on model and load. The practical answer is to
 run <code>freellmpool benchmark</code> and let routing prefer whichever is fastest for you right now.</p>
-<h3>Why use Cerebras as a primary provider?</h3>
-<p>Its mix of high speed and a large daily request allowance means you can route most traffic to it before
-needing to fall back to other free tiers.</p>
+<h3>Why is Cerebras excluded from automatic routing?</h3>
+<p>Automatic fan-out could consume finite trial credit unexpectedly. Explicit pins keep that spend
+intentional while still making the fast endpoint available.</p>
 
-<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, open source). Limits change — check Cerebras' docs. Updated 2026-06-03.</p>
-</div><script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Free Cerebras API guide", "item": "https://0xzr.github.io/freellmpool/free-cerebras-api.html"}]}</script>
+<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, open source). Limits change — check Cerebras' docs. Updated 2026-08-29.</p>
+</div><script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Cerebras API guide", "item": "https://0xzr.github.io/freellmpool/free-cerebras-api.html"}]}</script>
 </body></html>

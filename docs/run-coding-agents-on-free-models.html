@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How to run Claude Code, Codex, Hermes, or Aider on free LLM models</title>
-<meta name="description" content="A step-by-step guide to running Claude Code, OpenAI Codex, Hermes, Aider, Cline, and Cursor on free LLM tiers using freellmpool — a local OpenAI-compatible proxy with an experimental Anthropic-compatible path that pools 24 free providers. Keyless start when routes are available.">
+<meta name="description" content="Run Claude Code, Codex, Hermes, Aider, Cline, and Cursor through freellmpool: a local proxy with 177 enabled chat routes across 22 cataloged provider groups. Keyless start when an enabled route is available.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html">
 <meta property="og:title" content="Run Claude Code, Codex, or Aider on free LLM models">
 <meta property="og:description" content="Point your coding agent at one local proxy and run it on pooled free LLM tiers — keyless start when routes are available.">
@@ -40,21 +40,21 @@
 
 <p class="lead"><strong>You can run Claude Code, OpenAI Codex, Hermes, Aider, Cline, Continue, or Cursor on
 free LLM tiers by pointing them at a local proxy that speaks the OpenAI API and has an experimental Anthropic-compatible path. The
-open-source tool <a href="https://github.com/0xzr/freellmpool">freellmpool</a> is that proxy: it pools
-the free tiers of 24 providers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Morph, Vercel, Mistral, Cohere
-and more) behind one endpoint, with automatic failover. Several providers need no API key, so you can
-start for free in under a minute and change no code in the agent.</strong></p>
+    open-source tool <a href="https://github.com/0xzr/freellmpool">freellmpool</a> is that proxy. It catalogs
+    22 provider groups spanning recurring free tiers, keyless endpoints, finite trials, pin-only routes, and
+    disabled candidates (177 enabled chat routes), and automatically fails over only across enabled routes you
+    can access. You can start without provider credentials when an enabled keyless route is available.</strong></p>
 
-<div class="note"><strong>Release status:</strong> Latest release: 0.12.0. GitHub and PyPI both
+<div class="note"><strong>Release status:</strong> Latest release: 0.12.1. GitHub and PyPI both
 provide the Hermes profile, operational endpoints, refreshed providers, Vercel AI Gateway support,
 <code>spread</code> routing, and OpenCode registry-readiness hardening.</div>
 
 <h2>1. Install the release, then start the proxy</h2>
 <pre><code>python -m pip install freellmpool
 freellmpool proxy            # serves http://localhost:8080</code></pre>
-<p>That's all the setup. The proxy now accepts both OpenAI (<code>/v1/chat/completions</code>) and
-Anthropic (<code>/v1/messages</code>) requests and routes each to a free provider, failing over when one
-is rate-limited.</p>
+<p>The proxy now accepts both OpenAI (<code>/v1/chat/completions</code>) and Anthropic
+    (<code>/v1/messages</code>) requests. It routes each request to an enabled target you can access and
+    fails over when one is rate-limited.</p>
 
 <h2>2. Point your agent at it</h2>
 
@@ -87,7 +87,8 @@ Run <code>freellmpool code &lt;agent&gt;</code> for the exact per-agent setup.</
 
 <div class="note">Free-tier models are smaller than frontier models. They're good for scaffolding,
 refactors, tests, commit messages, and everyday edits — not a substitute for a frontier model on the
-hardest reasoning. Limits reset at UTC midnight.</div>
+    hardest reasoning. freellmpool's local per-day counters reset at UTC midnight; upstream providers
+    use their own limit and reset windows.</div>
 
 <h2>3. Operational checks for agents and orchestrators</h2>
 <p>The proxy exposes public <code>/livez</code> liveness and advisory
@@ -96,11 +97,12 @@ hardest reasoning. Limits reset at UTC midnight.</div>
 <code>/v1/models?ready=true</code>. Readiness is a local quota/cooldown snapshot; it does not
 probe upstream providers.</p>
 
-<h2>4. (Optional) add free keys for more capacity</h2>
-<p>The keyless providers get you started; adding free API keys for Groq, Cerebras, Gemini and others
-unlocks more models and higher daily limits. Each provider's free signup is listed in the
+<h2>4. (Optional) add credentials for more capacity</h2>
+<p>If a keyless route is available it can get you started; adding applicable credentials for recurring
+    free tiers such as Groq or Gemini can unlock more routes and capacity. Finite trials and priced or
+    pin-only routes remain distinct. Each provider's current setup and caveats are listed in the
 <a href="https://github.com/0xzr/freellmpool/blob/main/docs/ACCOUNTS.md">accounts guide</a>. freellmpool
-spreads load across whatever you have and tracks per-day usage so you drain each tier evenly.</p>
+    spreads load across enabled routes you can access and tracks local per-day usage.</p>
 
 <h2>FAQ</h2>
 <h3>Can I really use Claude Code for free?</h3>
@@ -117,7 +119,7 @@ Aider, Cline, Continue, Cursor, OpenCode, and more. Hermes' first-class profile 
 included in release 0.12.0.</p>
 
 <p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open
-source). Updated 2026-08-23.</p>
+source). Updated 2026-08-29.</p>
 
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "How to run Claude Code, Codex, Hermes, or Aider on free LLM models", "item": "https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html"}]}</script>

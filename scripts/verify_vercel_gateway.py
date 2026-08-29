@@ -61,19 +61,27 @@ _DIRECT_PRICE_FIELDS = frozenset(
 )
 _TIER_PRICE_FIELDS = frozenset(f"{name}_tiers" for name in _DIRECT_PRICE_FIELDS)
 _PRICING_METADATA_FIELDS = frozenset({"varies_by_provider"})
+_REGION_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,31}\Z")
 _KNOWN_SERVING_PROVIDERS = frozenset(
     {
         "alibaba",
         "baseten",
         "deepinfra",
         "deepseek",
+        "digitalocean",
         "fireworks",
         "gmicloud",
+        "inceptron",
+        "morph",
         "novita",
         "nvidia",
+        "parasail",
         "poolside",
+        "relace",
         "runinfra",
         "runware",
+        "streamlake",
+        "togetherai",
         "wafer",
     }
 )
@@ -119,17 +127,54 @@ def _tier_bound(value: Any, classification: str) -> int:
     return value
 
 
+def _peak_multiplier(value: Any, classification: str) -> Decimal:
+    if not isinstance(value, dict) or value.keys() != {"multiplier", "windows"}:
+        raise VerificationError(classification)
+    multiplier = _decimal(value["multiplier"], classification)
+    if not Decimal(1) <= multiplier <= Decimal(1_000):
+        raise VerificationError(classification)
+    windows = value["windows"]
+    if not isinstance(windows, list) or not 1 <= len(windows) <= 32:
+        raise VerificationError(classification)
+    for window in windows:
+        if (
+            not isinstance(window, dict)
+            or window.keys()
+            != {"start_minute_utc", "end_minute_utc", "days_of_week"}
+        ):
+            raise VerificationError(classification)
+        start = window["start_minute_utc"]
+        end = window["end_minute_utc"]
+        days = window["days_of_week"]
+        if (
+            isinstance(start, bool)
+            or not isinstance(start, int)
+            or isinstance(end, bool)
+            or not isinstance(end, int)
+            or not 0 <= start < end <= 1_440
+            or not isinstance(days, list)
+            or not 1 <= len(days) <= 7
+            or len(set(days)) != len(days)
+            or any(isinstance(day, bool) or not isinstance(day, int) or not 0 <= day <= 6 for day in days)
+        ):
+            raise VerificationError(classification)
+    return multiplier
+
+
 def _pricing_values(
     pricing: Any,
     *,
     required: frozenset[str],
     classification: str,
+    allow_regional: bool = False,
+    allow_peak: bool = False,
 ) -> list[Decimal]:
-    if not isinstance(pricing, dict):
+    if not isinstance(pricing, dict) or len(pricing) > 64:
         raise VerificationError(classification)
     if not required <= pricing.keys():
         raise VerificationError(classification)
     values: list[Decimal] = []
+    peak: Any = None
     for name, raw in pricing.items():
         if name in _DIRECT_PRICE_FIELDS:
             values.append(_decimal(raw, classification))
@@ -137,6 +182,29 @@ def _pricing_values(
         if name in _PRICING_METADATA_FIELDS:
             if not isinstance(raw, bool):
                 raise VerificationError(classification)
+            continue
+        if name == "regional":
+            if (
+                not allow_regional
+                or not isinstance(raw, dict)
+                or not 1 <= len(raw) <= 32
+            ):
+                raise VerificationError(classification)
+            for region, regional_pricing in raw.items():
+                if not isinstance(region, str) or _REGION_ID.fullmatch(region) is None:
+                    raise VerificationError(classification)
+                values.extend(
+                    _pricing_values(
+                        regional_pricing,
+                        required=frozenset({"input", "output"}),
+                        classification=classification,
+                    )
+                )
+            continue
+        if name == "peak_pricing":
+            if not allow_peak:
+                raise VerificationError("pricing_schema_drift")
+            peak = raw
             continue
         if name not in _TIER_PRICE_FIELDS:
             raise VerificationError("pricing_schema_drift")
@@ -162,6 +230,9 @@ def _pricing_values(
             previous_max = maximum
     if not values:
         raise VerificationError(classification)
+    if peak is not None:
+        multiplier = _peak_multiplier(peak, classification)
+        values.extend(_decimal(value * multiplier, classification) for value in tuple(values))
     return values
 
 
@@ -321,6 +392,7 @@ def audit_public_catalog(
             pricing,
             required=frozenset({"input", "output"}),
             classification="invalid_model_pricing",
+            allow_regional=True,
         )
         aggregate_input = _decimal(pricing["input"], "invalid_model_pricing")
         aggregate_output = _decimal(pricing["output"], "invalid_model_pricing")
@@ -376,6 +448,7 @@ def audit_public_catalog(
                         endpoint.get("pricing"),
                         required=frozenset({"prompt", "completion"}),
                         classification="invalid_endpoint_listing",
+                        allow_peak=True,
                     )
                 )
         except VerificationError:

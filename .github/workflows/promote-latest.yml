@@ -1,0 +1,153 @@
+name: Promote latest GHCR image
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghcr-latest-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote authoritative immutable release
+    if: github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: read
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install checksum-pinned GitHub CLI
+        id: release-cli
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli_dir="$RUNNER_TEMP/gh-release-cli"
+          archive="$cli_dir/gh_2.98.0_linux_amd64.tar.gz"
+          mkdir -p "$cli_dir"
+          curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 \
+            --output "$archive" \
+            https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_linux_amd64.tar.gz
+          printf '%s  %s\n' \
+            3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de \
+            "$archive" | sha256sum --check -
+          tar --extract --gzip --file "$archive" --directory "$cli_dir"
+          release_gh="$cli_dir/gh_2.98.0_linux_amd64/bin/gh"
+          "$release_gh" --version | grep --fixed-strings 'gh version 2.98.0'
+          echo "path=$release_gh" >> "$GITHUB_OUTPUT"
+
+      - name: Validate authoritative immutable release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_GH: ${{ steps.release-cli.outputs.path }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          release_version="${RELEASE_TAG#v}"
+          package_version=$(git show HEAD:pyproject.toml | python -c \
+            'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["project"]["version"])')
+          test "$release_version" = "$package_version"
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          release_commit=$(git rev-parse "$RELEASE_TAG^{commit}")
+          test "$(git rev-parse HEAD)" = "$release_commit"
+          git fetch --force --no-tags origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$release_commit" origin/main
+
+          release_ready=false
+          for attempt in $(seq 1 12); do
+            release_state=$("$RELEASE_GH" api \
+              "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+              --jq '[.tag_name, .draft, .prerelease, .immutable] | @tsv' || true)
+            latest_tag=$("$RELEASE_GH" api \
+              "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name || true)
+            if test "$release_state" = \
+              "$RELEASE_TAG"$'\tfalse\tfalse\ttrue' && \
+              test "$latest_tag" = "$RELEASE_TAG"; then
+              release_ready=true
+              break
+            fi
+            if test "$attempt" -lt 12; then sleep 5; fi
+          done
+          test "$release_ready" = true
+          {
+            echo "commit=$release_commit"
+            echo "tag=$RELEASE_TAG"
+            echo "version=$release_version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up pinned Buildx and BuildKit
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: v0.36.1
+          driver-opts: >-
+            image=moby/buildkit@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify and promote the authoritative version digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_GH: ${{ steps.release-cli.outputs.path }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          repository=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          image="ghcr.io/$repository"
+          version_image="$image:$RELEASE_VERSION"
+          latest_image="$image:latest"
+          version_manifest=$(mktemp)
+          docker buildx imagetools inspect "$version_image" --raw > "$version_manifest"
+          version_digest="sha256:$(sha256sum "$version_manifest" | cut -d ' ' -f 1)"
+          [[ "$version_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          "$RELEASE_GH" attestation verify \
+            "oci://$image@$version_digest" \
+            -R "$GITHUB_REPOSITORY" \
+            --source-ref "refs/tags/$RELEASE_TAG" \
+            --source-digest "$RELEASE_COMMIT" \
+            --signer-workflow \
+              "$GITHUB_REPOSITORY/.github/workflows/docker.yml" \
+            --deny-self-hosted-runners
+
+          test "$("$RELEASE_GH" api \
+            "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = \
+            "$RELEASE_TAG"
+          test "$("$RELEASE_GH" api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            --jq .immutable)" = true
+
+          docker buildx imagetools create --tag "$latest_image" \
+            --prefer-index=false "$image@$version_digest"
+          latest_digest="sha256:$(docker buildx imagetools inspect \
+            "$latest_image" --raw | sha256sum | cut -d ' ' -f 1)"
+          test "$latest_digest" = "$version_digest"
+
+          test "$("$RELEASE_GH" api \
+            "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = \
+            "$RELEASE_TAG"
+          test "$("$RELEASE_GH" api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            --jq .immutable)" = true

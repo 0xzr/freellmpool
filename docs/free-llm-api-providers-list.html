@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Free LLM API providers list (2026) — free tiers, models, limits</title>
-<meta name="description" content="A 2026 list of LLM providers with a free API tier — Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Mistral, Cohere and more — with whether they need an API key, how many models, and free-tier signals. Plus how to pool them all with freellmpool.">
+<meta name="description" content="A 2026 list of LLM providers with recurring free, keyless, trial, or pin-only API access — Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Mistral, Cohere and more — with access signals and pooling guidance.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/free-llm-api-providers-list.html">
 <meta property="og:title" content="Free LLM API providers list (2026)">
-<meta property="og:description" content="24 providers with free LLM API tiers, compared — and how to pool them all.">
+<meta property="og:description" content="22 providers with free, keyless, trial, or pin-only LLM API access, compared — and how to pool them.">
 <meta property="og:type" content="article">
 <style>
  :root{--bg:#0b0e14;--fg:#e6e6e6;--mut:#8a93a2;--card:#141925;--bd:#232a39;--ac:#6ea8ff}
@@ -29,67 +29,69 @@
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › reference</p>
 <h1>Free LLM API providers (2026)</h1>
 
-<p class="lead"><strong>These 24 providers offer a free LLM API tier you can call today. Three need no API
-key at all, and LLM7 is key-optional. The table shows whether a key is required, roughly how many models the free tier exposes, and
-a free-tier signal where known. The catch with using several is that each has its own SDK and limits — the
-open-source <a href="https://github.com/0xzr/freellmpool">freellmpool</a> pools all of them behind one
-OpenAI-compatible endpoint with failover, so you get their combined free capacity through one interface.</strong></p>
+<p class="lead"><strong>These 22 providers span recurring free tiers, finite trials, keyless
+endpoints, and explicit pin-only routes. Three need no API key at all, and LLM7 is key-optional. The table
+shows whether a key is required, roughly how many routes are enabled, and an access signal where known.
+Disabled or pending-canary routes are not automatic capacity. The catch with using several is that each has its own SDK and limits — the
+open-source <a href="https://github.com/0xzr/freellmpool">freellmpool</a> pools the enabled,
+eligible routes behind one OpenAI-compatible endpoint with failover. Disabled, priced, and finite-trial
+routes remain visible for explicit decisions but are not all automatic free capacity.</strong></p>
 
 <table>
-<tr><th>Provider</th><th>API key?</th><th class=num>Free models*</th><th>Free-tier signal**</th></tr>
+<tr><th>Provider</th><th>API key?</th><th class=num>Enabled routes*</th><th>Access signal**</th></tr>
 <tr data-provider="pollinations"><td>Pollinations</td><td>No (keyless)</td><td class=num>3</td><td>Anonymous; rate-limited per IP</td></tr>
 <tr data-provider="ovh"><td>OVHcloud AI Endpoints</td><td>No (keyless)</td><td class=num>17</td><td>Anonymous tier (chat + embeddings + Whisper)</td></tr>
-<tr data-provider="llm7"><td>LLM7</td><td>Optional</td><td class=num>4</td><td>~60/hour without a token</td></tr>
-<tr data-provider="kilo"><td>Kilo Gateway</td><td>No (keyless)</td><td class=num>8</td><td>Anonymous; ~200 req/hour per IP</td></tr>
+<tr data-provider="llm7"><td>LLM7</td><td>Optional</td><td class=num>3</td><td>~60/hour without a token</td></tr>
+<tr data-provider="kilo"><td>Kilo Gateway</td><td>No (keyless)</td><td class=num>16</td><td>Anonymous; ~200 req/hour per IP</td></tr>
 <tr data-provider="opencode"><td>OpenCode Zen</td><td>No (keyless)</td><td class=num>0</td><td>Cataloged routes disabled by default pending opt-in</td></tr>
-<tr data-provider="groq"><td>Groq</td><td>Yes (free)</td><td class=num>10</td><td>~1,000 req/day (per model)</td></tr>
-<tr data-provider="cerebras"><td>Cerebras</td><td>Yes (free)</td><td class=num>3</td><td>~14,400 req/day (large cap)</td></tr>
+<tr data-provider="groq"><td>Groq</td><td>Yes (free)</td><td class=num>7</td><td>Model-specific free-plan limits; Compound routes are 250 requests/day</td></tr>
+<tr data-provider="cerebras"><td>Cerebras</td><td>Yes (trial)</td><td class=num>2</td><td>Finite $5 trial; documented routes are explicit pins, not automatic capacity</td></tr>
 <tr data-provider="gemini"><td>Google Gemini</td><td>Yes (free)</td><td class=num>1</td><td>Current free-tier limits vary by project/model</td></tr>
-<tr data-provider="openrouter"><td>OpenRouter</td><td>Yes (free)</td><td class=num>12</td><td>~1,000 req/day on :free models</td></tr>
-<tr data-provider="github"><td>GitHub Models</td><td>Yes (any PAT)</td><td class=num>22</td><td>~150 req/day</td></tr>
-<tr data-provider="nvidia"><td>NVIDIA NIM</td><td>Yes (free)</td><td class=num>29</td><td>Free credits / rate-limited</td></tr>
-<tr data-provider="cloudflare"><td>Cloudflare Workers AI</td><td>Yes (free)</td><td class=num>24</td><td>Daily Neuron allowance</td></tr>
-<tr data-provider="mistral"><td>Mistral</td><td>Yes (free)</td><td class=num>43</td><td>Free experimentation tier</td></tr>
+<tr data-provider="openrouter"><td>OpenRouter</td><td>Yes (free)</td><td class=num>8</td><td>Free-route limits depend on account credits and current policy</td></tr>
+<tr data-provider="nvidia"><td>NVIDIA NIM</td><td>Yes (free)</td><td class=num>11</td><td>Account credits and model-specific rate limits</td></tr>
+<tr data-provider="cloudflare"><td>Cloudflare Workers AI</td><td>Yes (free)</td><td class=num>22</td><td>Daily Neuron allowance</td></tr>
+<tr data-provider="mistral"><td>Mistral</td><td>Yes (free)</td><td class=num>36</td><td>Account- and model-specific experimentation limits</td></tr>
 <tr data-provider="cohere"><td>Cohere</td><td>Yes (free)</td><td class=num>21</td><td>Trial keys, rate-limited</td></tr>
-<tr data-provider="sambanova"><td>SambaNova</td><td>Yes (free)</td><td class=num>0</td><td>Free tier, rate-limited</td></tr>
+<tr data-provider="sambanova"><td>SambaNova</td><td>Yes (free)</td><td class=num>0</td><td>Catalog routes disabled pending current verification</td></tr>
 <tr data-provider="zhipu"><td>Z.ai / Zhipu GLM</td><td>Yes (free)</td><td class=num>2</td><td>~1,000 req/day</td></tr>
-<tr data-provider="ollama"><td>Ollama Cloud</td><td>Yes (free)</td><td class=num>8</td><td>Qualitative free limits</td></tr>
-<tr data-provider="longcat"><td>LongCat (Meituan)</td><td>Yes (free)</td><td class=num>0</td><td>Preview route retired; no active route</td></tr>
+<tr data-provider="ollama"><td>Ollama Cloud</td><td>Yes (free)</td><td class=num>7</td><td>Qualitative free limits</td></tr>
 <tr data-provider="huggingface"><td>Hugging Face (router)</td><td>Yes (free)</td><td class=num>21</td><td>Monthly included Inference credits</td></tr>
-<tr data-provider="aion"><td>Aion Labs</td><td>Yes (free)</td><td class=num>5</td><td>20K tokens/day; no card</td></tr>
-<tr data-provider="modelscope"><td>ModelScope API Inference</td><td>Yes (free)</td><td class=num>7</td><td>2,000 calls/day total; dynamic per-model caps</td></tr>
-<tr data-provider="morph"><td>Morph</td><td>Yes (free)</td><td class=num>3</td><td>200 requests/month</td></tr>
-<tr data-provider="vercel"><td>Vercel AI Gateway</td><td>Yes</td><td class=num>8</td><td>Key enables 3 automatic value routes; $5 recurring Hobby credit; Vercel-side budget required</td></tr>
+<tr data-provider="aion"><td>Aion Labs</td><td>Yes (free)</td><td class=num>4</td><td>20K tokens/day; no card</td></tr>
+<tr data-provider="modelscope"><td>ModelScope API Inference</td><td>Yes (free)</td><td class=num>6</td><td>2,000 calls/day total; dynamic per-model caps</td></tr>
+<tr data-provider="morph"><td>Morph</td><td>Yes (priced)</td><td class=num>0</td><td>Current aliases are priced and remain disabled</td></tr>
+<tr data-provider="vercel"><td>Vercel AI Gateway</td><td>Yes</td><td class=num>8</td><td>One zero-price automatic route; priced pins excluded; disabled candidates await canaries</td></tr>
 <tr data-provider="siliconflow"><td>SiliconFlow</td><td>Yes (free)</td><td class=num>1</td><td>Fixed free-model limits; identity verification required</td></tr>
 </table>
-<p class="tag">* Enabled chat, embedding, and transcription routes in freellmpool's catalog; varies as tiers change.
-** Free-tier signals are approximate and change without notice — always check the provider's current
+<p class="tag">* Enabled routes across chat, embeddings, and transcription in freellmpool's catalog
+(196 capability routes in total; 177 are chat routes); varies as tiers change.
+** Access signals are approximate and change without notice — always check the provider's current
 docs. freellmpool tracks your real per-day usage as you go.</p>
 
-<div class="note">No single free tier has enough daily capacity for sustained use — but the sum of them
-does. That's the point of pooling.</div>
+<div class="note">Free capacity is fragmented and variable. Pooling lets eligible routes fail over
+without treating any one provider's allowance as permanent or unlimited.</div>
 
-<h2>Use any (or all) of them in one line</h2>
+<h2>Use eligible enabled routes in one line</h2>
 <pre><code>pip install freellmpool
-freellmpool ask "Explain the CAP theorem in one sentence."   # keyless, picks a free provider
+freellmpool ask "Explain the CAP theorem in one sentence."   # keyless when an eligible route is available
 freellmpool providers                                         # see which tiers you've configured</code></pre>
-<p>Add each provider's free key as an env var to grow capacity; signup links are in the
+<p>Add credentials for eligible providers to grow capacity; signup links are in the
 <a href="https://github.com/0xzr/freellmpool/blob/main/docs/ACCOUNTS.md">accounts guide</a>. See also:
 <a href="use-multiple-free-llm-apis.html">using multiple free LLM APIs together</a> ·
 <a href="best-free-llm-api-gateway.html">best free LLM API gateway</a>.</p>
 
 <h2>FAQ</h2>
-<h3>Which LLM providers have a free API tier?</h3>
-<p>As of 2026, free API tiers are offered by Groq, Cerebras, Google Gemini, NVIDIA, OpenRouter, GitHub
-Models, Cloudflare, Mistral, Cohere, SambaNova, Z.ai/Zhipu, Ollama Cloud, LongCat, LLM7, Pollinations,
-OVHcloud, Kilo Gateway, OpenCode Zen, Hugging Face, Aion Labs, ModelScope, and SiliconFlow. Pollinations, OVHcloud, and Kilo Gateway work
-with no API key by default; OpenCode Zen is cataloged keyless but disabled by default.</p>
+<h3>Which LLM providers have free, keyless, or trial API access?</h3>
+<p>The catalog distinguishes recurring free tiers, finite trials, keyless endpoints, priced pins, and
+disabled candidates. Pollinations, OVHcloud, and Kilo Gateway have enabled keyless routes; LLM7 accepts
+an optional key. Cerebras is finite-trial pin-only, while OpenCode Zen, SambaNova, and Morph currently
+have no enabled routes. Check each row and the dated activity audit instead of treating all 22 provider
+groups as interchangeable free capacity.</p>
 <h3>What's the free LLM API with the highest limit?</h3>
-<p>Among the common free tiers, Cerebras advertises one of the largest daily request caps, and providers
-like Groq and OpenRouter offer roughly a thousand requests/day on free models. Limits change often — pool
-several with freellmpool so a single cap isn't a bottleneck.</p>
+<p>There is no durable single winner: recurring allowances are model-, account-, and project-specific,
+while Cerebras now offers only finite trial credit. Check each provider's current limits and pool several
+recurring tiers so one cap is not a bottleneck.</p>
 
-<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Data from the freellmpool catalog. Updated 2026-07-17.</p>
+<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Data from the freellmpool catalog. Updated 2026-08-29.</p>
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Free LLM API providers list (2026)", "item": "https://0xzr.github.io/freellmpool/free-llm-api-providers-list.html"}]}</script>
 </body></html>

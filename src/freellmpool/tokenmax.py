@@ -1,12 +1,12 @@
-"""Shared TOKENMAX core — fan one prompt out to a whole swarm of free models.
+"""Shared TOKENMAX core — fan one prompt out to eligible ranked targets.
 
 Used by both the MCP ``tokenmax`` tool and the ``freellmpool tokenmax`` CLI so
 the fan-out logic lives in exactly one place:
 
 * the **CLI** gets the genuine rainbow ANSI animation on a TTY (stderr), then
-  prints every answer (and, by default, a synthesized verdict);
+  prints each returned answer (and, by default, a synthesized verdict);
 * the **MCP** tool emits live ``notifications/progress`` while it runs (so hosts
-  like Claude Code show ``🌈 TOKENMAXXING ▸ 47/168 models…`` ticking up) and a
+  like Claude Code show ``🌈 TOKENMAXXING ▸ N/total models…`` ticking up) and a
   colorful, markdown-safe rainbow banner in the result — because raw ANSI can't
   animate inside an MCP host's chat, but progress + emoji color can.
 
@@ -23,8 +23,8 @@ from collections.abc import Callable
 
 from .router import Pool
 
-# Even the default "ALL models" path is bounded — a pathological catalog should
-# never spawn thousands of in-flight requests. ``max_models`` only lowers this.
+# Even the default eligible-target path is bounded — a pathological catalog should
+# never spawn thousands of in-flight requests. ``max_models`` can only lower this.
 HARD_CAP = 256
 WORKERS = 32
 
@@ -87,12 +87,15 @@ def select_targets(
     *,
     routing: str | None = None,
 ) -> tuple[list, int]:
-    """Pick which models to blast: EVERY model across EVERY provider, round-robin
-    interleaved by provider (best-first within each) so the swarm spans all
-    providers instead of pounding one provider's list.
+    """Pick automatically eligible ranked targets across configured providers.
 
-    Returns ``(picks, n_providers)``. ``max_models`` only lowers the count; the
-    default is ALL of them, capped at :data:`HARD_CAP`.
+    Targets from :meth:`Pool.rank_targets` are interleaved round-robin by provider
+    (best-first within each) so the swarm spans providers instead of pounding one
+    provider's list. Active routing can narrow the ranked set, and callers such as
+    CLI wise mode can narrow it further.
+
+    Returns ``(picks, n_providers)``. ``max_models`` can only lower the count; the
+    automatically eligible set is always capped at :data:`HARD_CAP` (256).
     """
     by_provider: dict[str, list] = {}
     for t in pool.rank_targets(messages, routing=routing):

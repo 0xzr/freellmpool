@@ -8,7 +8,7 @@ once, then point your tool at it:
 freellmpool proxy --port 8080
 # Base URL:  http://localhost:8080/v1
 # API key:   anything on loopback, or your proxy bearer token when auth is enabled
-# Model:     auto        (or "groq", or "groq/llama-3.3-70b-versatile")
+# Model:     auto        (or "groq", or "groq/openai/gpt-oss-120b")
 ```
 
 Because freellmpool **aliases common model names** (`gpt-4o-mini`, `gpt-4o`,
@@ -17,7 +17,7 @@ model setting untouched — just set the base URL and any API key.
 
 ## Release status
 
-Latest release: 0.12.0. GitHub and PyPI both provide the Hermes profile, the
+Latest release: 0.12.1. GitHub and PyPI both provide the Hermes profile, the
 readiness/provider operations APIs, refreshed providers, Vercel AI Gateway
 support, `spread` routing, and registry-readiness hardening for the existing
 repository-local OpenCode plugins. Install it with
@@ -128,7 +128,7 @@ routing (`agent` = strongest healthy capability tier with quota spreading;
 
 **Registry publication status: pending.** The intended package names are
 `opencode-freellmpool` and `opencode-freellmpool-tui`; CI packs, clean-installs,
-and loads both, but neither name is published on npm as of 2026-07-19. Do not use
+and loads both, but neither name is published on npm as of 2026-08-29. Do not use
 an npm install command until the registry versions are verified. The local-file
 commands above are the current working path.
 
@@ -316,12 +316,28 @@ it without exposing it to the public internet:
 freellmpool tailnet serve --port 8080
 ```
 
-`tailnet serve` requires an API key by default. Omitting `--api-key` generates a
-session token and prints it exactly once. Do not run unauthenticated over a
+`tailnet serve` requires an API key by default. In an interactive live run,
+omitting `--api-key` generates a session token only when stderr is a TTY and
+prints it exactly once. The printed setup hints use
+`<session-token-shown-above>` rather than repeating the token.
+
+Noninteractive live runs must pass `--api-key` or set
+`FREELLMPOOL_PROXY_KEY`. Without either, the command exits with status 2 before
+starting the server and explains the two explicit-key options plus the
+interactive alternative:
+
+```bash
+FREELLMPOOL_PROXY_KEY='<dedicated-tailnet-token>' \
+  freellmpool tailnet serve --port 8080
+```
+
+`tailnet serve --dry-run` never creates a usable secret; it prints only the safe
+marker `<session-token-printed-on-real-run>`. Do not run unauthenticated over a
 non-loopback interface.
 
-From a remote machine, copy the serving IP and token from `freellmpool tailnet
-connect`:
+From a remote machine, copy the token from the interactive `tailnet serve`
+output (or use the explicit key you supplied), then have `tailnet connect` print
+the remote setup hints:
 
 ```bash
 freellmpool tailnet connect <tailnet-ip> --port 8080

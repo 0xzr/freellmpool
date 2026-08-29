@@ -1,11 +1,11 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "llm-freellmpool"
-version = "0.1.1"
-description = "Use free LLMs in Simon Willison's llm CLI via freellmpool — pool 24 free-tier providers with a keyless start when available."
+version = "0.1.2"
+description = "Use free LLMs in Simon Willison's llm CLI via freellmpool — route across 22 cataloged providers with a keyless start when available."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -17,12 +17,12 @@ classifiers = [
 ]
 dependencies = [
     "llm",
-    "freellmpool>=0.11.3",
+    "freellmpool>=0.12.1",
 ]
 
 [project.urls]
 Homepage = "https://github.com/0xzr/freellmpool"
-Repository = "https://github.com/0xzr/llm-freellmpool"
+Repository = "https://github.com/0xzr/freellmpool/tree/main/plugins/llm-freellmpool"
 
 [project.entry-points.llm]
 freellmpool = "llm_freellmpool"

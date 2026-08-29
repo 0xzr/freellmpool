@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Free alternatives to the OpenAI API (2026) — keyless, OpenAI-compatible</title>
-<meta name="description" content="The best free alternatives to the OpenAI API in 2026: free provider tiers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter) and freellmpool, an open-source tool that pools all of them behind one OpenAI-compatible endpoint with no API key to start.">
+<meta name="description" content="Free and trial alternatives to the OpenAI API in 2026, plus freellmpool: an open-source gateway that pools eligible routes and can start keyless when one is available.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/free-openai-api-alternatives.html">
 <meta property="og:title" content="Free alternatives to the OpenAI API (2026)">
-<meta property="og:description" content="Use free LLM tiers behind one OpenAI-compatible endpoint — pip install, no API key to start.">
+<meta property="og:description" content="Use eligible free LLM routes behind one OpenAI-compatible endpoint, with keyless start when a route is available.">
 <meta property="og:type" content="article">
 <style>
  :root{--bg:#0b0e14;--fg:#e6e6e6;--mut:#8a93a2;--card:#141925;--bd:#232a39;--ac:#6ea8ff}
@@ -28,12 +28,12 @@
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › guide</p>
 <h1>Free alternatives to the OpenAI API</h1>
 
-<p class="lead"><strong>The cheapest alternative to the OpenAI API is the free tier that many providers
-already give away — Groq, Cerebras, NVIDIA, Google Gemini, OpenRouter, Cloudflare, Mistral and Cohere
-each offer one. The catch is that each has its own SDK, rate limit, and daily cap. The simplest way to
-use them is <a href="https://github.com/0xzr/freellmpool">freellmpool</a>, an open-source tool that pools
-all of those free tiers behind a single OpenAI-compatible endpoint, with automatic failover, and works
-with no API key to start.</strong></p>
+<p class="lead"><strong>Many providers offer recurring free routes, keyless endpoints, or limited
+trial access — but those categories are not interchangeable. Groq, NVIDIA, Google Gemini, OpenRouter,
+Cloudflare, Mistral, Cohere, and others each have their own eligibility, SDK, and limits; Cerebras now
+offers finite trial credit rather than recurring free capacity. <a href="https://github.com/0xzr/freellmpool">freellmpool</a>
+pools eligible enabled routes behind one OpenAI-compatible endpoint with automatic failover and can
+start without a provider key when a keyless route is available.</strong></p>
 
 <pre><code>pip install freellmpool
 export OPENAI_BASE_URL=http://localhost:8080/v1   # after: freellmpool proxy
@@ -42,15 +42,15 @@ export OPENAI_BASE_URL=http://localhost:8080/v1   # after: freellmpool proxy
 <h2>The options, honestly</h2>
 <table>
 <tr><th>Option</th><th>Free?</th><th>API key?</th><th>OpenAI-compatible</th></tr>
-<tr><td>Provider free tiers (Groq, Cerebras, …)</td><td>Yes, per-provider limits</td><td>Usually yes</td><td>Mostly</td></tr>
-<tr><td><strong>freellmpool</strong> (pools all of them)</td><td>Yes</td><td>No to start</td><td>Yes (drop-in)</td></tr>
+<tr><td>Provider free tiers and trials</td><td>Varies by provider, account, and route</td><td>Usually yes</td><td>Mostly</td></tr>
+<tr><td><strong>freellmpool</strong> (pools eligible routes)</td><td>Open source; upstream limits still apply</td><td>Not when a keyless route is available</td><td>Yes (drop-in)</td></tr>
 <tr><td>OpenRouter</td><td>A few rate-limited free models</td><td>Yes</td><td>Yes</td></tr>
 <tr><td>Local models (Ollama, llama.cpp)</td><td>Yes (your hardware)</td><td>No key</td><td>Via a wrapper</td></tr>
 </table>
 
 <h2>Why pool the free tiers instead of picking one</h2>
 <ul>
-<li>No single free tier has enough daily capacity for real use; together they do.</li>
+<li>Pooling several eligible routes can provide more resilience and aggregate capacity than relying on one.</li>
 <li>freellmpool fails over when one provider is rate-limited, so you're not stuck on a 429.</li>
 <li>Your code keeps using the OpenAI SDK — only the base URL changes.</li>
 <li>It also has an experimental Anthropic-compatible path, so Claude Code / Codex / Aider run on free models too —
@@ -59,18 +59,20 @@ see the <a href="run-coding-agents-on-free-models.html">coding-agents guide</a>.
 
 <h2>Limits to know</h2>
 <p>Free-tier models are smaller than GPT-class frontier models — great for drafting, classification,
-summarization, and everyday coding, not the hardest reasoning. Daily limits reset at UTC midnight.</p>
+summarization, and everyday coding, not the hardest reasoning. Upstream reset windows and allowance
+types vary by provider; freellmpool's local daily counters roll over at UTC midnight.</p>
 
 <h2>FAQ</h2>
 <h3>Is there a free OpenAI API key?</h3>
 <p>OpenAI itself doesn't offer a free API tier, but several other providers do, and freellmpool lets you
-use them through the same OpenAI-compatible interface — three of them (Pollinations, OVHcloud, Kilo Gateway) need no key
-at all, so <code>pip install freellmpool &amp;&amp; freellmpool ask "..."</code> works immediately.</p>
+use eligible routes through the same OpenAI-compatible interface. Pollinations, OVHcloud, and Kilo
+Gateway have enabled keyless routes, so <code>pip install freellmpool &amp;&amp; freellmpool ask "..."</code>
+can work immediately when one of those routes is available.</p>
 <h3>Can I keep my existing OpenAI code?</h3>
 <p>Yes. Point <code>OPENAI_BASE_URL</code> at the local freellmpool proxy; the SDK calls are unchanged and
 common model names like <code>gpt-4o-mini</code> are mapped to a free equivalent.</p>
 
-<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-06-03.</p>
+<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-08-29.</p>
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Free alternatives to the OpenAI API (2026)", "item": "https://0xzr.github.io/freellmpool/free-openai-api-alternatives.html"}]}</script>
 </body></html>

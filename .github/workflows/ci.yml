@@ -20,6 +20,27 @@ jobs:
       - name: Cold quickstart
         run: FREELLMPOOL_QUICKSTART_PACKAGE=. scripts/quickstart-test.sh
 
+  mcp-manifest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Validate with checksum-pinned mcp-publisher 1.7.9
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/mcp-publisher_linux_amd64.tar.gz"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            --output "$archive" \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_linux_amd64.tar.gz
+          echo "ab128162b0616090b47cf245afe0a23f3ef08936fdce19074f5ba0a4469281ac  $archive" \
+            | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP" mcp-publisher
+          export PATH="$RUNNER_TEMP:$PATH"
+          mcp-publisher validate server.json
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -70,6 +91,43 @@ jobs:
           FREELLMPOOL_CACHE_PATH=/tmp/flp-smoke-cache.db \
           FREELLMPOOL_EXTERNAL_CATALOG_PATH=/tmp/flp-smoke-external.json \
             /tmp/freellmpool-wheel-smoke/bin/freellmpool doctor
+
+  llm-plugin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - name: Install pinned plugin test and build tooling
+        run: >-
+          python -m pip install --disable-pip-version-check
+          build==1.5.0 pytest==9.0.2 twine==7.0.0
+      - name: Test plugin registration and execution contracts
+        run: PYTHONPATH=src pytest -q plugins/llm-freellmpool/tests
+      - name: Build and validate plugin distributions
+        run: |
+          python -m build --outdir plugins/llm-freellmpool/dist plugins/llm-freellmpool
+          python -m twine check plugins/llm-freellmpool/dist/*.whl plugins/llm-freellmpool/dist/*.tar.gz
+      - name: Fresh-install the wheel and run a blocked-network llm smoke
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/llm-plugin-smoke"
+          smoke_python="$RUNNER_TEMP/llm-plugin-smoke/bin/python"
+          "$smoke_python" -m pip install --disable-pip-version-check --upgrade pip
+          "$smoke_python" -m pip install --disable-pip-version-check "llm==0.33" -e .
+          "$smoke_python" -m pip install --disable-pip-version-check \
+            --no-deps plugins/llm-freellmpool/dist/*.whl
+          "$smoke_python" -c \
+            'import importlib.metadata as m; assert m.version("llm-freellmpool") == "0.1.2"'
+          "$smoke_python" plugins/llm-freellmpool/tests/smoke_cli.py \
+            "$RUNNER_TEMP/llm-plugin-smoke/bin/llm"
 
   opencode-packages:
     runs-on: ubuntu-latest

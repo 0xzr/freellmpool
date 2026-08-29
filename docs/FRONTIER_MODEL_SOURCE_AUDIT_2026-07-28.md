@@ -61,7 +61,7 @@ Primary model/provider sources:
 - [Cloudflare Kimi K2.7 Code model card](https://developers.cloudflare.com/workers-ai/models/kimi-k2.7-code/)
 - [Cloudflare Kimi K2.7 launch note](https://developers.cloudflare.com/changelog/post/2026-06-12-kimi-k2-7-code-workers-ai/)
 - [MiniMax M3 official repository](https://github.com/MiniMax-AI/MiniMax-M3)
-- [Z.ai Java SDK GLM-5.2 example](https://github.com/zai-org/z-ai-sdk-java/blob/21c13b12c27b431f98ca4a9601a6ac40b4ad4f74/README.md)
+- [Z.ai GLM-5.2 model guide](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.2)
 - [Artificial Analysis Kimi K2.7 vs K2.6](https://artificialanalysis.ai/models/comparisons/kimi-k2-7-code-vs-kimi-k2-6)
 
 Independent registry/runtime cross-checks:

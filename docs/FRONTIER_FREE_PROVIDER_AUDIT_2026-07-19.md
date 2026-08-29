@@ -105,12 +105,11 @@ References:
 - [Artificial Analysis GLM-5.2 benchmark roster](https://artificialanalysis.ai/models/glm-5-2/providers)
 - [Together AI free-tier change](https://support.together.ai/articles/1862638756-changes-to-free-tier-and-billing-july-2025)
 - [ZenMux GLM-5.2](https://zenmux.ai/z-ai/glm-5.2)
-- [Blackbox GLM-5.2](https://www.blackbox.ai/models/blackboxai/z-ai/glm-5.2)
 
 ## GitHub and community discovery sources surveyed
 
 - [mnfst/awesome-free-llm-apis](https://github.com/mnfst/awesome-free-llm-apis)
-- [cheahjs/free-llm-api-resources](https://github.com/cheahjs/free-llm-api-resources)
+- [jtig37/free-llm-api-resources](https://github.com/jtig37/free-llm-api-resources)
 - [open-free-llm-api/awesome-freellm-apis](https://github.com/open-free-llm-api/awesome-freellm-apis)
 - [12britz/awesome-free-models](https://github.com/12britz/awesome-free-models)
 - [codertesla/ai-coding-deals](https://github.com/codertesla/ai-coding-deals)

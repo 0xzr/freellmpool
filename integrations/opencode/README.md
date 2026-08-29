@@ -14,10 +14,12 @@ It talks to a running [freellmpool](https://github.com/0xzr/freellmpool) proxy
   things like *"check freellmpool status"* or *"how much quota is left?"*.
 - **`freellmpool_models` tool** — lists the model ids the proxy exposes (including the
   routing aliases `agent` / `auto` / `spread` / `fast` / `quality` / `fair`).
-- **`freellmpool_tokenmax` tool** 🌈 — blast the same prompt to **every** free model at
-  once, then the agent synthesizes them all. Ask *"tokenmax: &lt;hard question&gt;"*. While
-  the swarm runs, the companion **embedded TUI dashboard** (`../opencode-tui`) throbs a live
-  rainbow `TOKENMAXXING` animation with `N/total` progress — install it too for the show.
+- **`freellmpool_tokenmax` tool** 🌈 — fan the same prompt out to automatically eligible
+  ranked targets across configured providers (hard cap 256; a max or routing policy may
+  narrow the swarm), then the agent synthesizes the returned responses. Ask
+  *"tokenmax: &lt;hard question&gt;"*. While the swarm runs, the companion **embedded TUI
+  dashboard** (`../opencode-tui`) throbs a live rainbow `TOKENMAXXING` animation with
+  `N/total` progress — install it too for the show.
 - **served-model toast** — after each reply, a small toast shows which provider+model
   actually answered. OpenCode itself only knows the alias you picked
   (`freellmpool/auto`), so the real target is read back from the proxy. Silence it with
@@ -46,7 +48,7 @@ aggregate quota matters more than keeping every turn in the strongest tier.
 
 > **Registry publication status: pending.** `opencode-freellmpool` and its
 > companion `opencode-freellmpool-tui` are pack/install/load-tested in CI, but
-> neither package was published on npm as of 2026-07-19.
+> neither package was published on npm as of 2026-08-29.
 > Repository-local plugin sources are included in 0.12.0 with registry-readiness hardening
 > and corrected defaults. Use the local-file path below until verified registry
 > versions exist.

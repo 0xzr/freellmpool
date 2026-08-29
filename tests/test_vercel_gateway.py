@@ -303,6 +303,104 @@ def test_public_audit_rejects_malformed_pricing_metadata():
     assert exc.value.classification == "invalid_model_pricing"
 
 
+def test_public_audit_accepts_bounded_regional_peak_pricing_and_current_provider():
+    rows = [
+        _model_row(AUTO_MODELS[0].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[1].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[2].name, input_price="0.000000076", output_price="0.000000153"),
+    ]
+    rows[2]["pricing"]["regional"] = {
+        "us": {
+            "input": "0.00000013",
+            "output": "0.00000026",
+            "input_cache_read": "0.000000028",
+        }
+    }
+    endpoint = _endpoint_payload(
+        AUTO_MODELS[2].name,
+        prompt="0.00000022",
+        completion="0.00000066",
+    )
+    endpoint["data"]["endpoints"][0]["provider_name"] = "digitalocean"
+    endpoint["data"]["endpoints"][0]["pricing"]["peak_pricing"] = {
+        "multiplier": 2,
+        "windows": [
+            {
+                "start_minute_utc": 60,
+                "end_minute_utc": 240,
+                "days_of_week": [1, 2, 3, 4, 5],
+            }
+        ],
+    }
+
+    report = VERIFIER.audit_public_catalog(
+        _provider(),
+        fetch=_fetcher(
+            models_payload={"data": rows},
+            endpoint_overrides={AUTO_MODELS[2].name: endpoint},
+        ),
+    )
+
+    assert report[2]["zero_price"] is False
+    assert report[2]["max_endpoint_price_per_unit"] == "0.00000132"
+    assert report[2]["active_providers"] == ["digitalocean"]
+
+
+@pytest.mark.parametrize(
+    "regional",
+    [
+        [],
+        {},
+        {"US": {"input": "0", "output": "0"}},
+        {"us": {"input": "0"}},
+        {"us": {"input": "0", "output": "0", "surprise_fee": "1"}},
+    ],
+)
+def test_public_audit_rejects_malformed_regional_pricing(regional):
+    rows = [
+        _model_row(AUTO_MODELS[0].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[1].name, input_price="0", output_price="0"),
+        _model_row(AUTO_MODELS[2].name, input_price="1", output_price="1"),
+    ]
+    rows[2]["pricing"]["regional"] = regional
+
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.audit_public_catalog(_provider(), fetch=_fetcher(models_payload={"data": rows}))
+    assert exc.value.classification in {"invalid_model_pricing", "pricing_schema_drift"}
+
+
+@pytest.mark.parametrize(
+    "peak_pricing",
+    [
+        {},
+        {"multiplier": 0, "windows": []},
+        {"multiplier": 2, "windows": []},
+        {
+            "multiplier": 2,
+            "windows": [
+                {"start_minute_utc": 240, "end_minute_utc": 60, "days_of_week": [1]}
+            ],
+        },
+        {
+            "multiplier": 2,
+            "windows": [
+                {"start_minute_utc": 0, "end_minute_utc": 60, "days_of_week": [7]}
+            ],
+        },
+    ],
+)
+def test_public_audit_rejects_malformed_peak_pricing(peak_pricing):
+    endpoint = _endpoint_payload(AUTO_MODELS[0].name, prompt="0", completion="0")
+    endpoint["data"]["endpoints"][0]["pricing"]["peak_pricing"] = peak_pricing
+
+    with pytest.raises(VERIFIER.VerificationError) as exc:
+        VERIFIER.audit_public_catalog(
+            _provider(),
+            fetch=_fetcher(endpoint_overrides={AUTO_MODELS[0].name: endpoint}),
+        )
+    assert exc.value.classification == "invalid_endpoint_listing"
+
+
 def test_aggregate_request_fee_prevents_zero_price_classification():
     rows = [
         _model_row(AUTO_MODELS[0].name, input_price="0", output_price="0"),

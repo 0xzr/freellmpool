@@ -21,23 +21,35 @@ not encode data residency, this table says so instead of guessing.
 | `opencode` | `https://opencode.ai/zen/v1` | Keyless, disabled by default | OpenCode Zen endpoint region is not stated in the catalog. | Anonymous gateway; cataloged for explicit opt-in only until its privacy/retention posture is reviewed. |
 | `huggingface` | `https://router.huggingface.co/v1` | `HF_TOKEN` | Hugging Face says the company and servers are in the United States and data may be processed elsewhere. | Router endpoint; your key and prompt go to Hugging Face's routed inference service. |
 | `groq` | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` | Groq, Inc.; endpoint region is not stated in the catalog. | Direct provider API using your Groq key; check Groq's current service/privacy terms for retention. |
-| `cerebras` | `https://api.cerebras.ai/v1` | `CEREBRAS_API_KEY` | Cerebras Systems Inc.; endpoint region is not stated in the catalog. | Direct provider API using your Cerebras key; check Cerebras' current policy before sensitive prompts. |
+| `cerebras` | `https://api.cerebras.ai/v1` | `CEREBRAS_API_KEY` (finite $5 trial) | Cerebras Systems Inc.; endpoint region is not stated in the catalog. | Direct provider API using your Cerebras key; the documented models are explicit pins, not recurring automatic capacity. |
 | `nvidia` | `https://integrate.api.nvidia.com/v1` | `NVIDIA_API_KEY` | NVIDIA describes worldwide services; endpoint region is not stated in the catalog. | Direct hosted NIM/API endpoint, not local NIM; prompts leave your machine. |
 | `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | OpenRouter is a routing layer; downstream provider jurisdiction depends on the selected model route. | Extra aggregator hop; OpenRouter has privacy controls, but upstream provider logging can still matter. |
 | `gemini` | `https://generativelanguage.googleapis.com/v1beta` | `GEMINI_API_KEY` | Google API/project terms apply; catalog does not pin a region. | Direct Google Gemini API using your key; use Google Cloud controls/settings if you need them. |
-| `github` | `https://models.github.ai/inference` | `GITHUB_TOKEN` | GitHub/Microsoft policies apply; catalog does not pin a model-serving region. | Direct GitHub Models endpoint using your token; retention depends on GitHub's current terms. |
 | `cloudflare` | `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1` | `CLOUDFLARE_API_TOKEN` plus account id | Cloudflare's Workers AI docs say customer data is processed to provide the service; catalog does not pin a region. | Direct Cloudflare Workers AI endpoint scoped to your account. |
 | `mistral` | `https://api.mistral.ai/v1` | `MISTRAL_API_KEY` | Mistral AI publishes EU/GDPR-oriented privacy docs; catalog does not pin a region. | Direct Mistral API using your key; check Mistral's current API data controls. |
 | `cohere` | `https://api.cohere.ai/compatibility/v1` | `COHERE_API_KEY` | Cohere policy/enterprise commitments apply; catalog does not pin a region. | Direct Cohere API using your trial/API key; training controls vary by account type and settings. |
 | `sambanova` | `https://api.sambanova.ai/v1` | `SAMBANOVA_API_KEY` | SambaNova's policy references processors in the US, UK, EEA, Middle East, and Asia Pacific. | Direct SambaNova API using your key; note that current catalog chat models are disabled for auto-routing. |
 | `zhipu` | `https://api.z.ai/api/paas/v4` | `ZHIPU_API_KEY` | Z.ai's policy applies; catalog does not pin a region. | Direct Z.ai API; their policy says user content is processed to provide the service. |
 | `ollama` | `https://ollama.com/v1` | `OLLAMA_API_KEY` | Ollama Cloud policy/blog statements apply; catalog does not pin a region. | This is Ollama Cloud, not local Ollama. Prompts leave your machine when this provider is used. |
-| `longcat` | `https://api.longcat.chat/openai/v1` | `LONGCAT_API_KEY` | LongCat.AI/Meituan policy applies; catalog does not pin a region. | Direct LongCat API using your key; check the platform privacy policy before sensitive data. |
 | `aion` | `https://api.aionlabs.ai/v1` | `AION_API_KEY` | Aion Labs is operated by Deep Forge sp. z o.o. in Poland and routes to upstream model infrastructure. | Direct Aion API using your key; its terms permit forwarding prompts to upstream providers to deliver the service. |
 | `modelscope` | `https://api-inference.modelscope.cn/v1` | `MODELSCOPE_API_KEY` | ModelScope is an Alibaba open-model platform; the catalog does not pin an inference region. | Hosted API Inference using your token; do not assume local execution or a specific data-residency region. |
 | `morph` | `https://api.morphllm.com/v1` | `MORPH_API_KEY` | Morph's privacy policy applies; the catalog does not pin a serving region. | Hosted OpenAI-compatible inference using your key; prompts leave your machine. |
 | `vercel` | `https://ai-gateway.vercel.sh/v1` | `AI_GATEWAY_API_KEY` | Vercel AI Gateway routes requests to upstream model providers, whose jurisdictions may vary. | Extra gateway hop; Vercel and the selected upstream provider process each request. |
 | `siliconflow` | `https://api.siliconflow.cn/v1` | `SILICONFLOW_API_KEY` | SiliconFlow is operated by Beijing SiliconFlow Technology Co., Ltd.; identity verification is required for free models. | Direct SiliconFlow API; its English privacy policy says it does not store interaction data with open-source models, but verify the current policy for your account and region. |
+
+## Why aren't GitHub Models and LongCat included?
+
+GitHub [retired GitHub Models on July 30, 2026](https://github.blog/changelog/2026-07-30-github-models-is-now-retired/),
+including its model catalog, inference API, and BYOK access. On 2026-08-29,
+the official `/models`, `/chat/completions`, and `/embeddings` endpoints each
+returned HTTP `410` with code `github_models_retirement_brownout`. freellmpool
+therefore removed both the GitHub chat provider and GitHub embedder instead of
+treating the lifecycle event as a transient outage.
+
+LongCat's current [model documentation](https://longcat.chat/platform/docs/api/models)
+lists only LongCat 2.0, and its [pricing page](https://longcat.chat/platform/docs/Pricing/LongCat-2.0.html)
+describes pay-as-you-go usage rather than a recurring free route. The retired
+LongCat provider is therefore no longer part of the catalog.
 
 Two local storage details matter:
 
@@ -144,12 +156,12 @@ Provider policy links checked for this FAQ:
 - Kilo Gateway: <https://kilo.ai/docs/gateway/models-and-providers>
 - Hugging Face: <https://huggingface.co/privacy>
 - Groq: <https://groq.com/privacy-policy>
-- Cerebras: <https://www.cerebras.ai/privacy-policy>
+- Cerebras: <https://www.cerebras.ai/privacy-policy>,
+  <https://www.cerebras.ai/pricing>
 - NVIDIA: <https://www.nvidia.com/en-us/about-nvidia/privacy-policy/>
 - OpenRouter: <https://openrouter.ai/docs/guides/privacy/provider-logging>,
   <https://openrouter.ai/docs/guides/features/zdr>
 - Google Gemini API: <https://ai.google.dev/gemini-api/terms>
-- GitHub: <https://docs.github.com/site-policy/privacy-policies/github-privacy-statement>
 - Cloudflare Workers AI: <https://developers.cloudflare.com/workers-ai/platform/data-usage/>
 - Mistral AI: <https://docs.mistral.ai/admin/security-access/privacy>
 - Cohere: <https://cohere.com/privacy>,
@@ -157,7 +169,6 @@ Provider policy links checked for this FAQ:
 - SambaNova: <https://sambanova.ai/privacy-policy>
 - Z.ai: <https://docs.z.ai/legal-agreement/privacy-policy>
 - Ollama Cloud: <https://ollama.com/blog/cloud-models>
-- LongCat: <https://longcat.chat/platform/private/POLICY.html>
 - Aion Labs: <https://www.aionlabs.ai/terms/>,
   <https://www.aionlabs.ai/docs/rate-limits/>
 - ModelScope API Inference: <https://modelscope.cn/docs/model-service/API-Inference>

@@ -1,8 +1,10 @@
 # MCP Registry Listing Status
 
-Updated on 2026-08-23 for the `freellmpool 0.12.0` release. The official MCP
-Registry entry and MCP.so submission are complete; Smithery, Glama, and PulseMCP
-still need account/web UI actions.
+Updated on 2026-08-29 for the local `freellmpool 0.12.1` manifest. The official
+MCP Registry has an active published entry and the MCP.so submission is complete;
+the live active/latest endpoint below is authoritative for the version whose
+publication has finished. Smithery, Glama, and PulseMCP still need account/web
+UI actions.
 
 ## Local Manifest Status
 
@@ -10,7 +12,7 @@ still need account/web UI actions.
 
 - Schema: `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`
 - Name: `io.github.0xzr/freellmpool`
-- Version: `0.12.0`
+- Version: `0.12.1`
 - Repository: `https://github.com/0xzr/freellmpool`
 - Package: PyPI `freellmpool`, runtime hint `uvx`
 - Transport: stdio
@@ -63,7 +65,7 @@ Tool surface to mention in every listing:
 
 | Registry | Status | Requirement checked | Operator action |
 |---|---|---|---|
-| Official MCP Registry | Published | `server.json` validates with `mcp-publisher`; PyPI package README includes hidden `mcp-name: io.github.0xzr/freellmpool` ownership metadata. | Active/latest listing: <https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.0xzr/freellmpool>. Re-run `mcp-publisher publish` after future MCP package releases. |
+| Official MCP Registry | Published; live endpoint is authoritative | `server.json` validates with `mcp-publisher`; PyPI package README includes hidden `mcp-name: io.github.0xzr/freellmpool` ownership metadata. | Active/latest listing: <https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.0xzr/freellmpool>. For each MCP package release, dispatch `.github/workflows/publish-mcp.yml` with the exact released version and immutable release source SHA, then require its normalized registry-equality verifier to pass. |
 | Smithery | Ready for operator packaging; not directly URL-ready | Smithery URL publishing requires Streamable HTTP; local stdio publishing uses an MCPB bundle. Source: <https://smithery.ai/docs/build/publish>. | Build a local MCPB bundle for `freellmpool mcp`, then go to <https://smithery.ai/new>, choose **Local (MCPB Bundle)**, upload the bundle, and paste the copy from `docs/mcp-listings/smithery.md`. |
 | Glama | Ready after merge | Glama lists open-source MCP servers from GitHub repo submission, verifies maintainer GitHub OAuth access, clones/builds/introspects the repo, and scores tools. Sources: <https://glama.ai/> and <https://glama.ai/mcp/methodology>. | Sign in, open <https://glama.ai/mcp/servers>, click **Submit** / **List your server for free**, enter `https://github.com/0xzr/freellmpool`, authorize with a GitHub account that has write/admin access, and paste the copy from `docs/mcp-listings/glama-submission.md` if the form asks for details. |
 | MCP.so | Submitted | MCP.so says submissions are created via a GitHub issue and should include name, description, features, and connection information. Source: <https://mcp.so/>. | Submission comment: <https://github.com/chatmcp/mcpso/issues/1#issuecomment-4725456286>. Watch for maintainer import. |
@@ -76,5 +78,6 @@ Tool surface to mention in every listing:
 - `docs/mcp-listings/mcp-so-issue.md`
 - `docs/mcp-listings/pulsemcp-submission.md`
 
-External submissions performed: official MCP Registry publish and MCP.so issue
-comment. The remaining directories require the operator's account or browser UI.
+External submissions performed: at least one official MCP Registry publish and
+the MCP.so issue comment. The remaining directories require the operator's
+account or browser UI.

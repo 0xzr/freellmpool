@@ -48,11 +48,21 @@ def test_kimi_k27_catalog_entries_declare_verified_context_window():
     assert providers["huggingface"].model("moonshotai/Kimi-K2.7-Code").context == 262_144
 
 
+def test_cloudflare_catalog_matches_current_free_billing_and_lifecycle():
+    cloudflare = next(provider for provider in load_catalog() if provider.id == "cloudflare")
+
+    assert cloudflare.model("@cf/qwen/qwen3.8-27b").enabled
+    assert cloudflare.model("@cf/qwen/qwen3.8-27b").context == 262_144
+    assert not cloudflare.model("@cf/moonshotai/kimi-k2.6").enabled
+    assert not cloudflare.model("@cf/moonshotai/kimi-k2.7-code").enabled
+    assert not cloudflare.model("@cf/meta/llama-3.1-70b-instruct").enabled
+
+
 def test_packaged_catalog_reflects_july_live_model_audit():
     providers = {provider.id: provider for provider in load_catalog()}
     expected_enabled = {
         "cerebras": {"gemma-4-31b"},
-        "cloudflare": {"@cf/moonshotai/kimi-k2.7-code"},
+        "cloudflare": {"@cf/qwen/qwen3.8-27b"},
         "cohere": {"command-a-translate-08-2025"},
         "huggingface": {
             "CohereLabs/aya-expanse-32b",
@@ -73,7 +83,6 @@ def test_packaged_catalog_reflects_july_live_model_audit():
             "nvidia/nemotron-3-ultra-550b-a55b:free",
             "poolside/laguna-xs-2.1:free",
         },
-        "nvidia": {"z-ai/glm-5.2"},
         "openrouter": {"poolside/laguna-xs-2.1:free"},
     }
     expected_disabled = {
@@ -84,7 +93,6 @@ def test_packaged_catalog_reflects_july_live_model_audit():
             "devstral-small-2:24b",
             "gemma3:27b",
         },
-        "longcat": {"LongCat-2.0-Preview"},
         "nvidia": {
             "deepseek-ai/deepseek-v4-pro",
             "meta/llama-3.3-70b-instruct",
@@ -125,13 +133,11 @@ def test_packaged_catalog_reflects_july_16_provider_refresh():
     expected_models = {
         "aion": {
             "aion-labs/aion-2.0",
-            "aion-labs/aion-2.5",
             "aion-labs/aion-3.0",
             "aion-labs/aion-3.0-mini",
             "aion-labs/aion-rp-llama-3.1-8b",
         },
         "modelscope": {
-            "deepseek-ai/DeepSeek-V4-Flash",
             "MiniMax/MiniMax-M3",
             "Qwen/Qwen3.5-27B",
             "Qwen/Qwen3.5-35B-A3B",
@@ -147,7 +153,7 @@ def test_packaged_catalog_reflects_july_16_provider_refresh():
 
     llm7 = providers["llm7"]
     assert llm7.model("gpt-oss:20b") is not None
-    assert llm7.model("gpt-oss:20b").enabled
+    assert not llm7.model("gpt-oss:20b").enabled
     assert llm7.model("gemma3:27b") is not None
     assert not llm7.model("gemma3:27b").enabled
 
@@ -161,11 +167,9 @@ def test_packaged_catalog_reflects_july_17_exhaustive_live_audit():
 
     assert not providers["llm7"].model("minimax-m2.7").enabled
     assert not providers["kilo"].model("kwaipilot/kat-coder-pro-v2.5:free").enabled
-    assert providers["github"].model("openai/gpt-4.1-mini").enabled
 
     revived_nvidia = {
         "poolside/laguna-xs-2.1",
-        "thinkingmachines/inkling",
     }
     assert all(providers["nvidia"].model(name).enabled for name in revived_nvidia)
 
@@ -196,14 +200,6 @@ def test_packaged_catalog_reflects_july_17_exhaustive_live_audit():
     }
     assert all(not providers["ollama"].model(name).enabled for name in retired_ollama)
 
-    removed_github = {
-        "meta/llama-3.2-11b-vision-instruct",
-        "meta/llama-3.2-90b-vision-instruct",
-        "meta/meta-llama-3.1-405b-instruct",
-        "meta/meta-llama-3.1-8b-instruct",
-    }
-    assert all(not providers["github"].model(name).enabled for name in removed_github)
-
     nvidia_embedders = {provider.id: provider for provider in load_embedders()}["nvidia"]
     removed_nvidia_embedders = {
         "nvidia/embed-qa-4",
@@ -215,6 +211,11 @@ def test_packaged_catalog_reflects_july_17_exhaustive_live_audit():
     assert all(not nvidia_embedders.model(name).enabled for name in removed_nvidia_embedders)
 
 
+def test_packaged_catalog_omits_retired_github_models():
+    assert "github" not in {provider.id for provider in load_catalog()}
+    assert "github" not in {embedder.id for embedder in load_embedders()}
+
+
 def test_packaged_catalog_retires_gemini_2_and_uses_live_verified_llm7_selectors():
     providers = {provider.id: provider for provider in load_catalog()}
 
@@ -222,11 +223,242 @@ def test_packaged_catalog_retires_gemini_2_and_uses_live_verified_llm7_selectors
     assert not gemini.model("gemini-2.0-flash").enabled
     assert not gemini.model("gemini-2.0-flash-lite").enabled
     assert gemini.model("gemini-2.5-flash").enabled
+    current_unverified = {
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+    }
+    assert all(gemini.model(name) is not None for name in current_unverified)
+    assert all(not gemini.model(name).enabled for name in current_unverified)
 
     llm7 = providers["llm7"]
     assert llm7.model("default").enabled
     assert llm7.model("fast").enabled
     assert llm7.model("pro") is None
+
+
+def test_packaged_catalog_reflects_august_29_upstream_reconciliation():
+    providers = {provider.id: provider for provider in load_catalog()}
+
+    assert "longcat" not in providers
+
+    def assert_disabled_pins(provider_id: str, names: set[str]) -> None:
+        provider = providers[provider_id]
+        for name in names:
+            model = provider.model(name)
+            assert model is not None, f"missing {provider_id}/{name}"
+            assert not model.enabled, f"unexpectedly enabled {provider_id}/{name}"
+            assert not model.auto, f"unexpectedly automatic {provider_id}/{name}"
+
+    assert_disabled_pins("llm7", {"gpt-oss:20b"})
+    assert_disabled_pins("aion", {"aion-labs/aion-2.5"})
+    assert_disabled_pins(
+        "modelscope",
+        {
+            "deepseek-ai/DeepSeek-V4-Flash",
+            "deepseek-ai/DeepSeek-V4-Flash-0731",
+        },
+    )
+    assert_disabled_pins(
+        "morph",
+        {
+            "morph-glm52-744b",
+            "morph-minimax3-428b",
+            "morph-glm53-744b",
+            "morph-glm53flash",
+            "morph-dsv4flash",
+            "morph-kimik3",
+        },
+    )
+
+    nvidia_retired = {
+        "deepseek-ai/deepseek-v4-flash",
+        "meta/llama-3.1-70b-instruct",
+        "meta/llama-3.1-8b-instruct",
+        "meta/llama-3.2-3b-instruct",
+        "mistralai/mistral-medium-3.5-128b",
+        "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "nvidia/nemotron-nano-12b-v2-vl",
+        "nvidia/nvidia-nemotron-nano-9b-v2",
+        "stepfun-ai/step-3.7-flash",
+        "thinkingmachines/inkling",
+        "z-ai/glm-5.2",
+    }
+    nvidia_candidates = {
+        "deepseek-ai/deepseek-v4-flash-0731",
+        "deepseek-ai/deepseek-v4-pro-0813",
+        "meta/muse-glimmer-30b",
+        "moonshotai/kimi-k3",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+    }
+    assert_disabled_pins("nvidia", nvidia_retired | nvidia_candidates)
+
+    openrouter_retired = {
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "nvidia/nemotron-nano-12b-v2-vl:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "openai/gpt-oss-20b:free",
+    }
+    openrouter_candidates = {
+        "dots-studio/dots-3-note-preview:free",
+        "inclusionai/ling-3.0-flash-fin:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "minimax/minimax-m2.7:free",
+        "minimax/minimax-m3:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "poolside/laguna-s-2.1:free",
+        "thinkingmachines/inkling-small:free",
+        "thinkingmachines/inkling:free",
+        "z-ai/glm-5.2:free",
+    }
+    assert_disabled_pins("openrouter", openrouter_retired | openrouter_candidates)
+
+    assert_disabled_pins(
+        "opencode",
+        {
+            "laguna-s-2.1-free",
+            "ling-3.0-flash-fin-free",
+            "muse-spark-1.2-contributor-free",
+            "nemotron-3.5-lightning-free",
+        },
+    )
+
+    kilo = providers["kilo"]
+    kilo_verified = {
+        "dots-studio/dots-3-note-preview:free",
+        "inclusionai/ling-3.0-flash-fin:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "meituan/longcat-2.0-free",
+        "minimax/minimax-m2.7:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "poolside/laguna-s-2.1:free",
+        "tencent/hy3:free",
+    }
+    assert all(
+        kilo.model(name) and kilo.model(name).enabled and kilo.model(name).auto
+        for name in kilo_verified
+    )
+    assert_disabled_pins(
+        "kilo",
+        {
+            "minimax/minimax-m3:free",
+            "thinkingmachines/inkling-small:free",
+            "thinkingmachines/inkling:free",
+        },
+    )
+
+    cerebras = providers["cerebras"]
+    for name in {"gpt-oss-120b", "gemma-4-31b"}:
+        model = cerebras.model(name)
+        assert model is not None and model.enabled and not model.auto and model.rpd == 0
+    assert_disabled_pins(
+        "cerebras",
+        {"zai-glm-4.7", "qwen-3-235b-a22b-instruct-2507", "llama3.1-8b"},
+    )
+    assert all(
+        cerebras.model(name).rpd == 0
+        for name in {"zai-glm-4.7", "qwen-3-235b-a22b-instruct-2507", "llama3.1-8b"}
+    )
+
+    mistral_retired = {
+        "open-mistral-nemo",
+        "open-mistral-nemo-2407",
+        "mistral-tiny-2407",
+        "mistral-tiny-latest",
+        "mistral-medium",
+        "mistral-medium-3.5",
+        "mistral-medium-2604",
+        "mistral-medium-c21211-r0-75",
+        "labs-leanstral-2603",
+    }
+    assert_disabled_pins("mistral", mistral_retired | {"zai-glm-5-2", "labs-leanstral-1-5"})
+    mistral_pin_only = {
+        "mistral-medium-2505",
+        "mistral-medium-2508",
+        "devstral-2512",
+        "devstral-latest",
+        "magistral-medium-2509",
+        "magistral-medium-latest",
+        "magistral-small-2509",
+        "magistral-small-latest",
+        "mistral-small-2506",
+        "mistral-vibe-cli-with-tools",
+        "mistral-vibe-cli-fast",
+        "mistral-vibe-cli-latest",
+        "mistral-code-latest",
+        "mistral-code-fim-latest",
+        "mistral-code-agent-latest",
+        "devstral-medium-latest",
+    }
+    for name in mistral_pin_only:
+        model = providers["mistral"].model(name)
+        assert model is not None and model.enabled and not model.auto
+
+    assert_disabled_pins(
+        "ollama",
+        {
+            "minimax-m2.5",
+            "deepseek-v4-flash:0731",
+            "deepseek-v4-pro:0813",
+            "glm-5.2",
+            "glm-5.3",
+            "glm-5.3-flash",
+            "kimi-k2.7-code",
+            "kimi-k3",
+        },
+    )
+    assert_disabled_pins(
+        "gemini",
+        {
+            "gemini-3.7-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
+        },
+    )
+    assert_disabled_pins(
+        "siliconflow",
+        {
+            "Qwen/Qwen3.5-4B",
+            "Qwen/Qwen2.5-7B-Instruct",
+            "Qwen/Qwen2.5-Coder-7B-Instruct",
+            "THUDM/GLM-4-9B-0414",
+            "internlm/internlm2_5-7b-chat",
+            "THUDM/glm-4-9b-chat",
+        },
+    )
+    assert_disabled_pins("sambanova", {"MiniMax-M3"})
+
+    zhipu = providers["zhipu"]
+    assert zhipu.model("glm-4.7-flash").enabled and zhipu.model("glm-4.7-flash").auto
+    assert zhipu.model("glm-4.5-flash").enabled and not zhipu.model("glm-4.5-flash").auto
+
+
+def test_nvidia_embedding_catalog_reflects_august_29_listing():
+    nvidia = {provider.id: provider for provider in load_embedders()}["nvidia"]
+    disabled_pins = {
+        "baai/bge-m3",
+        "nvidia/llama-nemotron-embed-1b-v2",
+        "nvidia/nv-embed-v1",
+        "nvidia/nv-embedcode-7b-v1",
+        "nvidia/nv-embedqa-e5-v5",
+        "nvidia/embed-qa-4",
+        "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+        "nvidia/llama-3.2-nv-embedqa-1b-v1",
+        "nvidia/nemotron-3-embed-1b",
+        "nvidia/nv-embedqa-mistral-7b-v2",
+        "snowflake/arctic-embed-l",
+    }
+    for name in disabled_pins:
+        model = nvidia.model(name)
+        assert model is not None, f"missing nvidia embedder {name}"
+        assert not model.enabled and not model.auto
+    assert nvidia.model("nvidia/llama-nemotron-embed-vl-1b-v2").enabled
 
 
 def test_packaged_catalog_disables_july_29_repeat_definitive_failures():
@@ -240,7 +472,6 @@ def test_packaged_catalog_disables_july_29_repeat_definitive_failures():
         "kilo": {
             "kwaipilot/kat-coder-pro-v2.5:free",
             "poolside/laguna-m.1:free",
-            "tencent/hy3:free",
         },
         "llm7": {"minimax-m2.7"},
         "nvidia": {
@@ -272,18 +503,32 @@ def test_packaged_catalog_disables_july_29_repeat_definitive_failures():
         assert all(not provider.model(name).enabled for name in model_names)
 
 
+def test_groq_catalog_matches_august_29_free_plan_and_retirements():
+    groq = next(provider for provider in load_catalog() if provider.id == "groq")
+    models = {model.name: model for model in groq.models}
+
+    for retired in (
+        "llama-3.1-8b-instant",
+        "llama-3.3-70b-versatile",
+        "allam-2-7b",
+    ):
+        assert models[retired].enabled is False
+        assert models[retired].auto is False
+
+    assert models["groq/compound"].rpd == 250
+    assert models["groq/compound-mini"].rpd == 250
+    assert models["qwen/qwen3.8-27b"].enabled is False
+    assert models["qwen/qwen3.8-27b"].auto is False
+
+
 def test_packaged_catalog_includes_frontier_free_providers():
     providers = {provider.id: provider for provider in load_catalog()}
 
     morph = providers["morph"]
     assert morph.base_url == "https://api.morphllm.com/v1"
     assert morph.key_env == "MORPH_API_KEY"
-    assert {model.name for model in morph.models if model.enabled} == {
-        "morph-glm52-744b",
-        "morph-minimax3-428b",
-        "morph-dsv4flash",
-    }
-    assert sum(model.rpd for model in morph.models if model.enabled) <= 6
+    assert {model.name for model in morph.models if model.enabled} == set()
+    assert all(not model.auto for model in morph.models)
 
     vercel = providers["vercel"]
     assert vercel.base_url == "https://ai-gateway.vercel.sh/v1"
@@ -292,17 +537,26 @@ def test_packaged_catalog_includes_frontier_free_providers():
     assert vercel.is_configured({"AI_GATEWAY_API_KEY": "free-tier-key"})
     assert {model.name for model in vercel.models if model.enabled and model.auto} == {
         "poolside/laguna-s-2.1-free",
-        "nvidia/nemotron-3.5-lightning-free",
-        "deepseek/deepseek-v4-flash-0731",
     }
     assert {model.name for model in vercel.models if model.enabled and not model.auto} == {
+        "nvidia/nemotron-3.5-lightning",
+        "deepseek/deepseek-v4-flash-0731",
         "zai/glm-5.2",
         "minimax/minimax-m3",
         "deepseek/deepseek-v4-pro",
         "moonshotai/kimi-k2.6",
         "xiaomi/mimo-v2.5-pro",
     }
+    assert vercel.model("nvidia/nemotron-3.5-lightning-free").enabled is False
     assert vercel.model("deepseek/deepseek-v4-flash-0731").rpd == 50
+    for pending_free in (
+        "inclusionai/ling-3.0-flash-fin",
+        "inclusionai/ling-3.0-flash-fin-free",
+        "minimax/minimax-m2.7-free",
+        "minimax/minimax-m3-free",
+    ):
+        assert vercel.model(pending_free).enabled is False
+        assert vercel.model(pending_free).auto is False
 
     modelscope = providers["modelscope"]
     assert all(model.rpd == 200 for model in modelscope.models if model.enabled)
@@ -322,11 +576,21 @@ def test_pollinations_catalog_matches_live_chat_selectors():
     pollinations = next(provider for provider in load_catalog() if provider.id == "pollinations")
     models = {model.name: model for model in pollinations.models}
 
-    assert set(models) == {"openai", "openai-fast", "gpt-oss"}
+    assert set(models) == {
+        "openai",
+        "openai-fast",
+        "gpt-oss",
+        "gpt-oss-20b",
+        "ovh-reasoning",
+    }
     assert models["gpt-oss"].enabled is True
+    assert models["gpt-oss-20b"].enabled is False
+    assert models["ovh-reasoning"].enabled is False
     assert models["openai-fast"].auto is True
     assert models["openai"].auto is False
     assert models["gpt-oss"].auto is False
+    assert models["gpt-oss-20b"].auto is False
+    assert models["ovh-reasoning"].auto is False
 
 
 def test_env_example_documents_keyless_providers():

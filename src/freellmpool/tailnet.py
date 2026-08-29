@@ -24,6 +24,8 @@ import string
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import Enum
+from typing import TextIO
 
 # Tailscale assigns CGNAT-style 100.64.0.0/10 addresses to nodes. We
 # treat any 100.64.0.0/10 address as a valid Tailnet IPv4 and refuse
@@ -44,6 +46,16 @@ STATE_CLI_MISSING = "cli-missing"
 STATE_LOGGED_OUT = "logged-out"
 STATE_NO_IPV4 = "no-ipv4"
 STATE_MALFORMED = "malformed"
+
+
+class SetupTokenLabel(Enum):
+    """Approved non-secret labels for setup and banner output."""
+
+    PROXY_KEY = "<proxy-key>"
+    PROXY_KEY_FROM_SERVER = "<proxy-key-from-server>"
+    YOUR_PROXY_KEY = "<your-proxy-key>"
+    SESSION_REAL_RUN = "<session-token-printed-on-real-run>"
+    SESSION_DISCLOSED = "<session-token-shown-above>"
 
 
 @dataclass(frozen=True)
@@ -274,6 +286,32 @@ def generate_session_token(*, nbytes: int = 24) -> str:
     return secrets.token_urlsafe(nbytes)
 
 
+class _NonTTYDisclosureError(RuntimeError):
+    """A session secret was about to be disclosed somewhere other than a TTY."""
+
+
+def _disclose_session_token_to_tty(token: str, *, stream: TextIO) -> None:
+    """Write one session secret once, and only to an interactive terminal.
+
+    This is the sole intentional secret-output boundary. Setup formatters and
+    ordinary banners receive only booleans and :class:`SetupTokenLabel` values.
+    Direct ``write`` keeps this exceptional path distinct from generic printing
+    and logging APIs that must never receive a proxy secret.
+    """
+    if not stream.isatty():
+        raise _NonTTYDisclosureError(
+            "refusing session-token disclosure without an interactive terminal"
+        )
+    if not token:
+        raise ValueError("session token must be non-empty")
+    stream.write(
+        "\nfreellmpool: generated a one-session proxy key:\n"
+        f"  {token}\n"
+        "  (use it as the client bearer token; it is not saved anywhere)\n"
+    )
+    stream.flush()
+
+
 # Sensible printable alphabet for the ``-``-stripped fallback token
 # used by tests / dry-runs that want a token without url-safe
 # padding characters. Kept narrow on purpose; production code calls
@@ -314,11 +352,16 @@ def safe_base_url(host: str, port: int) -> str:
 def format_setup_hints(
     *,
     base_url: str,
-    token: str | None,
-    token_label: str | None = None,
+    auth_enabled: bool,
+    token_label: SetupTokenLabel = SetupTokenLabel.PROXY_KEY,
     include_provider_keys: bool = False,
 ) -> str:
     """Render the "how to use this proxy from another machine" block.
+
+    The formatter deliberately cannot accept a proxy key. ``auth_enabled``
+    carries only state, while ``token_label`` is restricted to a closed enum of
+    non-secret placeholders so a future caller cannot route credential data
+    into setup text by accident.
 
     ``include_provider_keys`` is accepted for symmetry with future
     expansion but is intentionally ignored: provider API keys must
@@ -327,11 +370,15 @@ def format_setup_hints(
     """
     # Defensive: if a caller ever does pass keys through, drop them.
     del include_provider_keys
+    if not isinstance(auth_enabled, bool):
+        raise TypeError("auth_enabled must be a bool")
+    if not isinstance(token_label, SetupTokenLabel):
+        raise TypeError("token_label must be a SetupTokenLabel")
 
     openai_base = f"{base_url}/v1"
     anthropic_base = base_url
-    if token:
-        key_value = token_label or "<proxy-key>"
+    if auth_enabled:
+        key_value = token_label.value
         openai_key = f"'{key_value}'"
         openai_note = "# proxy bearer token"
         anthropic_key = f"'{key_value}'"
@@ -343,9 +390,9 @@ def format_setup_hints(
         anthropic_note = "# ignored when proxy auth is disabled"
 
     auth_lines = []
-    if token:
+    if auth_enabled:
         auth_lines.append(
-            f"    export FREELLMPOOL_PROXY_KEY='{token_label or '<proxy-key>'}'  "
+            f"    export FREELLMPOOL_PROXY_KEY='{token_label.value}'  "
             "# optional local name for the proxy token"
         )
     auth_block = ("\n".join(auth_lines) + "\n") if auth_lines else ""
@@ -427,6 +474,7 @@ __all__ = [
     "STATE_LOGGED_OUT",
     "STATE_NO_IPV4",
     "STATE_MALFORMED",
+    "SetupTokenLabel",
     "TailnetStatus",
     "detect_tailnet",
     "is_loopback_host",

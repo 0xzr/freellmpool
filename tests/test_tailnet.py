@@ -336,7 +336,7 @@ def test_generate_session_token_simple_zero_length():
 
 
 def test_format_setup_hints_includes_openai_and_anthropic_urls():
-    out = format_setup_hints(base_url="http://100.64.0.5:8080", token=None)
+    out = format_setup_hints(base_url="http://100.64.0.5:8080", auth_enabled=False)
     assert "OPENAI_BASE_URL=http://100.64.0.5:8080/v1" in out
     assert "FREELLMPOOL_BASE_URL=http://100.64.0.5:8080/v1" in out
     assert "ANTHROPIC_BASE_URL=http://100.64.0.5:8080" in out
@@ -344,22 +344,21 @@ def test_format_setup_hints_includes_openai_and_anthropic_urls():
     assert "dashboard" in out.lower()
 
 
-def test_format_setup_hints_drops_provider_keys_even_if_asked():
+def test_format_setup_hints_accepts_only_safe_auth_labels():
     """The include_provider_keys flag exists only as a footgun guard — it must be ignored.
 
-    The function redacts the proxy token in the hints block (the caller
-    is expected to print the real token in a separate banner), and the
-    ``include_provider_keys`` parameter is a documented no-op that
-    exists to make it hard for a future caller to accidentally pipe
-    provider API keys through this output path.
+    The function cannot accept a proxy token: callers provide only an actual
+    boolean and a closed enum of non-secret labels. ``include_provider_keys``
+    is a documented no-op that makes it hard for a future caller to
+    accidentally pipe provider API keys through this output path.
     """
     out = format_setup_hints(
         base_url="http://100.64.0.5:8080",
-        token="sentinel-token",
+        auth_enabled=True,
+        token_label=tailnet.SetupTokenLabel.PROXY_KEY,
         include_provider_keys=True,
     )
-    # The proxy-token value must not be in the hints block; the caller
-    # prints it separately. This is the redaction guarantee.
+    # No proxy-token value can enter this call; only a closed label can.
     assert "sentinel-token" not in out
     assert "<proxy-key>" in out
     # No provider-shaped env (e.g. *_API_KEY) appears unless we wrote it.
@@ -367,6 +366,58 @@ def test_format_setup_hints_drops_provider_keys_even_if_asked():
     assert "OPENAI_API_KEY='<proxy-key>'" in out
     assert "ANTHROPIC_API_KEY='<proxy-key>'" in out
     assert "OPENAI_API_KEY=anything" not in out
+
+    with pytest.raises(TypeError):
+        format_setup_hints(
+            base_url="http://100.64.0.5:8080",
+            auth_enabled=True,
+            token_label="sentinel-token",  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(TypeError):
+        format_setup_hints(
+            base_url="http://100.64.0.5:8080",
+            auth_enabled="sentinel-token",  # type: ignore[arg-type]
+        )
+
+
+class _DisclosureStream:
+    def __init__(self, *, tty: bool):
+        self.tty = tty
+        self.writes: list[str] = []
+        self.flushed = False
+
+    def isatty(self) -> bool:
+        return self.tty
+
+    def write(self, value: str) -> int:
+        self.writes.append(value)
+        return len(value)
+
+    def flush(self) -> None:
+        self.flushed = True
+
+
+def test_session_token_disclosure_refuses_non_tty_without_writing():
+    stream = _DisclosureStream(tty=False)
+
+    with pytest.raises(RuntimeError, match="interactive terminal"):
+        tailnet._disclose_session_token_to_tty("sentinel-session-secret", stream=stream)
+
+    assert stream.writes == []
+    assert stream.flushed is False
+
+
+def test_session_token_disclosure_writes_secret_once_to_tty():
+    stream = _DisclosureStream(tty=True)
+
+    tailnet._disclose_session_token_to_tty("sentinel-session-secret", stream=stream)
+
+    output = "".join(stream.writes)
+    assert len(stream.writes) == 1
+    assert output.count("sentinel-session-secret") == 1
+    assert "not saved anywhere" in output
+    assert stream.flushed is True
 
 
 # -- safe_base_url ---------------------------------------------------------

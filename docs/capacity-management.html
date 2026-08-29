@@ -44,8 +44,9 @@
 <p class="lead"><strong>Free LLM tiers drift through the day — keys expire, providers go down, and
 daily caps fill up. <a href="https://github.com/0xzr/freellmpool">freellmpool</a> ships capacity tools
 that tell you, locally, which of your free providers are usable <em>right now</em>, which are near their
-quota, and which keys to add next.</strong> freellmpool is a free, open-source tool that pools the free
-tiers of 24 LLM providers behind one OpenAI-compatible endpoint; these commands keep that pool healthy.</p>
+quota, and which keys to add next.</strong> freellmpool is a free, open-source tool with 22 cataloged
+provider groups and 177 enabled chat routes behind one OpenAI-compatible endpoint. Recurring, keyless,
+trial, pin-only, and disabled entries stay distinct; these commands report only usable local capacity.</p>
 
 <pre><code>pip install freellmpool
 freellmpool capacity status --target 5</code></pre>
@@ -58,9 +59,10 @@ it's instant:</p>
 LLM capacity: 4/5 healthy providers
 Action recommended: add 1 provider(s).
 
-  healthy     groq          Groq             used=12/1000  models=9   key=GROQ_API_KEY
-  low_quota   github        GitHub Models    used=130/150  models=35  key=GITHUB_TOKEN
-  healthy     cerebras      Cerebras         used=0/14400  models=2   key=CEREBRAS_API_KEY
+  healthy     groq          Groq             used=12/3500   models=5  key=GROQ_API_KEY
+  low_quota   openrouter    OpenRouter       used=7000/8000 models=8  key=OPENROUTER_API_KEY
+  healthy     gemini        Google Gemini    used=0/250    models=1   key=GEMINI_API_KEY
+  disabled    opencode      OpenCode Zen     used=0/?      models=0   key=keyless
   ...</code></pre>
 
 <table>
@@ -70,6 +72,7 @@ Action recommended: add 1 provider(s).
 <tr><td><code>exhausted</code></td><td>Usage reached the daily request hint.</td></tr>
 <tr><td><code>invalid_key</code></td><td>Your local key inventory says the key has expired.</td></tr>
 <tr><td><code>missing</code></td><td>The provider exists in the catalog but isn't configured.</td></tr>
+<tr><td><code>disabled</code></td><td>No models are enabled, so the provider is not counted as healthy even if configured or keyless.</td></tr>
 </table>
 
 <p><code>--target N</code> flags when you have fewer than N healthy providers; <code>--all</code> also
@@ -83,19 +86,19 @@ sends a tiny real request to each configured provider, so you can tell a missing
 or down provider:</p>
 <pre><code>$ freellmpool providers health
   provider/model                status        latency  note
-  groq/llama-3.3-70b-versatile  ok             237 ms  2 tok
+  groq/openai/gpt-oss-120b      ok             237 ms  2 tok
   mistral/mistral-small-latest  ok             539 ms  2 tok
-  cerebras/gpt-oss-120b         rate_limited        -  HTTP 429
+  gemini/gemini-2.5-flash       rate_limited        -  HTTP 429
 
   2/3 providers ok</code></pre>
-<p>Use <code>-p groq,cerebras</code> to test a subset, <code>--timeout</code> to bound each call, and
+<p>Use <code>-p groq,gemini</code> to test a subset, <code>--timeout</code> to bound each call, and
 <code>-m &lt;model&gt;</code> to pin a model.</p>
 
 <h2>3. keys — a checklist and an interactive add</h2>
 <p>To reach a target number of healthy providers, ask for a checklist of which keys to create:</p>
 <pre><code>$ freellmpool keys checklist --target 5
 Manual key checklist to reach 5 healthy providers:
-  - cerebras: create a key manually, then set CEREBRAS_API_KEY</code></pre>
+  - gemini: create a key manually, then set GEMINI_API_KEY</code></pre>
 <p><code>keys add</code> then walks you through it — it writes the key to your <code>config.toml</code> and
 records metadata (name, dates, notes) in an optional inventory at
 <code>~/.config/freellmpool/keys.toml</code>. The inventory is metadata only; raw secrets stay in your
@@ -135,7 +138,7 @@ also just keep keys in environment variables.</p>
 
 <p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open
 source). Full reference:
-<a href="https://github.com/0xzr/freellmpool/blob/main/docs/CAPACITY.md">docs/CAPACITY.md</a>. Updated 2026-06-06.</p>
+<a href="https://github.com/0xzr/freellmpool/blob/main/docs/CAPACITY.md">docs/CAPACITY.md</a>. Updated 2026-08-29.</p>
 
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Know which free LLM tiers are usable right now (capacity & health)", "item": "https://0xzr.github.io/freellmpool/capacity-management.html"}]}</script>

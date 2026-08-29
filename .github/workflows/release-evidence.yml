@@ -7,12 +7,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   gate:
     name: Audit release dependencies
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: read
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -26,17 +31,44 @@ jobs:
           package_version=$(python -c \
             'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
           test "$GITHUB_REF_NAME" = "v$package_version"
-          git fetch --no-tags origin main
+          git fetch --force --no-tags origin main \
+            "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14"
-      - name: Install pinned release and security tooling
+      - name: Install release verification tooling
         run: >-
-          python -m pip install
-          --disable-pip-version-check
-          pip-audit==2.10.1
+          python -m pip install --disable-pip-version-check
+          -e ".[dev]" pip-audit==2.10.1
+      - name: Re-run source, catalog, metadata, and coverage gates
+        run: |
+          ruff check .
+          PYTHONPATH=src python scripts/validate_catalog.py
+          scripts/check-counts
+          PYTHONPATH=src python scripts/check_release_ready.py --skip-build
+          pytest --cov=freellmpool --cov-branch \
+            --cov-report=term-missing --cov-report=json:.coverage.json
+          python scripts/check_coverage.py .coverage.json
+      - name: Require zero open high-severity code-scanning alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          high_alerts=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=high&per_page=100" \
+            --jq '.[].number')
+          critical_alerts=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=critical&per_page=100" \
+            --jq '.[].number')
+          if test -n "$high_alerts$critical_alerts"; then
+            echo "Open high/critical code-scanning alerts block release." >&2
+            printf 'high: %s\ncritical: %s\n' "$high_alerts" "$critical_alerts" >&2
+            exit 1
+          fi
       - name: Validate exceptions and audit release dependencies
         shell: bash
         run: |
@@ -70,7 +102,10 @@ jobs:
           package_version=$(python -c \
             'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
           test "$GITHUB_REF_NAME" = "v$package_version"
-          git fetch --no-tags origin main
+          git fetch --force --no-tags origin main \
+            "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -144,3 +179,14 @@ jobs:
             dist/*.spdx.json
           if-no-files-found: error
           retention-days: 90
+
+  container:
+    name: Container SBOM and provenance
+    needs: packages
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+      security-events: read
+    uses: ./.github/workflows/docker.yml

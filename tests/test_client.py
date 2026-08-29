@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from helpers import make_post, openai_body
+from helpers import gemini_body, make_post, openai_body
 
 from freellmpool import client as C
 from freellmpool.errors import ProviderHTTPError
@@ -19,6 +19,47 @@ P = Provider(
     key_env="X_KEY",
     models=(Model("zai-glm-4.7"),),
 )
+
+
+@pytest.mark.parametrize(
+    ("model", "expected_temperature", "expected_max_output"),
+    [
+        ("gemini-3.5-flash", 0.7, 128),
+        ("gemini-3.6-flash", None, 4096),
+        ("gemini-3.7-flash", None, 4096),
+    ],
+)
+def test_gemini_current_generation_config_omits_sampling_and_adds_thinking_headroom(
+    model, expected_temperature, expected_max_output
+):
+    provider = Provider(
+        id="gemini",
+        label="Gemini",
+        adapter="gemini",
+        base_url="https://generativelanguage.googleapis.com/v1beta",
+        key_env="GEMINI_API_KEY",
+        models=(Model(model),),
+    )
+    seen = {}
+
+    def post(url, headers, body, timeout):
+        seen.update(body)
+        return C.HTTPResult(200, gemini_body("ok"), "")
+
+    C.call(
+        provider,
+        model,
+        [{"role": "user", "content": "hi"}],
+        api_key="g",
+        env={},
+        max_tokens=128,
+        temperature=0.7,
+        post=post,
+    )
+
+    config = seen["generationConfig"]
+    assert config["maxOutputTokens"] == expected_max_output
+    assert config.get("temperature") == expected_temperature
 
 
 def test_thinking_model_bumps_max_tokens():

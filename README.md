@@ -4,11 +4,15 @@
 
 ![freellmpool tokenmax terminal demo](assets/demo.svg)
 
-![226 enabled routes, 24 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
+![177 enabled chat routes, 22 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
 
-Pool the free tiers of 24 LLM providers cataloged in freellmpool (226 enabled chat routes, 410 cataloged chat models)
-behind one OpenAI-compatible endpoint — as a CLI, a Python library, or a local
-proxy. Can start without API keys when a keyless provider is up.
+freellmpool catalogs 22 LLM providers as distinct groups spanning recurring
+free tiers, keyless endpoints, finite trials, pin-only routes, and disabled
+candidates. It exposes 177 enabled chat routes and 431 cataloged chat models,
+and automatically pools only
+enabled routes you can access behind one OpenAI-compatible endpoint — as a CLI,
+a Python library, or a local proxy. It can start without credentials when an
+enabled keyless route is available.
 
 [![PyPI](https://img.shields.io/pypi/v/freellmpool.svg)](https://pypi.org/project/freellmpool/)
 [![CI](https://github.com/0xzr/freellmpool/actions/workflows/ci.yml/badge.svg)](https://github.com/0xzr/freellmpool/actions/workflows/ci.yml)
@@ -19,14 +23,15 @@ proxy. Can start without API keys when a keyless provider is up.
 
 ## Release and distribution status
 
-- **Latest release: 0.12.0.** The GitHub release and PyPI package are both
-  0.12.0; `pip install freellmpool` and `uvx freellmpool` install the Hermes
-  profile, proxy readiness/provider APIs, refreshed provider catalog, Vercel
-  AI Gateway support, `spread` routing, and OpenCode registry-readiness hardening.
+- **Latest release: 0.12.1.** The GitHub release and PyPI package are both
+  0.12.1; `pip install freellmpool` and `uvx freellmpool` install the audited
+  provider catalog, bounded streaming and sentinel hardening, Hermes profile,
+  proxy readiness/provider APIs, `spread` routing, and OpenCode
+  registry-readiness hardening.
 
 - **Registry publication status: pending.** `opencode-freellmpool` and
   `opencode-freellmpool-tui` are tested but not published on npm as of
-  2026-07-19. Use their repository-local installation instructions for now.
+  2026-08-29. Use their repository-local installation instructions for now.
 
 ## 30-second quickstart
 
@@ -52,11 +57,10 @@ freellmpool ask --max-tokens 32 "Reply with one short sentence: freellmpool is r
 CI runs the same path from this checkout with
 `FREELLMPOOL_QUICKSTART_PACKAGE=. scripts/quickstart-test.sh`.
 
-Groq, Cerebras, NVIDIA NIM, Google Gemini, OpenRouter, GitHub Models, Cloudflare,
-Mistral, Cohere and others each give away a free tier — but each has its own SDK,
-rate limits, and daily cap. freellmpool puts them in one pool: it sends each
-request to a provider you have access to, fails over to the next when one is rate
-limited or down, and tracks per-day usage so you get the most out of every tier.
+The catalog covers provider-operated free tiers, keyless routes, and a few
+explicit finite-trial or disabled candidates. Eligibility and limits differ by
+provider. freellmpool automatically uses only enabled routes you can access,
+fails over when one is rate limited or down, and tracks local per-day usage.
 
 Several providers (Pollinations, OVHcloud, and Kilo Gateway) need no API key,
 and LLM7 works without one, so the quickstart can answer without signup when a
@@ -190,6 +194,29 @@ pip install freellmpool      # or: pipx install freellmpool
 
 Only dependency is `httpx`. Python 3.11+.
 
+### Docker and Open WebUI
+
+The published container runs the local proxy as an unprivileged user. Persist
+quota, stats, route-health, cache, and configuration state in a named volume:
+
+```bash
+docker volume create freellmpool-data
+docker run --rm -p 127.0.0.1:8080:8080 \
+  --volume freellmpool-data:/home/freellmpool/.config/freellmpool \
+  --env GROQ_API_KEY \
+  ghcr.io/0xzr/freellmpool:0.12.1
+```
+
+Omit `--env GROQ_API_KEY` if you want a credential-free start; the proxy can
+answer only while an enabled keyless route is available. Keep the published
+port on loopback. If you deliberately expose it, set
+`FREELLMMPOOL_PROXY_KEY` and require that Bearer token from clients.
+
+For the bundled Open WebUI stack, place any provider credentials in `.env` and
+run `docker compose up -d`. Compose waits for the proxy health check and keeps
+both freellmpool and Open WebUI state in named volumes; open
+`http://localhost:3000` after both services are healthy.
+
 ## Command line
 
 ```bash
@@ -197,7 +224,7 @@ freellmpool ask "Write a haiku about sqlite"
 git diff | freellmpool ask "Write a commit message for this"
 freellmpool tokenmax "Hardest question you've got"  # 🌈 blast models, print answers, optional synthesis
 freellmpool providers        # which providers are configured
-freellmpool models           # every provider/model id
+freellmpool models           # cataloged provider/model ids
 freellmpool stats            # lifetime tokens served free + estimated cost avoided
 freellmpool badge -o badge.svg   # a shareable SVG badge of that total
 freellmpool badge --summary -o summary.svg   # a larger usage summary card
@@ -220,7 +247,7 @@ Pin a provider or model; common OpenAI/Anthropic model names are mapped to a fre
 equivalent so existing scripts keep working:
 
 ```bash
-freellmpool ask -m groq/llama-3.3-70b-versatile "hi"
+freellmpool ask -m groq/openai/gpt-oss-20b "hi"
 freellmpool ask -p cerebras,groq "hi"
 freellmpool ask -m gpt-4o-mini "hi"      # routed to a free model
 ```
@@ -352,9 +379,9 @@ instead of the default least-used-first.
 ```
 $ freellmpool benchmark
   provider/model            status   latency  note
-  cerebras/llama-3.3-70b    ok        180 ms  6 tok
-  groq/llama-3.3-70b        ok        240 ms  6 tok
-  ovh/Meta-Llama-3_3-70B    FAIL           -  HTTP 429
+  cerebras/gpt-oss-120b     ok        180 ms  6 tok
+  groq/openai/gpt-oss-20b   ok        240 ms  6 tok
+  ovh/Meta-Llama-3_3-70B-Instruct  FAIL    -  HTTP 429
 ```
 
 ## Capacity & provider health
@@ -473,13 +500,15 @@ for the [MCP registry](https://registry.modelcontextprotocol.io/).
 
 ## In Simon Willison's `llm` CLI
 
-There's a plugin: `llm install llm-freellmpool` → `llm -m freellmpool "..."` with
-no API key. Source: [0xzr/llm-freellmpool](https://github.com/0xzr/llm-freellmpool).
+There's a plugin: `llm install llm-freellmpool` → `llm -m freellmpool "..."`.
+It can answer without an API key while an enabled keyless route is available.
+Source: [plugins/llm-freellmpool](plugins/llm-freellmpool).
 
 ## Provider keys
 
-freellmpool reads keys from the environment and uses whatever is set. None are
-required. Step-by-step signup links for each, including verification and
+freellmpool reads keys from the environment and uses whatever is set. No key is
+required while an enabled keyless route is available; credentials expand the
+set of accessible routes. Step-by-step signup links, including verification and
 payment-method caveats, are in
 [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
 
@@ -489,21 +518,20 @@ payment-method caveats, are in
 | OVHcloud | — | no key needed (anonymous tier) |
 | Kilo Gateway | — | no key needed |
 | LLM7 | `LLM7_API_KEY` | optional |
-| Groq | `GROQ_API_KEY` | fast |
-| Cerebras | `CEREBRAS_API_KEY` | fast, large daily cap |
+| Groq | `GROQ_API_KEY` | current free-plan routes; exact limits vary by model |
+| Cerebras | `CEREBRAS_API_KEY` | finite $5 trial; current routes are explicit pins, not automatic recurring capacity |
 | NVIDIA NIM | `NVIDIA_API_KEY` | |
 | OpenRouter | `OPENROUTER_API_KEY` | free models |
 | Google Gemini | `GEMINI_API_KEY` | |
-| GitHub Models | `GITHUB_TOKEN` | any PAT |
 | Cloudflare | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | |
 | Hugging Face router | `HF_TOKEN` | router free tier |
 | OpenCode Zen | — | cataloged, disabled by default pending opt-in |
 | Aion Labs | `AION_API_KEY` | 20K free tokens/day, no card |
 | ModelScope API Inference | `MODELSCOPE_API_KEY` | 2,000 free calls/day |
-| Morph | `MORPH_API_KEY` | 200 requests/month; frontier models |
-| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | key enables automatic zero-price + low-cost routes; recurring $5/month Hobby credit; customer verification/card currently required; set a Vercel-side budget |
+| Morph | `MORPH_API_KEY` | current priced aliases are retained disabled for explicit future verification |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | automatic routing is limited to the verified zero-price Poolside route; other routes are pin-only or disabled; set a gateway-side budget |
 | SiliconFlow | `SILICONFLOW_API_KEY` | free models; identity verification required |
-| Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud, LongCat | see `.env.example` | |
+| Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud | see `.env.example` | |
 
 A `config.toml` (see [config.toml.example](config.toml.example)) can hold keys,
 model aliases, and settings instead of env vars.
@@ -599,8 +627,9 @@ Architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Free-tier models are smaller than frontier models. They're good for drafting,
   summarizing, classification, triage, and everyday coding — not a replacement
   for GPT-class reasoning on hard problems.
-- Quality and capacity vary through the day as high-cap tiers exhaust; limits
-  reset at UTC midnight.
+- Quality and capacity vary through the day as high-cap tiers exhaust.
+  freellmpool's local per-day counters reset at UTC midnight; upstream
+  providers use their own limit and reset windows.
 - Free tiers change without notice. When a model id or limit goes stale, a
   one-line PR to `providers.toml` fixes it for everyone.
 - The proxy is meant for local/single-user use. It binds to `127.0.0.1` by
@@ -622,7 +651,7 @@ than a permanent ranking.
 
 | Tool | Keyless start | # providers | Failover | MCP server | CLI | Transcription | Local/self-hosted | License |
 |---|---|---:|---|---|---|---|---|---|
-| **freellmpool** | Yes, when a configured keyless provider is available | 24 chat providers cataloged locally | Yes: retryable provider failures, empty replies, and transport errors | Yes: `freellmpool mcp` | One-shot CLI plus profiles, library, and proxy commands | Yes: `/v1/audio/transcriptions` with failover | Yes: small Python package and local proxy | MIT |
+| **freellmpool** | Yes, when a configured keyless provider is available | 22 chat providers cataloged locally | Yes: retryable provider failures, empty replies, and transport errors | Yes: `freellmpool mcp` | One-shot CLI plus profiles, library, and proxy commands | Yes: `/v1/audio/transcriptions` with failover | Yes: small Python package and local proxy | MIT |
 | [OpenRouter free models](https://openrouter.ai/openrouter/free/providers) | No: hosted API use requires an account/key | Hosted router; the linked free router listed 22 models at snapshot | [Yes](https://openrouter.ai/docs/guides/routing/model-fallbacks): hosted provider/model fallbacks | [Yes](https://openrouter.ai/blog/announcements/openrouter-mcp-server/): hosted remote MCP server | Hosted API/SDK and agent SDK, not a local gateway CLI | [Audio input/transcription](https://openrouter.ai/docs/guides/overview/multimodal/audio) through multimodal chat | No: hosted service | Proprietary service |
 | [LiteLLM](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/README.md) | No: bring provider or hosted-gateway credentials | README claims 100+ LLMs/providers | Yes: router retries/fallbacks | Yes: AI Gateway includes an MCP Gateway | Python SDK and proxy/gateway CLI surface | Yes: `/audio/transcriptions` | Yes: self-hosted proxy or hosted offering | MIT core; commercial enterprise features |
 | [OmniRoute](https://github.com/diegosouzapw/OmniRoute/blob/d8ff51874c8add566d43225988b9bc67e0542d65/README.md) | Yes: its setup documents a no-auth OpenCode option | README claims 268 integrations/providers and 90+ free options | Yes: layered fallback/circuit-breaker routing | Yes: MCP and A2A control planes | Broad management CLI and one-command agent setup | Audio translation is documented; other media capabilities vary by provider | Yes: Node application with dashboard, Docker, desktop/PWA paths | MIT |
@@ -638,10 +667,12 @@ deployment.
 
 ## FAQ
 
-**Is there a free, OpenAI-compatible LLM API gateway?** Yes — freellmpool is a free,
-MIT-licensed gateway that exposes one OpenAI-compatible endpoint backed by the free
-tiers of 24 cataloged providers. `pip install freellmpool` and point any OpenAI client at the
-local proxy.
+**Is there a free, OpenAI-compatible LLM API gateway?** Yes — freellmpool is a
+free, MIT-licensed gateway that exposes one OpenAI-compatible endpoint over the
+enabled routes you can access. Its 22 cataloged provider groups span recurring
+free tiers, keyless endpoints, finite trials, pin-only routes, and disabled
+candidates. `pip install freellmpool` and point any OpenAI client at the local
+proxy.
 
 **How do I use multiple free LLM APIs at once?** freellmpool pools them: each request
 goes to a provider you have access to, fails over to the next when one is rate-limited
@@ -656,17 +687,17 @@ run Codex, Claude Code, aider, Cline, Continue, or Cursor against pooled free ti
 through the Anthropic bridge. See `freellmpool code <agent>`. (Claude Code path is
 experimental: text + tools, no vision.)
 
-**Do I need an API key?** No — Pollinations, OVHcloud, and Kilo Gateway work with
-no key, and LLM7 is key-optional, so a fresh install can answer without signup
-when a keyless provider is available. Add free keys for the other providers for
-more models and higher limits.
+**Do I need an API key?** Not while an enabled keyless route is available:
+Pollinations, OVHcloud, and Kilo Gateway expose keyless routes, and LLM7 is
+key-optional. Add applicable free-tier or trial credentials for more routes and
+capacity; availability and terms remain provider-specific.
 
 **Is it free and open source?** Yes, MIT-licensed. More at the
 [project page](https://0xzr.github.io/freellmpool/).
 
 ## Featured in
 
-- Community videos (Spanish, by lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) and ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (from an earlier catalog; freellmpool now catalogs 24 providers).
+- Community videos (Spanish, by lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) and ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (from an earlier catalog; freellmpool now catalogs 22 providers).
 - Directory: [FreeLLM Pool on MCP Market](https://mcpmarket.com/server/freellm-pool).
 
 ## Contributing

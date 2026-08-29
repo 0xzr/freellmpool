@@ -23,6 +23,7 @@ from .client import (
     _CONNECT_TIMEOUT,
     _THINKING_FLOOR,
     _USER_AGENT,
+    _gemini_generation_config,
     _is_thinking,
     _retryable,
     _strip_think,
@@ -339,7 +340,7 @@ class AsyncPool:
         headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
         body: dict = {
             "contents": contents,
-            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": temperature},
+            "generationConfig": _gemini_generation_config(model, max_tokens, temperature),
         }
         if system_instruction:
             body["systemInstruction"] = system_instruction

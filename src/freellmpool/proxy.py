@@ -699,9 +699,12 @@ def make_handler(pool: Pool, api_key: str | None = None):
             self._send(200, battle_to_dict(result))
 
         def _handle_tokenmax(self, req: dict) -> None:
-            """🌈 Fan a prompt out to EVERY model and report live progress via /status so
-            the OpenCode TUI can throb its rainbow banner. Returns every answer for the
-            caller to synthesize."""
+            """🌈 Fan out to automatically eligible ranked targets and report progress.
+
+            The hard cap is 256; ``max_models`` and active routing can narrow the set.
+            ``/status`` lets the OpenCode TUI throb its rainbow banner. Returned answers
+            are available for the caller to synthesize.
+            """
             from . import tokenmax as _tm
 
             prompt = req.get("prompt")
