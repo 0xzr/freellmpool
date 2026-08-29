@@ -6,12 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
-## [0.12.2] — 2026-08-29
+## [0.12.3] — 2026-08-29
 
-This release includes the maintenance changes below. Version 0.12.1 was tagged
-but not published: the container no-clobber guard correctly stopped when Docker
-metadata implicitly added the mutable `latest` tag. The exposed tag was left
-unchanged and superseded rather than moved or reused.
+This release includes the maintenance changes below. Versions 0.12.1 and 0.12.2
+were tagged but not published to PyPI or GitHub Releases. The 0.12.1 container
+no-clobber guard correctly stopped an implicit mutable `latest` tag; 0.12.2 then
+published only its scanned immutable versioned container before a final evidence
+audit caught contradictory Vercel completion wording. Every exposed tag and
+container remains unchanged and is superseded rather than moved or reused.
 
 ### Added
 - A dated, source-backed model-activity audit covering every packaged chat,
@@ -40,9 +42,11 @@ unchanged and superseded rather than moved or reused.
 - Removed the retired GitHub Models chat/embedder integrations and the obsolete
   LongCat provider; refreshed Groq, Kilo, NVIDIA, Gemini, Cloudflare, Vercel,
   Cerebras, Mistral, OpenRouter, and the remaining packaged catalogs.
-- Restricted Vercel automatic routing to the completion-verified zero-price
-  Poolside route. Current zero-price candidates remain disabled until their
-  provenance, cost, and credentialed completion acceptance evidence is complete.
+- Restricted Vercel automatic routing to the sole Poolside route with verified
+  public aggregate and endpoint zero pricing. Its credentialed completion,
+  serving-provider provenance, and response-cost acceptance remain blocked by
+  Vercel customer verification; other zero-price candidates remain disabled
+  pending equivalent evidence.
 - Upgraded the digest-pinned Python container base and installed Alpine security
   updates while removing build-only packaging tools from the runtime image.
 - Bumped CodeQL actions to the current pinned v4 release and made Python and
@@ -65,10 +69,17 @@ unchanged and superseded rather than moved or reused.
 - The bundled `llm-freellmpool` examples now pin an enabled Groq route and its
   package metadata points to the maintained monorepo source.
 
+## [0.12.2] — 2026-08-29
+
+This version was tagged and its scanned immutable versioned container was
+published to GHCR, but it was not published to PyPI or GitHub Releases. A final
+evidence audit found contradictory Vercel completion wording, so the exposed tag
+and container were preserved and superseded by 0.12.3.
+
 ## [0.12.1] — 2026-08-29
 
 This version was tagged but was not published to PyPI or GitHub Releases. It was
-superseded by 0.12.2 without moving or reusing the exposed tag.
+superseded without moving or reusing the exposed tag.
 
 ## [0.12.0] — 2026-08-23
 

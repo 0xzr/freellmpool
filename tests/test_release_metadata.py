@@ -19,7 +19,7 @@ def test_release_metadata_versions_match_package() -> None:
     demo = (ROOT / "assets" / "demo.svg").read_text()
     readme = (ROOT / "README.md").read_text()
 
-    assert version == "0.12.2"
+    assert version == "0.12.3"
     assert __version__ == version
     assert server["version"] == version
     assert server["packages"][0]["version"] == version
@@ -141,6 +141,31 @@ def test_public_docs_describe_the_current_release() -> None:
         ),
     ):
         assert "registry-readiness hardening" in text
+
+
+def test_vercel_acceptance_claims_match_the_recorded_evidence() -> None:
+    catalog_source = (ROOT / "src/freellmpool/providers.toml").read_text(
+        encoding="utf-8"
+    )
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    spanish = (ROOT / "README.es.md").read_text(encoding="utf-8")
+    acceptance = (ROOT / "docs/VERCEL_ACCEPTANCE_2026-08-23.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "customer_verification_required" in acceptance
+    assert "No completion was returned" in acceptance
+    for contradicted_claim in (
+        "completion-verified zero-price",
+        "credentialed completion/provenance evidence",
+    ):
+        assert contradicted_claim not in catalog_source
+        assert contradicted_claim not in changelog
+    assert "blocked by Vercel customer verification" in catalog_source
+    assert "blocked by\n  Vercel customer verification" in changelog
+    assert "publicly price-verified zero-price Poolside route" in readme
+    assert "Poolside con precio público verificado en cero" in spanish
 
 
 def test_pages_describe_current_main_agent_and_operations_surfaces() -> None:

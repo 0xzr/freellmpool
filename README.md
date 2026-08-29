@@ -23,8 +23,8 @@ enabled keyless route is available.
 
 ## Release and distribution status
 
-- **Latest release: 0.12.2.** The GitHub release and PyPI package are both
-  0.12.2; `pip install freellmpool` and `uvx freellmpool` install the audited
+- **Latest release: 0.12.3.** The GitHub release and PyPI package are both
+  0.12.3; `pip install freellmpool` and `uvx freellmpool` install the audited
   provider catalog, bounded streaming and sentinel hardening, Hermes profile,
   proxy readiness/provider APIs, `spread` routing, and OpenCode
   registry-readiness hardening.
@@ -204,7 +204,7 @@ docker volume create freellmpool-data
 docker run --rm -p 127.0.0.1:8080:8080 \
   --volume freellmpool-data:/home/freellmpool/.config/freellmpool \
   --env GROQ_API_KEY \
-  ghcr.io/0xzr/freellmpool:0.12.2
+  ghcr.io/0xzr/freellmpool:0.12.3
 ```
 
 Omit `--env GROQ_API_KEY` if you want a credential-free start; the proxy can
@@ -529,7 +529,7 @@ payment-method caveats, are in
 | Aion Labs | `AION_API_KEY` | 20K free tokens/day, no card |
 | ModelScope API Inference | `MODELSCOPE_API_KEY` | 2,000 free calls/day |
 | Morph | `MORPH_API_KEY` | current priced aliases are retained disabled for explicit future verification |
-| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | automatic routing is limited to the verified zero-price Poolside route; other routes are pin-only or disabled; set a gateway-side budget |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | automatic routing is limited to the publicly price-verified zero-price Poolside route; other routes are pin-only or disabled; set a gateway-side budget |
 | SiliconFlow | `SILICONFLOW_API_KEY` | free models; identity verification required |
 | Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud | see `.env.example` | |
 

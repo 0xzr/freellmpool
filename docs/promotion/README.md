@@ -5,12 +5,12 @@ registry polish. Use this pack when posting externally.
 
 ## Current launch facts
 
-These facts describe the 0.12.2 GitHub and PyPI release.
+These facts describe the 0.12.3 GitHub and PyPI release.
 
 - Repository: <https://github.com/0xzr/freellmpool>
 - Docs: <https://0xzr.github.io/freellmpool/>
 - PyPI: <https://pypi.org/project/freellmpool/>
-- Version: `0.12.2`
+- Version: `0.12.3`
 - First-run hook: installs with `pip install freellmpool` and can answer with no
   provider credentials while an enabled keyless/key-optional route is available.
 - Interfaces: CLI, Python library, OpenAI-compatible proxy, experimental

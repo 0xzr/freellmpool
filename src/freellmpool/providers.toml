@@ -246,11 +246,13 @@ models = [
 ]
 
 # Vercel AI Gateway: the Hobby team receives $5/month of recurring gateway
-# credit. Automatic routing is restricted to the one zero-price route with
-# credentialed completion/provenance evidence. Other routes are pinnable or
-# disabled pending equivalent canaries. RPD is only a request-count
-# hint, never a monetary ceiling; use a Vercel-side key budget. Model IDs and
-# public aggregate/endpoint pricing checked 2026-08-29.
+# credit. Automatic routing is restricted by maintainer policy to the one route
+# whose public aggregate and endpoint prices are verified as zero. Credentialed
+# completion, serving-provider provenance, and response-cost acceptance remain
+# blocked by Vercel customer verification. Other routes are pinnable or disabled
+# pending equivalent evidence. RPD is only a request-count hint, never a monetary
+# ceiling; use a Vercel-side key budget. Model IDs and public aggregate/endpoint
+# pricing checked 2026-08-29.
 [[provider]]
 id = "vercel"
 label = "Vercel AI Gateway"
