@@ -7,7 +7,7 @@ rate-limits you mid-run (exactly when long agent loops tend to die).
 
 ## Release status
 
-- **Latest release: 0.12.1.** GitHub and PyPI both provide 0.12.1, including
+- **Latest release: 0.12.2.** GitHub and PyPI both provide 0.12.2, including
   the Hermes profile, `freellmpool/spread` routing, public `/livez` and
   `/readyz`, authenticated `/v1/providers`, `/v1/models?ready=true`, refreshed
   providers, Vercel AI Gateway support, and OpenCode registry-readiness hardening.

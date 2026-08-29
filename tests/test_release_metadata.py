@@ -19,7 +19,7 @@ def test_release_metadata_versions_match_package() -> None:
     demo = (ROOT / "assets" / "demo.svg").read_text()
     readme = (ROOT / "README.md").read_text()
 
-    assert version == "0.12.1"
+    assert version == "0.12.2"
     assert __version__ == version
     assert server["version"] == version
     assert server["packages"][0]["version"] == version

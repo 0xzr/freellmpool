@@ -6,7 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
-## [0.12.1] — 2026-08-29
+## [0.12.2] — 2026-08-29
+
+This release includes the maintenance changes below. Version 0.12.1 was tagged
+but not published: the container no-clobber guard correctly stopped when Docker
+metadata implicitly added the mutable `latest` tag. The exposed tag was left
+unchanged and superseded rather than moved or reused.
 
 ### Added
 - A dated, source-backed model-activity audit covering every packaged chat,
@@ -59,6 +64,11 @@ All notable changes to this project are documented here. The format is based on
   interactive terminal, while non-interactive use requires an explicit key.
 - The bundled `llm-freellmpool` examples now pin an enabled Groq route and its
   package metadata points to the maintained monorepo source.
+
+## [0.12.1] — 2026-08-29
+
+This version was tagged but was not published to PyPI or GitHub Releases. It was
+superseded by 0.12.2 without moving or reusing the exposed tag.
 
 ## [0.12.0] — 2026-08-23
 

@@ -29,7 +29,7 @@ def test_spanish_readme_tracks_current_launch_surface():
     assert "22 proveedores" in spanish
     assert "177 rutas de chat" in spanish
     assert "431 modelos de chat" in spanish
-    assert "Última versión: 0.12.1" in spanish
+    assert "Última versión: 0.12.2" in spanish
     assert "main contiene cambios aún no publicados" not in spanish
     assert "0.11.4" not in spanish
     assert "Estado de publicación en npm: pendiente" in spanish

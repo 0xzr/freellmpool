@@ -25,8 +25,8 @@ comparaciones.
 
 ## Estado de versión y distribución
 
-- **Última versión: 0.12.1.** La versión de GitHub y el paquete de PyPI son
-  0.12.1; incluyen el catálogo auditado, el endurecimiento de streaming y del
+- **Última versión: 0.12.2.** La versión de GitHub y el paquete de PyPI son
+  0.12.2; incluyen el catálogo auditado, el endurecimiento de streaming y del
   sentinel, el perfil de Hermes, las APIs operativas `/livez`, `/readyz`,
   `/v1/providers` y `/v1/models?ready=true`, y el enrutamiento `spread`.
 

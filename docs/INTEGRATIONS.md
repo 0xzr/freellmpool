@@ -17,7 +17,7 @@ model setting untouched — just set the base URL and any API key.
 
 ## Release status
 
-Latest release: 0.12.1. GitHub and PyPI both provide the Hermes profile, the
+Latest release: 0.12.2. GitHub and PyPI both provide the Hermes profile, the
 readiness/provider operations APIs, refreshed providers, Vercel AI Gateway
 support, `spread` routing, and registry-readiness hardening for the existing
 repository-local OpenCode plugins. Install it with

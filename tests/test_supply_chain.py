@@ -306,6 +306,7 @@ def test_release_artifacts_and_images_have_sboms_and_provenance():
     assert "--prefer-index=false" in images
     assert "type=raw,value=latest" not in images
     assert "*:latest" not in images
+    assert "flavor: |\n            latest=false" in images
     assert "Preflight immutable version tags" in images
     assert "manifest unknown|not found" in images
     assert "Refusing to overwrite immutable version tag" in images
