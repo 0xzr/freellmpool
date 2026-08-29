@@ -25,8 +25,8 @@ comparaciones.
 
 ## Estado de versión y distribución
 
-- **Última versión: 0.12.2.** La versión de GitHub y el paquete de PyPI son
-  0.12.2; incluyen el catálogo auditado, el endurecimiento de streaming y del
+- **Última versión: 0.12.3.** La versión de GitHub y el paquete de PyPI son
+  0.12.3; incluyen el catálogo auditado, el endurecimiento de streaming y del
   sentinel, el perfil de Hermes, las APIs operativas `/livez`, `/readyz`,
   `/v1/providers` y `/v1/models?ready=true`, y el enrutamiento `spread`.
 
@@ -308,7 +308,7 @@ tarjeta, prueba finita o precio están en [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
 | Aion Labs | `AION_API_KEY` | 20K tokens gratis/día, sin tarjeta |
 | ModelScope API Inference | `MODELSCOPE_API_KEY` | 2.000 llamadas gratis/día |
 | Morph | `MORPH_API_KEY` | alias con precio retenidos deshabilitados para verificación futura |
-| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | automático solo para Poolside a precio cero verificado; define un presupuesto en el gateway |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` | automático solo para Poolside con precio público verificado en cero; define un presupuesto en el gateway |
 | SiliconFlow | `SILICONFLOW_API_KEY` | modelos gratis; requiere verificación de identidad |
 | Mistral, Cohere, SambaNova, Z.ai, Ollama Cloud | ver `.env.example` | |
 
