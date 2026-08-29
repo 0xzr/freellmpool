@@ -144,6 +144,13 @@ def test_public_docs_describe_the_current_release() -> None:
 
 
 def test_vercel_acceptance_claims_match_the_recorded_evidence() -> None:
+    def section(text: str, start: str, end: str) -> str:
+        start_at = text.index(start)
+        return text[start_at : text.index(end, start_at + len(start))]
+
+    def compact(text: str) -> str:
+        return " ".join(text.replace("`", "").replace("#", " ").split())
+
     catalog_source = (ROOT / "src/freellmpool/providers.toml").read_text(
         encoding="utf-8"
     )
@@ -153,19 +160,111 @@ def test_vercel_acceptance_claims_match_the_recorded_evidence() -> None:
     acceptance = (ROOT / "docs/VERCEL_ACCEPTANCE_2026-08-23.md").read_text(
         encoding="utf-8"
     )
+    activity = (ROOT / "docs/MODEL_ACTIVITY_AUDIT_2026-08-29.md").read_text(
+        encoding="utf-8"
+    )
+    accounts = (ROOT / "docs/ACCOUNTS.md").read_text(encoding="utf-8")
+    env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    provider_page = (ROOT / "docs/free-llm-api-providers-list.html").read_text(
+        encoding="utf-8"
+    )
 
-    assert "customer_verification_required" in acceptance
-    assert "No completion was returned" in acceptance
-    for contradicted_claim in (
-        "completion-verified zero-price",
-        "credentialed completion/provenance evidence",
-    ):
-        assert contradicted_claim not in catalog_source
-        assert contradicted_claim not in changelog
-    assert "blocked by Vercel customer verification" in catalog_source
-    assert "blocked by\n  Vercel customer verification" in changelog
-    assert "publicly price-verified zero-price Poolside route" in readme
-    assert "Poolside con precio público verificado en cero" in spanish
+    catalog_policy = section(catalog_source, "# Vercel AI Gateway:", "[[provider]]")
+    release_notes = section(changelog, "## [0.12.3]", "## [0.12.2]")
+    credentialed_evidence = section(
+        acceptance, "## Credentialed evidence", "## Terms and privacy"
+    )
+    activity_record = section(
+        activity, "### Vercel AI Gateway (`vercel`)", "### SiliconFlow"
+    )
+    account_guidance = section(
+        accounts, "### Vercel AI Gateway", "### SiliconFlow"
+    )
+    readme_row = next(line for line in readme.splitlines() if "| Vercel AI Gateway |" in line)
+    spanish_row = next(
+        line for line in spanish.splitlines() if "| Vercel AI Gateway |" in line
+    )
+    provider_row = next(
+        line for line in provider_page.splitlines() if 'data-provider="vercel"' in line
+    )
+    compact_credentialed_evidence = compact(credentialed_evidence)
+
+    assert acceptance.startswith(
+        "# Vercel AI Gateway acceptance audit — 2026-08-23\n"
+    )
+    assert "Updated through 2026-08-29" in acceptance
+    assert "## Credentialed evidence" in acceptance
+    assert "All three failed with HTTP 403" in compact_credentialed_evidence
+    assert "customer_verification_required" in compact_credentialed_evidence
+    assert (
+        "No completion was returned and this is not acceptance evidence"
+        in compact_credentialed_evidence
+    )
+
+    assert (
+        "public aggregate and endpoint prices are verified as zero"
+        in compact(catalog_policy)
+    )
+    assert (
+        "Credentialed completion, serving-provider provenance, and response-cost "
+        "acceptance remain blocked by Vercel customer verification"
+        in compact(catalog_policy)
+    )
+    assert (
+        "sole Poolside route with verified public aggregate and endpoint zero pricing"
+        in compact(release_notes)
+    )
+    assert (
+        "credentialed completion, serving-provider provenance, and response-cost "
+        "acceptance remain blocked by Vercel customer verification"
+        in compact(release_notes)
+    )
+    assert "publicly price-verified zero-price Poolside route" in readme_row
+    assert "Poolside con precio público verificado en cero" in spanish_row
+    assert "customer verification" in account_guidance.casefold()
+    assert "After Vercel has cleared" in account_guidance
+    assert "Customer verification/card may be required" in env_example
+    assert "disabled candidates await canaries" in provider_row
+    assert (
+        "no completion, provenance, or response-cost acceptance was proven"
+        in compact(activity_record)
+    )
+    assert (
+        "catalog policy disposition, not a successful current credentialed canary"
+        in compact(activity_record)
+    )
+
+    vercel_surfaces = (
+        catalog_policy,
+        release_notes,
+        readme_row,
+        spanish_row,
+        credentialed_evidence,
+        activity_record,
+        account_guidance,
+        env_example,
+        provider_row,
+    )
+    unsupported_claims = (
+        r"\bcompletion[- ]verified\b",
+        r"\bcredentialed completion/provenance evidence\b",
+        r"\bcredentialed (?:completion|canary) "
+        r"(?:succeeded|passed|was successful)\b",
+    )
+    semantic_claims = (
+        r"\b(?:completion|provenance|response-cost) acceptance "
+        r"(?:was|is|has been) (?:proven|verified|complete|accepted)\b",
+        r"\bsuccessful current credentialed canary\b",
+    )
+    negative_qualifiers = ("no ", "not ", "blocked", "failed", "pending")
+    for surface in vercel_surfaces:
+        normalized = compact(surface).casefold()
+        for unsupported in unsupported_claims:
+            assert re.search(unsupported, normalized) is None
+        for claim in semantic_claims:
+            for match in re.finditer(claim, normalized):
+                context = normalized[max(0, match.start() - 80) : match.end() + 80]
+                assert any(qualifier in context for qualifier in negative_qualifiers)
 
 
 def test_pages_describe_current_main_agent_and_operations_surfaces() -> None:
