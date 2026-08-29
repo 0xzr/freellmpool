@@ -258,17 +258,17 @@ export const FreellmpoolPlugin = async ({ client }) => {
 
       freellmpool_tokenmax: tool({
         description:
-          "🌈 TOKENMAX: blast the SAME prompt to EVERY free model the proxy can reach at " +
-          "once, then YOU synthesize the single best answer from all of them. While it runs, " +
+          "🌈 TOKENMAX: fan the SAME prompt out to automatically eligible ranked targets " +
+          "across configured providers (hard cap 256; max/routing may narrow the swarm), " +
+          "then YOU synthesize the single best answer from the returned responses. While it runs, " +
           "the freellmpool panel throbs a live rainbow TOKENMAXXING animation with N/total " +
-          "progress. Tongue-in-cheek but genuinely useful for the hardest questions where you " +
-          "want every model's take.",
+          "progress. Tongue-in-cheek but genuinely useful for hard questions.",
         args: {
-          prompt: tool.schema.string().describe("The prompt to blast to every model."),
+          prompt: tool.schema.string().describe("The prompt to send to the selected eligible targets."),
           max_models: tool.schema
             .number()
             .optional()
-            .describe("Cap how many models to hit (default: ALL of them)."),
+            .describe("Narrow the eligible ranked target set (hard max 256)."),
         },
         async execute(args) {
           if (!args?.prompt || !String(args.prompt).trim()) {
@@ -276,14 +276,14 @@ export const FreellmpoolPlugin = async ({ client }) => {
           }
           const body = { prompt: String(args.prompt) };
           if (typeof args.max_models === "number") body.max_models = args.max_models;
-          // Long timeout: the swarm can take a couple of minutes to drain every provider.
+          // Long timeout: the selected swarm can take a couple of minutes to drain.
           const { ok, data, error } = await postJSON("/tokenmax", body, 180000);
           if (!ok) return `freellmpool tokenmax unavailable: ${error}`;
           const answers = Array.isArray(data.answers) ? data.answers : [];
           const lines = [
             `🌈 TOKENMAX — ${answers.length}/${num(data.total) || answers.length} models answered ` +
               `across ${num(data.n_providers) || "?"} providers (rainbow throbbing live in the freellmpool panel).`,
-            "Synthesize the single best, correct answer from every response below " +
+            "Synthesize the single best, correct answer from all returned responses below " +
               "(weigh agreement, discard outliers):",
             "",
           ];

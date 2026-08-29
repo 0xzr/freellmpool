@@ -57,6 +57,40 @@ def test_capacity_marks_configured_missing_and_low_quota():
     assert report.low_quota_count == 1
 
 
+def test_capacity_never_marks_provider_without_enabled_models_healthy():
+    zero_model_providers = [
+        Provider(
+            id="keyless-disabled",
+            label="Keyless Disabled",
+            adapter="openai",
+            base_url="https://example.test/v1",
+            auth="none",
+            models=(Model("disabled", enabled=False),),
+        ),
+        Provider(
+            id="configured-disabled",
+            label="Configured Disabled",
+            adapter="openai",
+            base_url="https://example.test/v1",
+            key_env="DISABLED_KEY",
+            models=(),
+        ),
+    ]
+
+    report = build_capacity_report(
+        target=1,
+        env={"DISABLED_KEY": "value"},
+        quota=FakeQuota({}),
+        catalog=zero_model_providers,
+    )
+
+    assert report.healthy_count == 0
+    assert report.needs_action is True
+    assert {row.status for row in report.providers} == {"disabled"}
+    assert {row.reason for row in report.providers} == {"no enabled models"}
+    assert report.checklist() == []
+
+
 def test_capacity_checklist_returns_missing_key_provider():
     report = build_capacity_report(
         target=3,

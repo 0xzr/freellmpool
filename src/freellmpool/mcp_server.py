@@ -59,9 +59,9 @@ from .roles import format_roles, valid_roles
 from .router import Pool
 from .routing_modes import PUBLIC_ROUTING_ALIASES, routing_override
 from .tailnet import (
+    SetupTokenLabel,
     detect_tailnet,
     format_setup_hints,
-    generate_session_token_simple,
     safe_base_url,
 )
 from .task_quality import (
@@ -89,8 +89,9 @@ _SERVER_INSTRUCTIONS = (
     "that captures the output in your subprocess and hides the live progress, the rainbow "
     "banner, and the answers from the user.\n\n"
     "`tokenmax` streams live `notifications/progress` as each model in the swarm answers "
-    "(e.g. `🌈 TOKENMAXXING ▸ 47/168 models…`); call it directly so the client shows that to "
-    "the user in real time, and the result carries a rainbow banner plus every answer for YOU "
+    "(e.g. `🌈 TOKENMAXXING ▸ N/total models…`); call it directly so the client shows that to "
+    "the user in real time, and the result carries a rainbow banner plus each returned answer "
+    "for YOU "
     "to synthesize. The flashing rainbow ANSI animation can only render on a real terminal "
     "(not inside an MCP chat), so to let the HUMAN watch it pulse, tell them to run "
     '`freellmpool tokenmax "<prompt>"` in their own terminal.'
@@ -216,7 +217,8 @@ TOOLS = [
         "description": (
             "Compare a prompt across a small bounded panel of free models and render the "
             "result as a Markdown comparison table. Bounded to a few models (2-5) — for "
-            "the every-model stress test use `tokenmax`. Per-model failures stay visible "
+            "the broader eligible-target stress test use `tokenmax`. Per-model failures stay "
+            "visible "
             "in the rendered output rather than failing the whole call."
         ),
         "inputSchema": {
@@ -347,11 +349,11 @@ TOOLS = [
     {
         "name": "tokenmax",
         "description": (
-            "🌈 TOKENMAX 🌈 — gloriously excessive: fan the SAME prompt out to EVERY available "
-            "model across EVERY configured provider at once (a deliberate maximum-effort stress "
-            "test), then YOU (the calling model) synthesize the single best answer from all of "
-            "them. Maximum free tokens, maximum cross-checking. Tongue-in-cheek, but genuinely "
-            "useful for the hardest questions where you want every model's take. "
+            f"🌈 TOKENMAX 🌈 — gloriously excessive: fan the SAME prompt out to automatically "
+            f"eligible ranked targets across configured providers (hard cap {HARD_CAP}; a max, "
+            "routing policy, or CLI wise mode may narrow the swarm), then YOU (the calling "
+            "model) synthesize the single best answer from the returned responses. Maximum "
+            "cross-checking. Tongue-in-cheek, but genuinely useful for hard questions. "
             "Call this tool DIRECTLY (your client receives live `🌈 TOKENMAXXING ▸ N/total` "
             "progress as each model answers) — do NOT shell out to the CLI, which hides that "
             "from the user. To let the human watch the flashing rainbow, suggest they run "
@@ -360,11 +362,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "prompt": {"type": "string", "description": "The prompt to blast to every model."},
+                "prompt": {
+                    "type": "string",
+                    "description": "The prompt to send to the selected eligible targets.",
+                },
                 "system": {"type": "string", "description": "Optional system instruction."},
                 "max_models": {
                     "type": "integer",
-                    "description": f"Optional cap on how many models to hit (default: ALL of them; hard max {HARD_CAP}).",
+                    "description": f"Optional cap that narrows the eligible ranked set (hard max {HARD_CAP}).",
                 },
                 "max_tokens": {
                     "type": "integer",
@@ -697,8 +702,6 @@ def _tool_tailnet_info(args: dict) -> dict:
     # Build a safe status line + setup hints without ever embedding the
     # user's real bearer token. The hints block uses a `<proxy-key>`
     # placeholder; the actual token is printed by the proxy itself.
-    placeholder_token = generate_session_token_simple(8)  # tiny, never real
-
     lines: list[str] = []
     if status.usable:
         base = safe_base_url(status.ipv4 or "127.0.0.1", port)
@@ -708,7 +711,13 @@ def _tool_tailnet_info(args: dict) -> dict:
         lines.append(f"  freellmpool proxy --host {status.ipv4} --port {port}")
         lines.append("")
         lines.append("Client setup on the other Tailnet machine:")
-        lines.append(format_setup_hints(base_url=base, token=placeholder_token, token_label="<proxy-key>"))
+        lines.append(
+            format_setup_hints(
+                base_url=base,
+                auth_enabled=True,
+                token_label=SetupTokenLabel.PROXY_KEY,
+            )
+        )
         lines.append("")
         lines.append(
             "(Token placeholder only — freellmpool proxy prints the real token "
@@ -738,7 +747,8 @@ def _tool_quota_wise(pool: Pool) -> dict:
     advice = [
         "",
         "advice (local counters only):",
-        "  - if remaining is 0 on every declared-RPD provider, wait for the UTC reset",
+        "  - if local remaining is 0, wait for the local counter rollover at UTC midnight",
+        "  - upstream providers use their own limit/reset windows; check their current guidance",
         "  - lower fan-out (smaller panel / lower --max-tokens / smaller --max-models)",
         "  - if you really need more throughput, make an explicit paid choice outside the default flow",
         "",
@@ -771,10 +781,10 @@ def _tool_tokenmax(pool: Pool, args: dict, notify=None) -> dict:
     answered, failed = fan_out(pool, msgs, picks, max_tokens=max_tokens, progress=progress)
 
     head = [
-        f"{RAINBOW_BANNER} TOKENMAX — blasted your prompt to {len(picks)} models across "
+        f"{RAINBOW_BANNER} TOKENMAX — sent your prompt to {len(picks)} models selected across "
         f"{n_providers} providers; {len(answered)} answered, {len(failed)} unavailable. "
         f"{RAINBOW_BANNER}",
-        "Synthesize the single best, correct answer from every response below "
+        "Synthesize the single best, correct answer from all returned responses below "
         "(weigh agreement, discard outliers):",
         "",
     ]

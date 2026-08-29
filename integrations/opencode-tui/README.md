@@ -12,9 +12,9 @@ session sidebar and on the home screen — showing, in real time, how much your 
 │ ── provider race ──               │
 │ 🥇 llm7       ██████████ 9 ⏳53s  │
 │ 🥈 ovh        ████░░░░░░ 4        │
-│ 🥉 github     █░░░░░░░░░ 1/3600   │
+│ 🥉 groq       █░░░░░░░░░ 1/1000   │
 │ latency ███████▇▇▇▇▇ 124ms        │
-│ last: github/codestral-2501       │
+│ last: groq/openai/gpt-oss-120b    │
 └───────────────────────────────────┘
 ```
 
@@ -35,11 +35,12 @@ session sidebar and on the home screen — showing, in real time, how much your 
 ## 🌈 TOKENMAXXING — the live rainbow
 
 Install the companion tools plugin in `../opencode` and ask OpenCode to use the
-`freellmpool_tokenmax` tool (e.g. *"tokenmax: what's the best…"*). It blasts your prompt to
-**every** free model at once via the proxy's `/tokenmax` endpoint; while the swarm drains,
-**this dashboard throbs the rainbow animation live** and the model synthesizes every answer.
-The flashing is a real terminal animation — to also get it standalone, run
-`freellmpool tokenmax "…"` in any terminal.
+`freellmpool_tokenmax` tool (e.g. *"tokenmax: what's the best…"*). It fans your prompt out
+to automatically eligible ranked targets across configured providers via the proxy's
+`/tokenmax` endpoint (hard cap 256; a max or routing policy may narrow the swarm). While
+the swarm drains, **this dashboard throbs the rainbow animation live** and the model
+synthesizes the returned responses. The flashing is a real terminal animation — to also
+get it standalone, run `freellmpool tokenmax "…"` in any terminal.
 
 It's a real OpenTUI/SolidJS plugin (not text in a tool result), so it's themed to match
 your editor and lives alongside OpenCode's own Context / MCP / LSP panels.
@@ -48,7 +49,7 @@ your editor and lives alongside OpenCode's own Context / MCP / LSP panels.
 
 > **Registry publication status: pending.** `opencode-freellmpool-tui` and the
 > companion `opencode-freellmpool` server plugin are pack/install/load-tested
-> in CI, but neither package was published on npm as of 2026-07-19.
+> in CI, but neither package was published on npm as of 2026-08-29.
 > Repository-local plugin sources are included in 0.12.0 with registry-readiness hardening and corrected defaults. Use the local-file command
 > below until verified registry versions exist.
 

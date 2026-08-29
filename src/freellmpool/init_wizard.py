@@ -11,7 +11,13 @@ from typing import Any
 
 from .config import configured_providers, effective_env, load_catalog, settings
 from .profiles import get_profile, profile_names
-from .tailnet import STATE_USABLE, detect_tailnet, format_setup_hints, safe_base_url
+from .tailnet import (
+    STATE_USABLE,
+    SetupTokenLabel,
+    detect_tailnet,
+    format_setup_hints,
+    safe_base_url,
+)
 
 DEFAULT_INIT_PORT = 8080
 
@@ -219,8 +225,8 @@ def render_setup_plan(
             _shell_safe_setup_lines(
                 format_setup_hints(
                     base_url=base,
-                    token="<proxy-key>",
-                    token_label="<proxy-key-from-server>",
+                    auth_enabled=True,
+                    token_label=SetupTokenLabel.PROXY_KEY_FROM_SERVER,
                 )
             )
         )

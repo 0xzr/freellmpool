@@ -5,8 +5,8 @@ server over stdio, so an MCP client — **Claude Desktop, Claude Code, Cursor**,
 can hand off self-contained subtasks (drafting, summarizing, classifying, quick
 lookups) to **free** LLMs instead of spending its own context/quota.
 
-It needs **no extra dependencies and no API keys** — `pip install freellmpool`
-and it works (keyless providers). Add keys to unlock more.
+It needs **no extra dependencies** and can start without API keys when a keyless
+provider is available. Add keys to unlock more capacity.
 
 The stdio transport is newline-delimited JSON-RPC 2.0. It is not LSP-style
 `Content-Length` framing; each request and response is one JSON object per line,
@@ -23,8 +23,8 @@ and `stdout` is reserved for the protocol.
 | `free_llm_recipe` | Run a bundled recipe end-to-end (e.g. `pr-review`, `second-opinion`, `repo-summary`). Bounded, role-driven, and pre-shaped; missing input/variables return a tool error, not a traceback. Args: `name`, `prompt`, `path`, `input`, `validation_output`, `opinions`, `synthesize`, `max_tokens`. |
 | `free_llm_roles` | List bundled ask-role presets (`coder`, `critic`, `summarizer`, `second-opinion`, …) with routing, max-tokens, and recommended use. Pass `name` for one role. |
 | `free_llm_tailnet_info` | Show safe Tailscale Tailnet connection instructions for serving the proxy on another machine. Output NEVER contains a real local bearer token (uses a `<proxy-key>` placeholder) and never leaks provider API keys. Degrades cleanly when `tailscale` is absent. Optional `port` (default 8080). |
-| `free_llm_quota_wise` | Local quota-mode / headroom advice from local counters only. Output NEVER recommends account rotation, rate-limit bypass, or automatic paid fallback — only "wait for UTC reset", "lower fan-out/token budget", or an explicit paid choice outside the default flow. |
-| `tokenmax` | 🌈 Gloriously excessive: blast the prompt to **every** free model across **every** provider at once, then the **calling** model synthesizes them all. Emits live `notifications/progress` (`🌈 TOKENMAXXING ▸ 47/168 models…`) so hosts like Claude Code show it ticking up, and a colorful rainbow banner in the result. Tongue-in-cheek, genuinely useful for hard questions. |
+| `free_llm_quota_wise` | Local quota-mode / headroom advice from local counters only. Output NEVER recommends account rotation, rate-limit bypass, or automatic paid fallback — only waiting for the local counter's UTC rollover or the upstream provider's own reset window, lowering fan-out/token budget, or making an explicit paid choice outside the default flow. |
+| `tokenmax` | 🌈 Gloriously excessive: fan the prompt out to automatically eligible ranked targets across configured providers (hard cap 256; a max, routing policy, or CLI `wise` mode may narrow the swarm), then the **calling** model synthesizes the returned responses. Emits live `notifications/progress` (`🌈 TOKENMAXXING ▸ N/total models…`) so hosts like Claude Code show it ticking up, and a colorful rainbow banner in the result. Tongue-in-cheek, genuinely useful for hard questions. |
 | `free_llm_route` | Explain where a prompt **would** route (estimated difficulty, resolved task, and ranked candidate models/evidence) **without spending a token**. |
 | `free_llm_models` | List available `provider/model` ids. |
 | `free_llm_quota` | Today's per-provider usage + daily-limit headroom, plus session totals and estimated cost avoided. |
@@ -102,7 +102,7 @@ Pass them through the MCP server's environment, e.g. in the config:
   whose panel throbs a live rainbow `TOKENMAXXING` animation; or run `freellmpool tokenmax`
   in a real terminal for the standalone flash.
 - **Live `tokenmax` progress:** when a client passes a `progressToken` (Claude
-  Code does), `tokenmax` streams `notifications/progress` as each model answers, so
+  Code does), `tokenmax` streams `notifications/progress` as each selected model answers, so
   you see the swarm tick up in real time. Raw ANSI can't animate inside an MCP
   host's chat, so progress + a rainbow emoji banner are how the spectacle "comes
   through" there. For the **genuine** flashing rainbow animation, run it in a real

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "freellmpool"
-version = "0.12.0"
-description = "Free LLM API pool: 24 LLM providers cataloged, 226 routes, 410 cataloged chat models, keyless start when available."
+version = "0.12.1"
+description = "Free LLM gateway: 22 LLM providers, 177 enabled chat routes, 431 cataloged chat models; keyless start when available."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -114,6 +114,7 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+pythonpath = [".", "src"]
 
 [tool.mypy]
 python_version = "3.11"

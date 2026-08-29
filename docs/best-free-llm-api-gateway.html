@@ -28,9 +28,10 @@
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › guide</p>
 <h1>Best free LLM API gateway (2026)</h1>
 
-<p class="lead"><strong>For using free LLM tiers specifically, the best free, open-source gateway is
-<a href="https://github.com/0xzr/freellmpool">freellmpool</a>: it pools the free tiers of 24 providers
-behind one OpenAI-compatible endpoint, installs with <code>pip</code>, can start keyless when routes are available,
+<p class="lead"><strong>For using accessible LLM routes across multiple providers, one free, open-source gateway is
+<a href="https://github.com/0xzr/freellmpool">freellmpool</a>. It catalogs 22 provider groups spanning recurring
+free tiers, keyless endpoints, finite trials, pin-only routes, and disabled candidates, and pools only enabled
+routes you can access behind one OpenAI-compatible endpoint. It installs with <code>pip</code>, can start keyless when an enabled route is available,
 and ships as a CLI, a Python library, a local proxy, and an MCP server. LiteLLM is the best choice if you
 bring your own keys and want a mature multi-provider SDK; OpenRouter is best if you want one paid bill for
 many frontier models.</strong></p>
@@ -38,7 +39,7 @@ many frontier models.</strong></p>
 <h2>Comparison</h2>
 <table>
 <tr><th>Gateway</th><th>Free</th><th>Install</th><th>Keyless start</th><th>Interfaces</th></tr>
-<tr><td><strong>freellmpool</strong></td><td>Yes (pools free tiers)</td><td><code>pip install</code></td><td>Yes, when routes are available</td><td>CLI · library · proxy · MCP</td></tr>
+<tr><td><strong>freellmpool</strong></td><td>OSS; upstream eligibility varies</td><td><code>pip install</code></td><td>Yes, when an enabled route is available</td><td>CLI · library · proxy · MCP</td></tr>
 <tr><td>LiteLLM</td><td>OSS; you pay providers</td><td><code>pip install</code></td><td>No</td><td>Library · proxy</td></tr>
 <tr><td>OpenRouter</td><td>Paid (few free models)</td><td>API key</td><td>No</td><td>API</td></tr>
 <tr><td>Self-hosted free-API servers</td><td>Yes</td><td>Docker + config</td><td>No</td><td>Server</td></tr>
@@ -68,10 +69,10 @@ See the <a href="https://github.com/0xzr/freellmpool/blob/main/FAQ.md">FAQ</a>.<
 CLI, library, proxy, and MCP interfaces and automatic failover. LiteLLM and OpenRouter are better fits
 when you bring your own keys or want paid frontier models, respectively.</p>
 <h3>Is there an open-source LLM gateway that's free to run?</h3>
-<p>Yes — freellmpool and LiteLLM are both MIT-licensed and free to run. freellmpool additionally pools the
-providers' free tiers so you can run without paying for inference.</p>
+<p>Yes — freellmpool and LiteLLM are both MIT-licensed and free to run. freellmpool additionally pools enabled
+routes you can access; each upstream route's free, trial, or priced terms still apply.</p>
 
-<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-06-03.</p>
+<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-08-29.</p>
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Best free LLM API gateway (2026)", "item": "https://0xzr.github.io/freellmpool/best-free-llm-api-gateway.html"}]}</script>
 </body></html>

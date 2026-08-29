@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
   <title id="title">freellmpool social preview</title>
-  <desc id="desc">Free LLM API pool with keyless start support, 24 cataloged providers, 226 routes, 410 cataloged chat models, OpenAI proxy and experimental Anthropic path, failover, MCP, quota tracking, and transcription.</desc>
+  <desc id="desc">Free LLM API pool with conditional keyless start, 22 cataloged providers, 177 enabled chat routes, 431 cataloged chat models, OpenAI proxy and experimental Anthropic path, failover, MCP, quota tracking, and transcription.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#101317"/>
@@ -28,24 +28,24 @@
     <rect x="36" y="36" width="1064" height="8" rx="4" fill="url(#accent)"/>
 
     <g transform="translate(48 82)">
-      <text x="0" y="56" fill="#f7fbff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="74" font-weight="800">freellmpool</text>
-      <text x="4" y="111" fill="#aebbc8" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="31" font-weight="600">Free LLM API pool for agents and local proxies</text>
+      <text x="0" y="56" fill="#f7fbff" font-family="DejaVu Sans" font-size="74" font-weight="800">freellmpool</text>
+      <text x="4" y="111" fill="#aebbc8" font-family="DejaVu Sans" font-size="31" font-weight="600">Free LLM API pool for agents and local proxies</text>
 
       <g transform="translate(0 160)">
         <rect x="0" y="0" width="280" height="116" rx="18" fill="#202b30" stroke="#65e4b6" stroke-opacity="0.42"/>
-        <text x="28" y="48" fill="#65e4b6" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="27" font-weight="800">keyless start</text>
-        <text x="28" y="82" fill="#f7fbff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">when available</text>
+        <text x="28" y="48" fill="#65e4b6" font-family="DejaVu Sans" font-size="27" font-weight="800">keyless start</text>
+        <text x="28" y="82" fill="#f7fbff" font-family="DejaVu Sans" font-size="24" font-weight="700">when available</text>
 
         <rect x="304" y="0" width="244" height="116" rx="18" fill="#202630" stroke="#7cc7ff" stroke-opacity="0.42"/>
-        <text x="332" y="48" fill="#7cc7ff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="27" font-weight="800">24 cataloged</text>
-        <text x="332" y="82" fill="#f7fbff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">226 routes</text>
+        <text x="332" y="48" fill="#7cc7ff" font-family="DejaVu Sans" font-size="27" font-weight="800">22 cataloged</text>
+        <text x="332" y="82" fill="#f7fbff" font-family="DejaVu Sans" font-size="24" font-weight="700">177 chat routes</text>
 
         <rect x="572" y="0" width="284" height="116" rx="18" fill="#2a2430" stroke="#ffbd59" stroke-opacity="0.44"/>
-        <text x="600" y="48" fill="#ffbd59" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="27" font-weight="800">OpenAI proxy</text>
-        <text x="600" y="82" fill="#f7fbff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">exp. Anthropic</text>
+        <text x="600" y="48" fill="#ffbd59" font-family="DejaVu Sans" font-size="27" font-weight="800">OpenAI proxy</text>
+        <text x="600" y="82" fill="#f7fbff" font-family="DejaVu Sans" font-size="24" font-weight="700">exp. Anthropic</text>
       </g>
 
-      <g transform="translate(0 330)" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">
+      <g transform="translate(0 330)" font-family="DejaVu Sans" font-size="24" font-weight="700">
         <rect x="0" y="-34" width="146" height="52" rx="26" fill="#273337"/>
         <text x="26" y="0" fill="#dff9ee">failover</text>
         <rect x="166" y="-34" width="124" height="52" rx="26" fill="#252d3a"/>

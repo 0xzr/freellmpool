@@ -891,7 +891,8 @@ def test_tools_call_quota_wise_renders_local_headroom(providers, env, quota, mon
     for needle in forbidden:
         assert needle not in text.lower()
     # Only acceptable phrasing is allowed (substring presence proves the advice is shaped).
-    assert "wait for the utc reset" in text.lower()
+    assert "local counter rollover at utc midnight" in text.lower()
+    assert "upstream providers use their own limit/reset windows" in text.lower()
     assert "lower fan-out" in text.lower()
 
 

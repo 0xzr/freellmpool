@@ -29,7 +29,8 @@ def _embed_body(dim: int = 3):
 def test_embedder_catalog_loads():
     cat = load_embedders()
     ids = {e.id for e in cat}
-    assert {"cohere", "github", "cloudflare"} <= ids
+    assert {"cohere", "cloudflare"} <= ids
+    assert "github" not in ids
     for e in cat:
         assert e.base_url.startswith("https://")
         assert e.models
@@ -39,7 +40,7 @@ def test_configured_embedders_filter():
     cat = load_embedders()
     got = {e.id for e in configured_embedders(cat, {"COHERE_API_KEY": "x"})}
     # exactly cohere (keyed, key present) + ovh (keyless → always configured); no other keyed
-    # embedder (github/cloudflare/mistral/nvidia) should leak in on just COHERE_API_KEY.
+    # embedder (cloudflare/mistral/nvidia) should leak in on just COHERE_API_KEY.
     assert got == {"cohere", "ovh"}
     # keyless-only: with no keys at all, only keyless embedders are configured.
     assert {e.id for e in configured_embedders(cat, {})} == {"ovh"}

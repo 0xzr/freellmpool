@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How to use multiple free LLM APIs together (Groq, Cerebras, Gemini …)</title>
-<meta name="description" content="How to combine the free tiers of Groq, Cerebras, Gemini, NVIDIA, OpenRouter and more behind one endpoint with automatic failover, using the open-source freellmpool — so you get more total free capacity than any single provider.">
+<meta name="description" content="Combine enabled recurring-free, keyless, account-limited, or trial LLM routes behind one endpoint with automatic failover using the open-source freellmpool gateway.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/use-multiple-free-llm-apis.html">
 <meta property="og:title" content="How to use multiple free LLM APIs together">
 <meta property="og:description" content="Pool many free LLM tiers behind one endpoint with failover — pip install, keyless when routes are available.">
@@ -27,12 +27,12 @@
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › guide</p>
 <h1>How to use multiple free LLM APIs together</h1>
 
-<p class="lead"><strong>To use several free LLM tiers at once — Groq, Cerebras, Gemini, NVIDIA,
-OpenRouter, Cloudflare and more — pool them behind one endpoint so each request goes to a provider you
-have capacity on and fails over when one is rate-limited. The open-source <a
-href="https://github.com/0xzr/freellmpool">freellmpool</a> does exactly this: one OpenAI-compatible
-interface over 24 providers, with per-day quota tracking so you drain each tier evenly. Several providers
-are keyless, so you can start with no signup.</strong></p>
+<p class="lead"><strong>To combine routes from several LLM providers, pool only the routes you can access
+behind one endpoint so each request fails over when a target is rate-limited. The open-source <a
+href="https://github.com/0xzr/freellmpool">freellmpool</a> catalogs 22 provider groups spanning recurring
+free tiers, keyless endpoints, finite trials, pin-only routes, and disabled candidates. It exposes 177
+enabled chat routes through one OpenAI-compatible interface and can start without credentials when an
+enabled keyless route is available.</strong></p>
 
 <h2>Why combine them</h2>
 <ul>
@@ -43,9 +43,9 @@ are keyless, so you can start with no signup.</strong></p>
 
 <h2>Do it in two commands</h2>
 <pre><code>pip install freellmpool
-freellmpool ask "Explain the CAP theorem in one sentence."   # keyless, picks a free provider</code></pre>
+freellmpool ask "Explain the CAP theorem in one sentence."   # keyless if an enabled route is available</code></pre>
 
-<p>Add free keys for more providers (each unlocks more models and higher limits):</p>
+<p>Add applicable provider credentials for more routes and capacity (terms vary):</p>
 <pre><code>export GROQ_API_KEY=...        # plus CEREBRAS_API_KEY, GEMINI_API_KEY, NVIDIA_API_KEY, ...
 freellmpool providers          # shows what's configured
 freellmpool benchmark          # times each provider so routing prefers the fastest</code></pre>
@@ -61,7 +61,8 @@ reply = Pool.from_default_config().ask("Write a haiku about sqlite")
 <p>freellmpool orders the providers you have access to least-used-first, then picks a least-used model
 inside that provider. This keeps large catalogs from getting extra traffic just because they expose more
 models. It tries candidates until one returns a non-empty result, and sets a rate-limited provider aside
-for a cooldown. Daily counts reset at UTC midnight. Set <code>FREELLMPOOL_ROUTING=fast</code> to prefer the
+    for a cooldown. freellmpool's local per-day counters reset at UTC midnight; upstream providers use
+    their own limit and reset windows. Set <code>FREELLMPOOL_ROUTING=fast</code> to prefer the
 lowest-latency provider, or <code>FREELLMPOOL_ROUTING=legacy</code> (or <code>model-fast</code>) to restore
 per-model balancing.</p>
 
@@ -71,10 +72,10 @@ per-model balancing.</p>
 each request to one you have capacity on and fails over automatically. You can also pin a provider per
 call with <code>-p</code>.</p>
 <h3>Do I need an API key for every provider?</h3>
-<p>No. Several providers are keyless so freellmpool works immediately; add keys for the others over time to
-grow your total free capacity.</p>
+<p>No. freellmpool can answer without credentials while at least one enabled keyless route is available.
+Add applicable credentials over time to expand accessible routes; not every cataloged provider is recurring-free.</p>
 
-<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-06-03.</p>
+<p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, free, open source). Updated 2026-08-29.</p>
 </div>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "How to use multiple free LLM APIs together (Groq, Cerebras, Gemini \u2026)", "item": "https://0xzr.github.io/freellmpool/use-multiple-free-llm-apis.html"}]}</script>
 </body></html>

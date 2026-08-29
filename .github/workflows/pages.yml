@@ -6,31 +6,184 @@ on:
       - main
     paths:
       - docs/**
+      - src/freellmpool/providers.toml
+      - src/freellmpool/_version.py
+      - pyproject.toml
+      - server.json
+      - README.md
       - .github/workflows/pages.yml
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      deploy_ready: ${{ steps.availability.outputs.deploy_ready }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Validate Pages source provenance
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          project_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          echo "PROJECT_VERSION=$project_version" >> "$GITHUB_ENV"
+          git fetch --force --no-tags origin main:refs/remotes/origin/main
+          case "$EVENT_NAME" in
+            release)
+              test "$RELEASE_EVENT_TAG" = "v$project_version"
+              test "$GITHUB_REF" = "refs/tags/v$project_version"
+              git fetch --force origin \
+                "refs/tags/v$project_version:refs/tags/v$project_version"
+              test "$(git cat-file -t "refs/tags/v$project_version")" = tag
+              test "$(git rev-parse HEAD)" = \
+                "$(git rev-parse "refs/tags/v$project_version^{commit}")"
+              git merge-base --is-ancestor "$(git rev-parse HEAD)" origin/main
+              ;;
+            push|workflow_dispatch)
+              test "$GITHUB_REF" = refs/heads/main
+              test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+              ;;
+            *) exit 1 ;;
+          esac
+      - name: Validate Pages content and release metadata
+        run: |
+          python -m pip install --disable-pip-version-check -e ".[dev]"
+          scripts/check-counts
+          python scripts/check_docs.py docs
+          PYTHONPATH=src python scripts/check_release_ready.py --skip-build
+          pytest tests/test_release_metadata.py tests/test_mcp_listings.py
+      - name: Require public release before deployment
+        id: availability
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          attempts=3
+          if test "$EVENT_NAME" = release; then attempts=12; fi
+          deploy_ready=false
+          for attempt in $(seq 1 "$attempts"); do
+            github_error=false
+            github_error_file=$(mktemp)
+            if release_tag=$(gh api \
+              "repos/$GITHUB_REPOSITORY/releases/tags/v$PROJECT_VERSION" \
+              --jq 'select(.draft == false and .prerelease == false and .immutable == true) | .tag_name' \
+              2> "$github_error_file"); then
+              :
+            elif grep -Eq '\(HTTP 404\)$' "$github_error_file"; then
+              release_tag=""
+            else
+              cat "$github_error_file" >&2
+              github_error=true
+              release_tag=""
+            fi
+            rm -f "$github_error_file"
+            latest_release_tag=""
+            if test "$EVENT_NAME" = release && test -n "$release_tag"; then
+              latest_error_file=$(mktemp)
+              if latest_release_tag=$(gh api \
+                "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name \
+                2> "$latest_error_file"); then
+                :
+              elif grep -Eq '\(HTTP 404\)$' "$latest_error_file"; then
+                latest_release_tag=""
+              else
+                cat "$latest_error_file" >&2
+                github_error=true
+              fi
+              rm -f "$latest_error_file"
+            fi
+            pypi_ready=false
+            pypi_error=false
+            if python - "$PROJECT_VERSION" <<'PY'
+          import json
+          import sys
+          import urllib.error
+          import urllib.request
+
+          try:
+              with urllib.request.urlopen(
+                  f"https://pypi.org/pypi/freellmpool/{sys.argv[1]}/json",
+                  timeout=20,
+              ) as response:
+                  payload = json.load(response)
+          except urllib.error.HTTPError as exc:
+              if exc.code == 404:
+                  raise SystemExit(44)
+              print(f"PyPI availability check failed: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+          except Exception as exc:
+              print(f"PyPI availability check failed: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+          if payload.get("info", {}).get("version") != sys.argv[1]:
+              print("PyPI returned mismatched version metadata", file=sys.stderr)
+              raise SystemExit(1)
+          PY
+            then
+              pypi_ready=true
+            else
+              pypi_status=$?
+              if test "$pypi_status" -ne 44; then pypi_error=true; fi
+            fi
+            if test "$github_error" = true || test "$pypi_error" = true; then
+              if test "$attempt" -lt "$attempts"; then
+                sleep 5
+                continue
+              fi
+              echo "Release availability check failed after $attempts attempts." >&2
+              exit 1
+            fi
+            authoritative_release=true
+            if test "$EVENT_NAME" = release && \
+              test "$latest_release_tag" != "v$PROJECT_VERSION"; then
+              authoritative_release=false
+            fi
+            if test "$release_tag" = "v$PROJECT_VERSION" && \
+              test "$pypi_ready" = true && \
+              test "$authoritative_release" = true; then
+              deploy_ready=true
+              break
+            fi
+            if test "$EVENT_NAME" != release; then break; fi
+            if test "$attempt" -lt "$attempts"; then sleep 5; fi
+          done
+          if test "$EVENT_NAME" = release; then test "$deploy_ready" = true; fi
+          echo "deploy_ready=$deploy_ready" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: docs
+
+  deploy:
+    needs: validate
+    if: needs.validate.outputs.deploy_ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
       - id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

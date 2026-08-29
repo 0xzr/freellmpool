@@ -44,7 +44,7 @@ def test_server_json_is_registry_ready_for_stdio_package():
         "source": "github",
     }
     assert len(server["description"]) <= 100
-    assert "24 LLM providers" in server["description"]
+    assert "22 LLM providers" in server["description"]
     assert "OpenAI-compatible" in server["description"]
     assert "MCP" in server["description"]
     assert package["registryType"] == "pypi"
@@ -59,6 +59,7 @@ def test_mcp_listing_status_covers_each_registry_and_action():
     doc = (ROOT / "docs/MCP_LISTINGS.md").read_text(encoding="utf-8")
 
     assert "official MCP Registry publish" in doc
+    assert "live active/latest endpoint below is authoritative" in doc
     assert "MCP.so issue" in doc
     assert "remaining directories require the operator" in doc
     for registry in REGISTRIES:

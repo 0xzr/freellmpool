@@ -6,6 +6,60 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-08-29
+
+### Added
+- A dated, source-backed model-activity audit covering every packaged chat,
+  embedding, and transcription route, with explicit distinctions between
+  listing evidence, keyless canaries, credentialed canaries, and pending
+  verification.
+- Deterministic bounded catalog-sentinel batches across all automatic routes,
+  safe lifecycle-state persistence, and fail-closed handling when the protected
+  credential bundle is absent or malformed.
+- Release gates for GitHub Pages links/sitemap targets, generated SVG/PNG asset
+  integrity, exact MCP Registry manifest reproduction, and the bundled
+  `llm-freellmpool` plugin's registration, build, and blocked-network smoke.
+- Protected manual workflows that publish from an exact immutable release
+  source commit (which must remain an ancestor of `main`), then compare the MCP
+  record and `llm-freellmpool` artifact digests with their local inputs.
+- A draft-first immutable GitHub release flow with all five release assets
+  attached before publication, digest-scanned versioned container tags, and a
+  release-authoritative workflow that promotes only the current immutable
+  release image to `latest`.
+
+### Changed
+- Reconciled provider/model IDs and routing eligibility against current
+  first-party listings and bounded completion evidence. Retired, paid-only,
+  missing, or unverified routes are now disabled or pin-only instead of being
+  used by automatic free-tier fan-out.
+- Removed the retired GitHub Models chat/embedder integrations and the obsolete
+  LongCat provider; refreshed Groq, Kilo, NVIDIA, Gemini, Cloudflare, Vercel,
+  Cerebras, Mistral, OpenRouter, and the remaining packaged catalogs.
+- Restricted Vercel automatic routing to the completion-verified zero-price
+  Poolside route. Current zero-price candidates remain disabled until their
+  provenance, cost, and credentialed completion acceptance evidence is complete.
+- Upgraded the digest-pinned Python container base and installed Alpine security
+  updates while removing build-only packaging tools from the runtime image.
+- Bumped CodeQL actions to the current pinned v4 release and made Python and
+  container tag workflows re-run catalog, metadata, coverage, and open
+  high/critical code-scanning gates before publication.
+- Refreshed README, FAQ, account/privacy guidance, release metadata, generated
+  cards, and GitHub Pages to describe the packaged catalog rather than retired
+  or unverified capacity.
+
+### Fixed
+- Bounded individual streamed SSE lines to 1 MiB in sync and async consumers,
+  closing the upstream response and returning a retryable failure on overflow.
+- Gemini 3.6/3.7 requests now omit the unsupported sampling temperature and use
+  the required thinking-token floor in both sync and async adapters.
+- Aion sentinel discovery now accepts the provider's top-level `models` listing
+  shape through the shared normalized parser.
+- Tailnet setup output no longer passes live bearer tokens through reusable
+  banner/log formatters; generated credentials are disclosed only once on an
+  interactive terminal, while non-interactive use requires an explicit key.
+- The bundled `llm-freellmpool` examples now pin an enabled Groq route and its
+  package metadata points to the maintained monorepo source.
+
 ## [0.12.0] — 2026-08-23
 
 ### Added

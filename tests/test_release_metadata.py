@@ -4,6 +4,7 @@ import json
 import re
 import tomllib
 from pathlib import Path
+from xml.etree import ElementTree
 
 from freellmpool import __version__, client
 
@@ -18,14 +19,14 @@ def test_release_metadata_versions_match_package() -> None:
     demo = (ROOT / "assets" / "demo.svg").read_text()
     readme = (ROOT / "README.md").read_text()
 
-    assert version == "0.12.0"
+    assert version == "0.12.1"
     assert __version__ == version
     assert server["version"] == version
     assert server["packages"][0]["version"] == version
     project_description = pyproject["project"]["description"]
     provider_count = re.search(r"(\d+) LLM providers", project_description)
     model_count = re.search(r"(\d+) cataloged chat models", project_description)
-    enabled_route_count = re.search(r"\((\d+) enabled chat routes,", readme)
+    enabled_route_count = re.search(r"\b(\d+) enabled chat routes\b", readme)
     assert provider_count is not None
     assert model_count is not None
     assert enabled_route_count is not None
@@ -97,13 +98,15 @@ def test_public_docs_describe_the_current_release() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
     version = pyproject["project"]["version"]
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    agents = (ROOT / "docs" / "AGENTS.md").read_text(encoding="utf-8")
+    integrations = (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8")
     index = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
 
     source_docs = (
         readme,
         (ROOT / "README.es.md").read_text(encoding="utf-8"),
-        (ROOT / "docs" / "AGENTS.md").read_text(encoding="utf-8"),
-        (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8"),
+        agents,
+        integrations,
         index,
         (ROOT / "docs" / "llms.txt").read_text(encoding="utf-8"),
         (ROOT / "docs" / "run-coding-agents-on-free-models.html").read_text(
@@ -122,7 +125,7 @@ def test_public_docs_describe_the_current_release() -> None:
         assert re.search(r"\bcurrent[- ]+main\b", normalized) is None
         assert "0.11.4" not in text
 
-    for text in (readme, index):
+    for text in (readme, agents, integrations, index):
         assert f"Latest release: {version}" in text
 
     assert f'"softwareVersion": "{version}"' in index
@@ -173,25 +176,59 @@ def test_pages_dates_match_current_documentation_pass() -> None:
     opencode_guide = (ROOT / "docs" / "run-opencode-on-free-models.html").read_text(
         encoding="utf-8"
     )
-    assert "Page updated 2026-08-23" in index
-    assert "Updated 2026-08-23" in agent_guide
-    assert "Updated 2026-08-23" in opencode_guide
+    assert "Page updated 2026-08-29" in index
+    assert "Updated 2026-08-29" in agent_guide
+    assert "Updated 2026-08-29" in opencode_guide
     assert (
         "<loc>https://0xzr.github.io/freellmpool/</loc>"
-        "<lastmod>2026-08-23</lastmod>"
+        "<lastmod>2026-08-29</lastmod>"
     ) in sitemap
     assert (
         "<loc>https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html</loc>"
-        "<lastmod>2026-08-23</lastmod>"
+        "<lastmod>2026-08-29</lastmod>"
     ) in sitemap
     assert (
         "<loc>https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html</loc>"
-        "<lastmod>2026-08-23</lastmod>"
+        "<lastmod>2026-08-29</lastmod>"
     ) in sitemap
     assert (
         "<loc>https://0xzr.github.io/freellmpool/free-llm-api-providers-list.html</loc>"
-        "<lastmod>2026-08-23</lastmod>"
+        "<lastmod>2026-08-29</lastmod>"
     ) in sitemap
+
+
+def test_every_sitemap_lastmod_is_visible_on_its_page() -> None:
+    sitemap_path = ROOT / "docs" / "sitemap.xml"
+    root = ElementTree.fromstring(sitemap_path.read_text(encoding="utf-8"))
+    namespace = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    base = "https://0xzr.github.io/freellmpool/"
+
+    for entry in root.findall("s:url", namespace):
+        location = entry.findtext("s:loc", namespaces=namespace)
+        lastmod = entry.findtext("s:lastmod", namespaces=namespace)
+        assert location is not None and location.startswith(base)
+        assert lastmod is not None
+        relative = location.removeprefix(base)
+        page = ROOT / "docs" / (relative or "index.html")
+        assert lastmod in page.read_text(encoding="utf-8"), page
+
+
+def test_compose_matches_catalog_credentials_and_persists_runtime_state() -> None:
+    catalog = tomllib.loads((ROOT / "src" / "freellmpool" / "providers.toml").read_text())
+    credential_names = {
+        row["key_env"]
+        for section in ("provider", "embedder", "transcriber")
+        for row in catalog.get(section, [])
+        if row.get("key_env")
+    }
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+    for name in credential_names:
+        assert f"{name}: ${{{name}:-}}" in compose
+    for retired in ("GITHUB_TOKEN", "LONGCAT_API_KEY"):
+        assert retired not in compose
+    assert "freellmpool-data:/home/freellmpool/.config/freellmpool" in compose
+    assert "condition: service_healthy" in compose
 
 
 def test_pages_expose_search_and_llm_discovery_metadata() -> None:
@@ -218,7 +255,10 @@ def test_pypi_metadata_has_launch_surfaces() -> None:
 
     assert len(project["description"]) <= 120
     assert f"> {project['description']}" in discovery
-    assert "Released catalog: 24 cataloged providers, 226 enabled chat routes" in promotion
+    assert (
+        "Released catalog: 22 cataloged providers, 177 enabled chat routes, 431"
+        in promotion
+    )
 
     urls = project["urls"]
     for name in ("Docs", "Changelog", "Issues", "Repository"):

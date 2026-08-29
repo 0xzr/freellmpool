@@ -1,27 +1,26 @@
 # Vercel AI Gateway acceptance audit — 2026-08-23
 
-Status: **incomplete; issue #68 remains open**. Public catalog and billing-error
-controls are verified, but Vercel currently requires customer verification and
-a valid card on file for this Hobby account, so repeat live completion, returned serving-provider
+Status: **incomplete; issue #68 remains open**. Updated through 2026-08-29.
+Public catalog, zero-price filtering, and billing-error controls are verified,
+but Vercel currently requires customer verification and a valid card on file
+for this Hobby account. Repeat live completion, returned serving-provider
 provenance, and actual response cost are not yet proven.
 
 ## Routing policy
 
-The maintainer explicitly chose key-only activation on 2026-08-23: setting
-`AI_GATEWAY_API_KEY` intentionally adds Vercel to automatic routing. This
-supersedes issue #68's earlier key-plus-opt-in/no-silent-credit-use policy.
-DeepSeek V4 Flash consumes the included credit when selected. The package does
-not buy credits or change dashboard settings, but it cannot enforce the account's
+The maintainer chose key-only activation on 2026-08-23: setting
+`AI_GATEWAY_API_KEY` adds Vercel's eligible zero-price capacity to automatic
+routing. As of 2026-08-29, that set contains only
+`poolside/laguna-s-2.1-free`. Priced DeepSeek V4 Flash and unsuffixed Nemotron
+3.5 Lightning remain enabled only as explicit pins. The package does not buy
+credits or change dashboard settings, but it cannot enforce the account's
 auto-top-up state. A Vercel-side API-key budget and disabled auto-top-up remain
-operator requirements.
-
-Automatic routing contains three value routes. The five existing frontier
-routes remain enabled and pinnable, but `auto = false` keeps them out of
-automatic fan-out.
+operator requirements for any priced pin.
 
 ## Public model and endpoint evidence
 
-`python3 scripts/verify_vercel_gateway.py --public-only` passed on 2026-08-23.
+`python3 scripts/verify_vercel_gateway.py --public-only` passed again on
+2026-08-29 after the automatic set was tightened.
 It fetched the anonymous `/v1/models` listing and each model's
 `/v1/models/{creator}/{model}/endpoints` listing with redirects disabled and a
 1 MB response cap.
@@ -29,12 +28,23 @@ It fetched the anonymous `/v1/models` listing and each model's
 | Automatic model | Context | Max output | Aggregate input / 1M | Aggregate output / 1M | Active endpoints | Endpoint evidence |
 |---|---:|---:|---:|---:|---:|---|
 | `poolside/laguna-s-2.1-free` | 256,000 | 32,768 | $0 | $0 | 1 | Poolside; every advertised price field is zero |
-| `nvidia/nemotron-3.5-lightning-free` | 1,000,000 | 32,768 | $0 | $0 | 1 | NVIDIA; every advertised price field is zero |
-| `deepseek/deepseek-v4-flash-0731` | 1,000,000 | 384,000 | $0.076 | $0.153 | 10 | Active endpoints ranged up to $0.28/M prompt and $0.66/M completion |
 
-The gateway dynamically chooses among active endpoints, so DeepSeek's aggregate
-price is not a hard per-request maximum. `rpd = 50` is a routing capacity hint,
-not a spending cap. Current pricing must be rechecked before relying on it.
+The verifier found exactly that one catalog row and one active Poolside endpoint;
+all aggregate and endpoint price fields were numeric zero. Current nonautomatic
+dispositions are:
+
+| Model or candidate | Disposition | Reason |
+|---|---|---|
+| `nvidia/nemotron-3.5-lightning-free` | Disabled lifecycle record | Absent from the live listing; the unsuffixed ID is separately priced, not a rename |
+| `nvidia/nemotron-3.5-lightning` | Enabled, `auto = false` | Priced explicit pin |
+| `deepseek/deepseek-v4-flash-0731` | Enabled, `auto = false` | Priced explicit pin |
+| `inclusionai/ling-3.0-flash-fin` and `inclusionai/ling-3.0-flash-fin-free` | Disabled, `auto = false` | Pending completion, provenance, and cost canaries |
+| `minimax/minimax-m2.7-free` and `minimax/minimax-m3-free` | Disabled, `auto = false` | Pending completion, provenance, and cost canaries |
+
+The gateway can dynamically choose among active endpoints for priced routes, so
+an aggregate price is not a hard per-request maximum. A local `rpd` value is a
+routing-capacity hint, not a spending cap. Current pricing must be rechecked
+before relying on any explicit priced pin.
 
 ## Credentialed evidence
 
@@ -71,7 +81,7 @@ Requests are processed by Vercel and the selected upstream provider. Review
 model page's linked upstream terms and privacy policy before sending data:
 
 - [Laguna S 2.1 Free](https://vercel.com/ai-gateway/models/laguna-s-2.1-free)
-- [Nemotron 3.5 Lightning Free](https://vercel.com/ai-gateway/models/nemotron-3.5-lightning-free)
+- [Nemotron 3.5 Lightning](https://vercel.com/ai-gateway/models/nemotron-3.5-lightning)
 - [DeepSeek V4 Flash 0731](https://vercel.com/ai-gateway/models/deepseek-v4-flash-0731)
 
 Do not send secrets or regulated/confidential content unless both Vercel's and

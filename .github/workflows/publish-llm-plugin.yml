@@ -1,0 +1,276 @@
+name: Publish llm-freellmpool plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact llm-freellmpool version to publish
+        required: true
+        type: string
+      commit:
+        description: Exact immutable root-release source SHA
+        required: true
+        type: string
+      authentication:
+        description: Prefer trusted publishing; select token only for controlled fallback
+        required: true
+        default: trusted-publishing
+        type: choice
+        options:
+          - trusted-publishing
+          - api-token
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-llm-freellmpool-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - name: Validate immutable inputs
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          case "$RELEASE_COMMIT" in
+            *[!0-9a-f]*|"") exit 1 ;;
+          esac
+          test "${#RELEASE_COMMIT}" -eq 40
+          python -c \
+            'import re, sys; assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", sys.argv[1])' \
+            "$RELEASE_VERSION"
+
+      - name: Check out the exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the exact immutable root-release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          root_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          root_tag="v$root_version"
+          git fetch --force origin main \
+            "refs/tags/$root_tag:refs/tags/$root_tag"
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main
+          test "$(git cat-file -t "refs/tags/$root_tag")" = tag
+          test "$(git rev-parse "refs/tags/$root_tag^{commit}")" = "$RELEASE_COMMIT"
+          release_state=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$root_tag" \
+            --jq '[.tag_name, .draft, .prerelease, .immutable] | @tsv')
+          test "$release_state" = "$root_tag"$'\tfalse\tfalse\ttrue'
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Validate package metadata
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python - "$RELEASE_VERSION" <<'PY'
+          import sys
+          import tomllib
+
+          version = sys.argv[1]
+          with open("plugins/llm-freellmpool/pyproject.toml", "rb") as metadata_file:
+              project = tomllib.load(metadata_file)["project"]
+          assert project["name"] == "llm-freellmpool"
+          assert project["version"] == version
+          assert "freellmpool>=0.12.1" in project["dependencies"]
+          PY
+
+      - name: Install pinned build tooling
+        run: >-
+          python -m pip install --disable-pip-version-check
+          build==1.5.0 twine==7.0.0
+
+      - name: Build and validate distributions
+        working-directory: plugins/llm-freellmpool
+        run: |
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          export SOURCE_DATE_EPOCH
+          python -m build --outdir dist .
+          python -m twine check dist/*.whl dist/*.tar.gz
+
+      - name: Fresh-install and smoke the exact local wheel
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/llm-plugin-local"
+          local_python="$RUNNER_TEMP/llm-plugin-local/bin/python"
+          "$local_python" -m pip install --disable-pip-version-check --upgrade pip
+          "$local_python" -m pip install --disable-pip-version-check \
+            plugins/llm-freellmpool/dist/*.whl
+          "$local_python" -m pip check
+          "$local_python" plugins/llm-freellmpool/tests/smoke_cli.py \
+            "$RUNNER_TEMP/llm-plugin-local/bin/llm"
+
+      - name: Upload the verified distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: llm-freellmpool-${{ inputs.version }}
+          path: |
+            plugins/llm-freellmpool/dist/*.whl
+            plugins/llm-freellmpool/dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/llm-freellmpool
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 10
+    steps:
+      - name: Check out the exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Revalidate immutable root release in the protected publish job
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          root_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          root_tag="v$root_version"
+          git fetch --force origin main \
+            "refs/tags/$root_tag:refs/tags/$root_tag"
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main
+          test "$(git cat-file -t "refs/tags/$root_tag")" = tag
+          test "$(git rev-parse "refs/tags/$root_tag^{commit}")" = "$RELEASE_COMMIT"
+          release_state=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$root_tag" \
+            --jq '[.tag_name, .draft, .prerelease, .immutable] | @tsv')
+          test "$release_state" = "$root_tag"$'\tfalse\tfalse\ttrue'
+
+      - name: Download the verified distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: llm-freellmpool-${{ inputs.version }}
+          path: dist
+
+      - name: Reject conflicts and detect a complete release
+        id: preflight
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          python scripts/verify_pypi_artifacts.py \
+            llm-freellmpool "$RELEASE_VERSION" dist --mode subset
+          if python scripts/verify_pypi_artifacts.py \
+            llm-freellmpool "$RELEASE_VERSION" dist --mode exact; then
+            echo "upload_needed=false" >> "$GITHUB_OUTPUT"
+            echo "PyPI already has the exact verified distribution set."
+          else
+            echo "upload_needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate the selected authentication mode
+        if: steps.preflight.outputs.upload_needed == 'true'
+        env:
+          PUBLISH_AUTHENTICATION: ${{ inputs.authentication }}
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          case "$PUBLISH_AUTHENTICATION" in
+            trusted-publishing) ;;
+            api-token) test -n "$PYPI_API_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+
+      - name: Publish with trusted publishing or the controlled token fallback
+        if: steps.preflight.outputs.upload_needed == 'true'
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
+        with:
+          packages-dir: dist
+          password: ${{ inputs.authentication == 'api-token' && secrets.PYPI_API_TOKEN || '' }}
+          attestations: ${{ inputs.authentication == 'trusted-publishing' }}
+          print-hash: true
+          skip-existing: true
+
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - name: Check out the exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Download the exact published artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: llm-freellmpool-${{ inputs.version }}
+          path: dist
+
+      - name: Verify registry metadata and distribution digests
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          for attempt in $(seq 1 12); do
+            if python scripts/verify_pypi_artifacts.py \
+              llm-freellmpool "$RELEASE_VERSION" dist --mode exact; then
+              exit 0
+            fi
+            if test "$attempt" -lt 12; then sleep 5; fi
+          done
+          exit 1
+
+      - name: Fresh-install and smoke the registry wheel
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/llm-plugin-registry"
+          registry_python="$RUNNER_TEMP/llm-plugin-registry/bin/python"
+          "$registry_python" -m pip install --disable-pip-version-check --upgrade pip
+          installed=false
+          for attempt in $(seq 1 12); do
+            if "$registry_python" -m pip install --disable-pip-version-check \
+              --no-cache-dir --only-binary=:all: "llm-freellmpool==$RELEASE_VERSION"; then
+              installed=true
+              break
+            fi
+            if test "$attempt" -lt 12; then sleep 5; fi
+          done
+          test "$installed" = true
+          "$registry_python" -m pip check
+          "$registry_python" plugins/llm-freellmpool/tests/smoke_cli.py \
+            "$RUNNER_TEMP/llm-plugin-registry/bin/llm"

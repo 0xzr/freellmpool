@@ -26,6 +26,8 @@ Statuses:
 - `exhausted`: usage reached the daily request hint.
 - `invalid_key`: local inventory says the key has expired.
 - `missing`: the provider exists in the catalog but is not configured.
+- `disabled`: the provider currently has no enabled models, so it is not usable
+  capacity even if it is keyless or configured.
 
 Example:
 
@@ -88,7 +90,7 @@ Example:
 
 ```text
 Manual key checklist to reach 5 healthy providers:
-  - cerebras: create a key manually, then set CEREBRAS_API_KEY
+  - gemini: create a key manually, then set GEMINI_API_KEY
   - cloudflare: create a key manually, then set CLOUDFLARE_API_TOKEN
 ```
 
@@ -121,8 +123,8 @@ freellmpool keys add Hyperbolic \
 ```bash
 freellmpool providers health
 freellmpool providers health --timeout 10
-freellmpool providers health -p groq,cerebras
-freellmpool providers health -m llama-3.3-70b-versatile
+freellmpool providers health -p groq,gemini
+freellmpool providers health -m openai/gpt-oss-120b
 ```
 
 This is different from `capacity status`. `providers health` sends real test requests to each configured provider's API. `capacity status` never calls a provider, but by default it does refresh the advisory external catalog over the network (a read-only metadata fetch); pass `--no-catalog-sync` to keep it fully local.

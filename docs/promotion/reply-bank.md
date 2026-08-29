@@ -20,9 +20,9 @@ bad responses. It does not bypass provider policies.
 ## Why not just use OpenRouter?
 
 OpenRouter is a hosted aggregator and is very polished. `freellmpool` is local,
-open source, pip-installable, starts without a key, and can use provider free
-tiers directly through a CLI, library, proxy, and MCP server. It can also use
-OpenRouter as one provider.
+open source, and pip-installable; it can start without a key while an enabled
+keyless route is available, and exposes accessible provider routes through a
+CLI, library, proxy, and MCP server. It can also use OpenRouter as one provider.
 
 ## Why not LiteLLM?
 
@@ -143,7 +143,7 @@ stops the review call rather than silently substituting a different provider.
   providers, and keyless start."
 - `assets/social-preview.png`: "Project preview card for freellmpool: free LLM
   API pool for agents and local proxies." Alt text: "Dark social preview image
-  for freellmpool with feature labels for keyless start, 24 providers, OpenAI
+  for freellmpool with feature labels for keyless start, 22 providers, OpenAI
   proxy, MCP, transcription, and tokenmax."
 
 ## Can I use it with Cline or Cursor's OpenAI-compatible settings?

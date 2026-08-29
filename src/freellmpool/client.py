@@ -3,7 +3,7 @@
 Three adapters cover every provider in the catalog:
 
 * ``openai``     — standard ``/chat/completions`` (Groq, Cerebras, OpenRouter,
-                   GitHub Models, Mistral, Cohere, SambaNova, ...).
+                   Kilo, Mistral, Cohere, SambaNova, ...).
 * ``cloudflare`` — Cloudflare Workers AI, which exposes an OpenAI-compatible
                    route once ``{account_id}`` is substituted into the URL.
 * ``gemini``     — Google Generative Language API (different body shape).
@@ -42,6 +42,8 @@ _THINKING_HINTS = (
     "deepseek-r1",
     "nemotron",
     "gpt-oss",  # emits reasoning; needs token headroom or content comes back empty
+    "gemini-3.6",
+    "gemini-3.7",
 )
 _THINKING_FLOOR = 4096  # room for reasoning, but under caps like Groq's gpt-oss limit
 
@@ -89,6 +91,9 @@ _USER_AGENT = f"freellmpool/{__version__} (+https://github.com/0xzr/freellmpool)
 _CONNECT_TIMEOUT = 10.0  # fail fast on dead/unreachable providers so failover is quick
 # Cap a single upstream reply so a broken/malicious provider can't OOM the proxy.
 _MAX_RESPONSE_BYTES = 32 * 1024 * 1024  # 32 MiB
+# Bound one decoded SSE line. Python strings can consume multiple bytes per
+# character, so a character cap also bounds the in-process line buffer.
+_MAX_STREAM_LINE_CHARS = 1 * 1024 * 1024
 _MAX_TRANSPORT_ATTEMPTS = 2
 _RETRY_BACKOFF_S = 0.2
 _shared = None  # one pooled, keep-alive httpx.Client shared across calls/threads
@@ -282,10 +287,17 @@ class _StreamLines:
     (where the caller closes it before ever iterating). Does NOT close the shared
     client — only the response/stream."""
 
-    def __init__(self, cm, resp, deadline: float | None = None):
+    def __init__(
+        self,
+        cm,
+        resp,
+        deadline: float | None = None,
+        max_line_chars: int = _MAX_STREAM_LINE_CHARS,
+    ):
         self._cm, self._resp = cm, resp
         self._closed = False
         self._deadline = deadline  # monotonic wall-clock cap on the whole stream
+        self._max_line_chars = max_line_chars
 
     def __iter__(self) -> Iterator[str]:
         # Iterate raw text chunks (not iter_lines) and split lines ourselves, so the
@@ -293,7 +305,8 @@ class _StreamLines:
         # trickles bytes *without a newline* would block iter_lines forever and never
         # reach a between-lines check. The per-read httpx timeout bounds idle gaps;
         # this total deadline bounds steady slow-drip that would pin a worker.
-        buf = ""
+        parts: list[str] = []
+        buffered_chars = 0
         try:
             for chunk in self._resp.iter_text():
                 if self._deadline is not None and time.monotonic() > self._deadline:
@@ -302,12 +315,29 @@ class _StreamLines:
                     )
                 if not chunk:
                     continue
-                buf += chunk
-                while "\n" in buf:
-                    line, buf = buf.split("\n", 1)
-                    yield line.rstrip("\r")
-            if buf:
-                yield buf.rstrip("\r")
+                start = 0
+                while True:
+                    newline = chunk.find("\n", start)
+                    end = len(chunk) if newline < 0 else newline
+                    segment_chars = end - start
+                    if segment_chars > self._max_line_chars - buffered_chars:
+                        raise ProviderHTTPError(
+                            502,
+                            f"upstream stream line exceeded {self._max_line_chars} characters",
+                            retryable=True,
+                        )
+                    if segment_chars:
+                        parts.append(chunk[start:end])
+                        buffered_chars += segment_chars
+                    if newline < 0:
+                        break
+                    line = "".join(parts).rstrip("\r")
+                    parts = []
+                    buffered_chars = 0
+                    start = newline + 1
+                    yield line
+            if parts:
+                yield "".join(parts).rstrip("\r")
         finally:
             self.close()
 
@@ -480,6 +510,18 @@ def _to_gemini_contents(messages: list[Message]) -> tuple[dict | None, list[dict
         contents.append({"role": gem_role, "parts": [{"text": text}]})
     system_instruction = {"parts": [{"text": system}]} if system else None
     return system_instruction, contents
+
+
+def _gemini_generation_config(model: str, max_tokens: int, temperature: float) -> dict:
+    """Build the supported Gemini generation config for the selected family.
+
+    Gemini 3.6 and 3.7 removed sampling controls such as ``temperature``;
+    sending the legacy field makes otherwise valid requests fail.
+    """
+    config: dict = {"maxOutputTokens": max_tokens}
+    if not model.startswith(("gemini-3.6-", "gemini-3.7-")):
+        config["temperature"] = temperature
+    return config
 
 
 def _adapter_openai(
@@ -860,10 +902,7 @@ def _call_gemini(
         headers["x-goog-api-key"] = api_key
     body: dict = {
         "contents": contents,
-        "generationConfig": {
-            "maxOutputTokens": max_tokens,
-            "temperature": temperature,
-        },
+        "generationConfig": _gemini_generation_config(model, max_tokens, temperature),
     }
     if system_instruction:
         body["systemInstruction"] = system_instruction

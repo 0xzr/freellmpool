@@ -31,6 +31,7 @@ _MAX_SECRET_JSON_BYTES = 32_000
 _MAX_PREVIOUS_BYTES = 2_000_000
 _MAX_ISSUE_BODY_BYTES = 60_000
 _PING = [{"role": "user", "content": "Reply with the single word: pong"}]
+_PROBE_SELECTION_STRATEGY = "bounded_rotating_batches_enabled_auto_v1"
 # Only endpoints verified to expose a complete public chat-model listing belong
 # here. Everything else is useful for additions, but absences remain unconfirmed.
 _AUTHORITATIVE_PUBLIC_LISTINGS = frozenset({"pollinations"})
@@ -374,6 +375,8 @@ def load_secret_map(
         raise ValueError("secret map must be valid JSON") from exc
     if not isinstance(payload, dict):
         raise ValueError("secret map must be an object")
+    if not payload:
+        raise ValueError("secret map must be a non-empty object")
     result: dict[str, str] = {}
     for key, value in payload.items():
         if (
@@ -442,6 +445,107 @@ def discover(
     }
 
 
+def _eligible_probe_routes(
+    providers: list[Provider],
+    secrets: dict[str, str],
+) -> list[tuple[Provider, str]]:
+    routes: list[tuple[Provider, str]] = []
+    for provider in sorted(providers, key=lambda candidate: candidate.id):
+        if not provider.is_configured(secrets):
+            continue
+        routes.extend(
+            (provider, model.name)
+            for model in sorted(provider.models, key=lambda candidate: candidate.name)
+            if model.enabled and model.auto
+        )
+    return routes
+
+
+def _build_probe_batches(
+    routes: list[tuple[Provider, str]],
+    *,
+    max_providers: int,
+    max_models_per_provider: int,
+) -> list[list[tuple[Provider, str]]]:
+    if max_providers <= 0 or max_models_per_provider <= 0:
+        return []
+    pending: dict[str, tuple[Provider, list[str]]] = {}
+    for provider, model in routes:
+        entry = pending.setdefault(provider.id, (provider, []))
+        entry[1].append(model)
+
+    batches: list[list[tuple[Provider, str]]] = []
+    while pending:
+        # Prefer providers with the most remaining routes. This covers the full
+        # route set in few bounded runs while stable IDs make ties reproducible.
+        provider_ids = sorted(
+            pending,
+            key=lambda provider_id: (-len(pending[provider_id][1]), provider_id),
+        )[:max_providers]
+        batch: list[tuple[Provider, str]] = []
+        for provider_id in provider_ids:
+            provider, models = pending[provider_id]
+            selected_models = models[:max_models_per_provider]
+            del models[:max_models_per_provider]
+            batch.extend((provider, model) for model in selected_models)
+            if not models:
+                del pending[provider_id]
+        batches.append(batch)
+    return batches
+
+
+def _probe_batch_index(
+    previous: dict[str, Any] | None,
+    *,
+    batch_count: int,
+    now: datetime,
+) -> int:
+    if batch_count <= 0:
+        return 0
+    if (
+        isinstance(previous, dict)
+        and previous.get("schema_version") == 1
+        and previous.get("mode") == "authenticated_probe"
+    ):
+        selection = previous.get("selection")
+        if (
+            isinstance(selection, dict)
+            and selection.get("strategy") == _PROBE_SELECTION_STRATEGY
+        ):
+            next_batch_index = selection.get("next_batch_index")
+            if (
+                isinstance(next_batch_index, int)
+                and not isinstance(next_batch_index, bool)
+                and next_batch_index >= 0
+            ):
+                return next_batch_index % batch_count
+        # A legacy report has no batch cursor. Start from the first stable batch
+        # once so its current probe rows remain useful lifecycle history.
+        return 0
+    # The scheduled workflow runs weekly. A UTC seven-day slot makes cache-loss
+    # behavior deterministic and still traverses every batch on successive runs.
+    week_slot = now.astimezone(UTC).date().toordinal() // 7
+    return week_slot % batch_count
+
+
+def _safe_probe_state_record(
+    identity: tuple[str, str],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    provider, model = identity
+    return {
+        "provider": provider,
+        "model": model,
+        "first_verified": _safe_timestamp(record.get("first_verified")),
+        "last_verified": _safe_timestamp(record.get("last_verified")),
+        "last_successful_verification": _safe_timestamp(
+            record.get("last_successful_verification")
+        ),
+        "verification_count": _bounded_count(record.get("verification_count")),
+        "consecutive_failures": _bounded_count(record.get("consecutive_failures")),
+    }
+
+
 def probe(
     providers: list[Provider],
     secrets: dict[str, str],
@@ -456,57 +560,76 @@ def probe(
     prior = _previous_rows(
         previous,
         mode="authenticated_probe",
-        collection="probes",
+        collection="probe_state",
         keys=("provider", "model"),
     )
-    selected = [
-        provider
-        for provider in providers
-        if provider.is_configured(secrets)
-    ][:max_providers]
-    for provider in selected:
-        models = [model for model in provider.models if model.enabled][
-            :max_models_per_provider
-        ]
-        for model in models:
-            try:
-                reply = flp_client.call(
-                    provider,
-                    model.name,
-                    _PING,
-                    api_key=provider.api_key(secrets),
-                    env=secrets,
-                    max_tokens=8,
-                    temperature=0.0,
-                    timeout=timeout,
-                    enforce_thinking_floor=False,
-                )
-                ok = bool(reply.text.strip())
-                status: int | None = 200
-                failure_classification = None if ok else "empty_completion"
-            except ProviderHTTPError as exc:
-                ok = False
-                status = exc.status
-                failure_classification = None
-            except (httpx.HTTPError, OSError):
-                ok = False
-                status = None
-                failure_classification = None
-            except Exception:  # noqa: BLE001 - never serialize provider exception text
-                ok = False
-                status = None
-                failure_classification = "unexpected_probe_error"
-            records.append(
-                probe_record(
-                    provider,
-                    model.name,
-                    ok=ok,
-                    status=status,
-                    observed_at=now,
-                    previous=prior.get((provider.id, model.name)),
-                    failure_classification=failure_classification,
-                )
+    if not prior:
+        prior = _previous_rows(
+            previous,
+            mode="authenticated_probe",
+            collection="probes",
+            keys=("provider", "model"),
+        )
+    eligible = _eligible_probe_routes(providers, secrets)
+    eligible_keys = {(provider.id, model) for provider, model in eligible}
+    batches = _build_probe_batches(
+        eligible,
+        max_providers=max_providers,
+        max_models_per_provider=max_models_per_provider,
+    )
+    batch_index = _probe_batch_index(
+        previous,
+        batch_count=len(batches),
+        now=now,
+    )
+    selected = batches[batch_index] if batches else []
+    for provider, model in selected:
+        try:
+            reply = flp_client.call(
+                provider,
+                model,
+                _PING,
+                api_key=provider.api_key(secrets),
+                env=secrets,
+                max_tokens=8,
+                temperature=0.0,
+                timeout=timeout,
+                enforce_thinking_floor=False,
             )
+            ok = bool(reply.text.strip())
+            status: int | None = 200
+            failure_classification = None if ok else "empty_completion"
+        except ProviderHTTPError as exc:
+            ok = False
+            status = exc.status
+            failure_classification = None
+        except (httpx.HTTPError, OSError):
+            ok = False
+            status = None
+            failure_classification = None
+        except Exception:  # noqa: BLE001 - never serialize provider exception text
+            ok = False
+            status = None
+            failure_classification = "unexpected_probe_error"
+        records.append(
+            probe_record(
+                provider,
+                model,
+                ok=ok,
+                status=status,
+                observed_at=now,
+                previous=prior.get((provider.id, model)),
+                failure_classification=failure_classification,
+            )
+        )
+    state = {
+        identity: _safe_probe_state_record(identity, record)
+        for identity, record in prior.items()
+        if identity in eligible_keys
+    }
+    for record in records:
+        identity = (record["provider"], record["model"])
+        state[identity] = _safe_probe_state_record(identity, record)
     report = {
         "schema_version": 1,
         "mode": "authenticated_probe",
@@ -516,7 +639,17 @@ def probe(
             "max_providers": max_providers,
             "max_models_per_provider": max_models_per_provider,
         },
+        "selection": {
+            "strategy": _PROBE_SELECTION_STRATEGY,
+            "eligible_routes": len(eligible),
+            "eligible_providers": len({provider.id for provider, _model in eligible}),
+            "selected_routes": len(selected),
+            "batch_count": len(batches),
+            "batch_index": batch_index,
+            "next_batch_index": (batch_index + 1) % len(batches) if batches else 0,
+        },
         "probes": records,
+        "probe_state": [state[identity] for identity in sorted(state)],
     }
     report["drift"] = {
         "has_changes": any(

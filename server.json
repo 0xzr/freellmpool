@@ -2,19 +2,19 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.0xzr/freellmpool",
   "title": "freellmpool",
-  "description": "OpenAI-compatible MCP gateway pooling 24 LLM providers with routing, failover, quota, and tools.",
+  "description": "OpenAI-compatible MCP gateway cataloging 22 LLM providers, with routing, failover, and tools.",
   "websiteUrl": "https://0xzr.github.io/freellmpool/",
   "repository": {
     "url": "https://github.com/0xzr/freellmpool",
     "source": "github"
   },
-  "version": "0.12.0",
+  "version": "0.12.1",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "freellmpool",
-      "version": "0.12.0",
+      "version": "0.12.1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

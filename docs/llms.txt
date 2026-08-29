@@ -1,6 +1,6 @@
 # freellmpool
 
-> Free, open-source, OpenAI-compatible gateway that pools the free tiers of 24 LLM
+> Free, open-source, OpenAI-compatible gateway that catalogs free-tier routes across 22 LLM
 > providers (Groq, Cerebras, NVIDIA, Gemini, OpenRouter, Cloudflare, Mistral, Cohere
 > and more) behind one endpoint, with automatic failover and per-day quota tracking.
 > Works as a CLI, a Python library, a local proxy, and an MCP server. Keyless to
@@ -10,11 +10,12 @@
 > free tiers are usable right now and help configure more.
 
 ## Release status
-- Latest release: 0.12.0. GitHub and PyPI include the Hermes profile, `spread`
-  routing, `/livez`, `/readyz`, `/v1/providers`, `/v1/models?ready=true`,
-  refreshed providers, Vercel AI Gateway support, and OpenCode registry-readiness hardening.
+- Latest release: 0.12.1. GitHub and PyPI include the audited provider catalog,
+  bounded streaming and sentinel hardening, the Hermes profile, `spread` routing,
+  `/livez`, `/readyz`, `/v1/providers`, `/v1/models?ready=true`, and OpenCode
+  registry-readiness hardening.
 - OpenCode npm registry publication is pending; `opencode-freellmpool` and
-  `opencode-freellmpool-tui` were not published as of 2026-07-19.
+  `opencode-freellmpool-tui` were not published as of 2026-08-29.
 
 ## Docs
 - [README](https://github.com/0xzr/freellmpool/blob/main/README.md): install, CLI, library, proxy, MCP, provider keys, routing.

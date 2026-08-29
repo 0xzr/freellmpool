@@ -87,9 +87,11 @@ freellmpool tailnet connect <tailnet-host-or-ip>
 - Tailnet support shells out to the local `tailscale` CLI when available. It
   must degrade gracefully when Tailscale is not installed, not logged in, or has
   no IPv4 address.
-- Tailnet serving requires proxy auth by default. If the user does not supply a
-  key, generate a temporary random bearer token for the session and print client
-  setup commands. Never expose configured provider API keys.
+- Tailnet serving requires proxy auth by default. An interactive live run may
+  generate a temporary random bearer token only when stderr is a TTY. A
+  noninteractive live run must receive `--api-key` or
+  `FREELLMPOOL_PROXY_KEY`; otherwise it exits 2 before server startup. Never
+  expose configured provider API keys.
 - Quota-wise mode uses local counters and user-declared quota metadata. It must
   not auto-poll provider accounts, create accounts, rotate identities, or infer
   ways around provider limits.
@@ -394,8 +396,12 @@ Adopted plan additions:
   an explicit `--probe` flag.
 - `tailnet status` gets the Tailnet IPv4 from `tailscale ip -4`; MagicDNS is a
   useful extra, not a requirement.
-- Generated session tokens are URL-safe, session-only, printed at serve
-  startup, and never persisted to config, reports, or status output.
+- Interactive generated session tokens are URL-safe, session-only, printed
+  exactly once at serve startup, and never persisted to config, reports, or
+  status output. Setup hints use `<session-token-shown-above>`.
+- Noninteractive live runs fail before server startup unless `--api-key` or
+  `FREELLMPOOL_PROXY_KEY` is present. Dry runs use only
+  `<session-token-printed-on-real-run>` and never mint a usable secret.
 - Unsafe non-loopback binds continue to require explicit LAN acknowledgement and
   auth. `--allow-lan` without auth is refused unless the user also passes the
   explicit `--allow-no-auth` escape hatch.
@@ -404,7 +410,11 @@ Verification additions:
 
 - Missing Tailscale, logged-out Tailscale, malformed output, and MagicDNS-less
   setups produce actionable output.
-- Generated token appears once in serve output and not in `tailnet status`.
+- An interactive generated token appears once in serve output and not in
+  `tailnet status`; setup hints contain only the placeholder.
+- A noninteractive no-key run exits 2 before the proxy starts and names
+  `--api-key`, `FREELLMPOOL_PROXY_KEY`, and the interactive option.
+- Dry-run output contains only the safe token marker.
 - Refused binds return non-zero with a clear auth/allow-lan message.
 
 ### 9. Shareable Reports
@@ -492,8 +502,10 @@ Implementation:
 - Use `subprocess.run(["tailscale", "ip", "-4"])` with timeout for IP discovery.
 - Prefer binding to the discovered Tailnet IPv4 address. Treat Tailscale `100.x`
   addresses as the expected safe bind target.
-- Generate a session-only token with `secrets.token_urlsafe()` when no
-  `--api-key`, `FREELLMPOOL_PROXY_KEY`, or config `proxy_key` is present.
+- Generate a session-only token with `secrets.token_urlsafe()` only for a live
+  interactive run where stderr is a TTY and no `--api-key` or
+  `FREELLMPOOL_PROXY_KEY` is present. Noninteractive no-key runs exit 2 before
+  calling the proxy server; dry runs print a fixed safe marker instead.
 - Refuse `0.0.0.0` or non-Tailnet LAN binds unless the user passes explicit
   `--allow-lan` and auth is enabled. Refuse unauthenticated non-loopback serving
   unless the user passes an explicit `--allow-no-auth` escape hatch.
@@ -502,9 +514,12 @@ Definition of Done:
 
 - `freellmpool tailnet status` works without Tailscale installed and explains
   what is missing.
-- `freellmpool tailnet serve --dry-run` prints a concrete bind address,
-  generated auth token marker, dashboard URL, and client env vars without
-  starting a server.
+- `freellmpool tailnet serve --dry-run` prints a concrete bind address, the
+  fixed `<session-token-printed-on-real-run>` marker, dashboard URL, and client
+  env vars without creating a secret or starting a server.
+- Noninteractive live serving without `--api-key` or
+  `FREELLMPOOL_PROXY_KEY` exits 2 before server startup; interactive generation
+  prints the key exactly once and uses `<session-token-shown-above>` in hints.
 - Unit tests monkeypatch `subprocess.run` for installed, missing, logged-out,
   and malformed Tailscale output.
 - Unit tests cover unsafe bind refusal for `0.0.0.0` without `--allow-lan`.

@@ -12,7 +12,7 @@ For `r/Python`, restructure the body under the required sections:
 ## Title options
 
 - freellmpool: an MIT-licensed local gateway for pooling free LLM API tiers
-- I built a free/open-source LLM gateway that starts without API keys
+- I built a free/open-source LLM gateway that can start keyless when a public route is up
 - Open-source local proxy over free LLM provider tiers, with failover and MCP
 
 ## Body
@@ -39,7 +39,7 @@ Features:
 - keyless start when default keyless routes are available; optional free-tier
   keys unlock more models and capacity
 
-The current packaged catalog has 24 cataloged providers, 226 enabled chat routes, and 410
+The current packaged catalog has 22 cataloged providers, 177 enabled chat routes, and 431
 cataloged chat models.
 
 The project is intentionally honest about limitations:

@@ -7,14 +7,14 @@ rate-limits you mid-run (exactly when long agent loops tend to die).
 
 ## Release status
 
-- **Latest release: 0.12.0.** GitHub and PyPI both provide 0.12.0, including
+- **Latest release: 0.12.1.** GitHub and PyPI both provide 0.12.1, including
   the Hermes profile, `freellmpool/spread` routing, public `/livez` and
   `/readyz`, authenticated `/v1/providers`, `/v1/models?ready=true`, refreshed
   providers, Vercel AI Gateway support, and OpenCode registry-readiness hardening.
   Install it with `python -m pip install freellmpool`.
 
 - **Registry publication status: pending.** `opencode-freellmpool` and
-  `opencode-freellmpool-tui` were not published on npm as of 2026-07-19; use
+  `opencode-freellmpool-tui` were not published on npm as of 2026-08-29; use
   their local-file install paths.
 
 Start the gateway once:
@@ -141,9 +141,15 @@ The copy-pastable setup path is:
 ```bash
 freellmpool init --yes --agent metaswarm --tailnet
 freellmpool profile install metaswarm
-freellmpool tailnet serve --port 8080
+FREELLMPOOL_PROXY_KEY='<dedicated-tailnet-token>' freellmpool tailnet serve --port 8080
 freellmpool profile doctor metaswarm --dry-run
 ```
+
+Agents and other noninteractive launchers must pass `--api-key` or set
+`FREELLMPOOL_PROXY_KEY`; without an explicit key, `tailnet serve` exits 2 before
+starting. Interactive terminals may omit the key to receive a session token
+once on stderr. Dry runs print `<session-token-printed-on-real-run>`, never a
+usable token.
 
 ## Workflows that help agents
 
@@ -177,7 +183,7 @@ In the provider settings, set:
 
 - **Base URL:** `http://localhost:8080/v1`
 - **API key:** anything
-- **Model:** `auto`, or pin one like `groq/llama-3.3-70b-versatile`
+- **Model:** `auto`, or pin one like `groq/openai/gpt-oss-120b`
 
 ## LangChain
 

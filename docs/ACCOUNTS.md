@@ -1,16 +1,17 @@
 # Getting your free API keys (step by step)
 
-`freellmpool` is only as good as the free tiers you plug into it. Most providers
-below offer a cardless free tier, but requirements can change. Vercel currently
-requires customer/card verification, and its low-cost automatic route can use
-the included monthly Hobby credit. You don't need every provider — even **one**
-key gets you going. Start with Groq + Cerebras (the two fastest, most generous,
-and quickest to sign up for), then add more later.
+`freellmpool` is only as good as the free tiers you plug into it. Many providers
+below offer a cardless free tier, but requirements can change. Cerebras now
+offers finite trial credit rather than recurring free capacity, and Vercel can
+require customer/card verification even for a zero-price route. You don't need
+every provider — even **one** key gets you going. Start with Groq, then add
+Gemini or another provider for failover.
 
-> **No keys at all?** freellmpool still works: **Pollinations**, **OVHcloud**,
-> and **Kilo Gateway** are keyless (anonymous), and **LLM7** works without a key. So
-> `freellmpool ask "hi"` runs the moment you install. The keys below just add more
-> models, higher limits, and better failover.
+> **No keys at all?** **Pollinations**, **OVHcloud**, and **Kilo Gateway** expose
+> keyless routes, and **LLM7** works without a key. Therefore
+> `freellmpool ask "hi"` can answer after installation while at least one enabled
+> keyless route is available. The credentials below can add routes, capacity,
+> and failover; their eligibility and terms differ by provider.
 
 Each key takes about a minute. Once you have one, either `export` it in your
 shell or put it in a `.env` file (copy [`.env.example`](../.env.example)).
@@ -29,10 +30,15 @@ shell or put it in a `.env` file (copy [`.env.example`](../.env.example)).
    The same key also powers free **audio transcription** (Whisper) via
    `/v1/audio/transcriptions`.
 
-### Cerebras — *~1 min, no card*
+### Cerebras — *finite $5 trial credit*
 1. Go to <https://cloud.cerebras.ai> and sign in.
 2. Open **API Keys** → **Generate key**, copy it (`csk-...`).
 3. `export CEREBRAS_API_KEY=csk-...`
+
+The two currently documented Cerebras models are available only when explicitly
+pinned. They are not automatic recurring-free capacity. See Cerebras'
+[model list](https://inference-docs.cerebras.ai/models/overview) and
+[pricing](https://www.cerebras.ai/pricing) before using the trial.
 
 That's enough to start. Run `freellmpool ask "hello"`.
 
@@ -48,15 +54,14 @@ That's enough to start. Run `freellmpool ask "hello"`.
 1. <https://aistudio.google.com/apikey> → **Create API key**.
 2. `export GEMINI_API_KEY=...`
 
-### GitHub Models — *you probably already have this*
-1. Any GitHub Personal Access Token works: <https://github.com/settings/tokens>
-   → **Generate new token** (classic). No special scopes are required for
-   Models; a token with no scopes is fine.
-2. `export GITHUB_TOKEN=ghp_...`
-
 ### Mistral — *free tier*
 1. <https://console.mistral.ai/api-keys> → **Create new key**.
 2. `export MISTRAL_API_KEY=...`
+
+   Free-mode monthly usage is account- and model-specific; check the current
+   **Limits** page rather than treating catalog RPD hints as an entitlement.
+   Labs models are experimental, and disabled/pin-only lifecycle entries are
+   excluded from automatic routing.
 
    Also gives free **audio transcription** (Voxtral) — a failover for Groq's
    Whisper on `/v1/audio/transcriptions`.
@@ -81,10 +86,6 @@ That's enough to start. Run `freellmpool ask "hello"`.
 1. <https://ollama.com/settings/keys> → **Create key**.
 2. `export OLLAMA_API_KEY=...`
 
-### LongCat (Meituan) — *free tier*
-1. <https://longcat.chat> → developer/API keys.
-2. `export LONGCAT_API_KEY=...`
-
 ### Aion Labs — *20K free tokens/day, no card*
 1. <https://api.aionlabs.ai> → create an account and API key.
 2. `export AION_API_KEY=...`
@@ -100,12 +101,14 @@ That's enough to start. Run `freellmpool ask "hello"`.
    calls/day in total and up to 200 calls/day for one model. Availability and
    per-model caps can change with platform capacity.
 
-### Morph — *200 free requests/month*
+### Morph — *priced routes; disabled pending cost-safe eligibility evidence*
 1. <https://www.morphllm.com/dashboard/api-keys> → create an account and API key.
 2. `export MORPH_API_KEY=...`
 
-   The recurring allowance is shared across Morph's fast models, including
-   GLM-5.2, MiniMax M3, and DeepSeek V4 Flash.
+   Morph's cataloged routes currently have non-zero pricing and are disabled in
+   freellmpool. Setting a key does not make them automatic capacity. Use Morph
+   only after checking current pricing and explicitly revisiting the catalog's
+   cost-safety policy.
 
 ### Vercel AI Gateway — *$5 recurring monthly Hobby credit*
 1. <https://vercel.com/ai-gateway> → create or select a free Hobby team.
@@ -119,12 +122,13 @@ That's enough to start. Run `freellmpool ask "hello"`.
    caps: the request that crosses a limit may finish before later requests are
    rejected, so leave headroom below the included credit.
 
-   A configured key intentionally enables Vercel automatic routing. The default
-   set includes the currently zero-priced `poolside/laguna-s-2.1-free` and
-   `nvidia/nemotron-3.5-lightning-free` routes plus the credit-consuming,
-   low-cost `deepseek/deepseek-v4-flash-0731`. Prices can change; the local RPD
-   value is a request-count hint, not a monetary ceiling. Five costlier frontier
-   routes remain available only when explicitly pinned.
+   A configured key makes only the currently zero-priced
+   `poolside/laguna-s-2.1-free` route eligible for automatic routing. The priced
+   `deepseek/deepseek-v4-flash-0731` and unsuffixed
+   `nvidia/nemotron-3.5-lightning` routes require explicit pins. The zero-price
+   Ling and MiniMax candidates remain disabled pending provenance, completion,
+   and cost canaries. Prices can change; the local RPD value is a request-count
+   hint, not a monetary ceiling.
 
    A card on file is not itself proof that credits were purchased. The Hobby
    team receives $5 of gateway credit each month. Do not purchase
@@ -137,7 +141,7 @@ That's enough to start. Run `freellmpool ask "hello"`.
    ```
 
    After Vercel has cleared any required customer verification, run the bounded
-   three-call zero-price acceptance canary:
+   zero-price acceptance canary:
 
    ```bash
    python3 scripts/verify_vercel_gateway.py
@@ -145,7 +149,7 @@ That's enough to start. Run `freellmpool ask "hello"`.
 
    A priced canary is blocked unless `--attest-credit-spend` is supplied. See
    [the dated Vercel acceptance audit](VERCEL_ACCEPTANCE_2026-08-23.md) for
-   pricing, provenance, privacy, and the current live-verification status.
+   pricing, provenance, privacy, and the current public-verification status.
 
 ### SiliconFlow — *free models, identity verification required*
 1. <https://cloud.siliconflow.cn/account/ak> → sign in and create an API key.

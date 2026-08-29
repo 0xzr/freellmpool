@@ -1,8 +1,7 @@
 name: Docker
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_call:
 
 jobs:
   gate:
@@ -10,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -23,16 +23,56 @@ jobs:
           package_version=$(python -c \
             'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
           test "$GITHUB_REF_NAME" = "v$package_version"
-          git fetch --no-tags origin main
+          git fetch --force --no-tags origin main \
+            "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+
+      - name: Re-run source, catalog, metadata, and coverage gates
+        run: |
+          python -m pip install --disable-pip-version-check -e ".[dev]"
+          ruff check .
+          PYTHONPATH=src python scripts/validate_catalog.py
+          scripts/check-counts
+          PYTHONPATH=src python scripts/check_release_ready.py --skip-build
+          pytest --cov=freellmpool --cov-branch \
+            --cov-report=term-missing --cov-report=json:.coverage.json
+          python scripts/check_coverage.py .coverage.json
+
+      - name: Require zero open high-severity code-scanning alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          high_alerts=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=high&per_page=100" \
+            --jq '.[].number')
+          critical_alerts=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=critical&per_page=100" \
+            --jq '.[].number')
+          if test -n "$high_alerts$critical_alerts"; then
+            echo "Open high/critical code-scanning alerts block release." >&2
+            printf 'high: %s\ncritical: %s\n' "$high_alerts" "$critical_alerts" >&2
+            exit 1
+          fi
 
       - name: Validate security exceptions
         run: |
           python3 scripts/security_exceptions.py validate
           python3 scripts/security_exceptions.py ids trivy > .trivyignore.generated
 
-      - name: Set up Buildx
+      - name: Set up pinned Buildx and BuildKit
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: v0.36.1
+          driver-opts: >-
+            image=moby/buildkit@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
 
       - name: Build exact release image archive
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
@@ -53,6 +93,33 @@ jobs:
           scanners: vuln
           trivyignores: .trivyignore.generated
           version: v0.72.0
+
+      - name: Smoke-test the exact scanned image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="freellmpool:release-scan-$GITHUB_SHA"
+          container="freellmpool-release-smoke-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker load --input /tmp/freellmpool-image.tar
+          docker run --rm --entrypoint python "$image" -c \
+            'import os, freellmpool; assert freellmpool.__version__; assert os.getuid() != 0'
+          docker run --rm "$image" --version
+          docker run --detach --name "$container" \
+            --publish 127.0.0.1:18080:8080 "$image"
+          cleanup() { docker rm --force "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          healthy=false
+          for _attempt in $(seq 1 30); do
+            if response=$(curl --fail --silent http://127.0.0.1:18080/healthz) && \
+              python -c \
+                'import json, sys; assert json.loads(sys.argv[1])["status"] == "ok"' \
+                "$response"; then
+              healthy=true
+              break
+            fi
+            sleep 1
+          done
+          test "$healthy" = true
 
       - name: Record scanned archive identity
         run: |
@@ -85,6 +152,13 @@ jobs:
           name: scanned-release-image-${{ github.sha }}
           path: /tmp/scanned-release-image
 
+      - name: Set up pinned Buildx and BuildKit
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        with:
+          version: v0.36.1
+          driver-opts: >-
+            image=moby/buildkit@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
+
       - name: Load exact scanned image
         run: |
           cd /tmp/scanned-release-image
@@ -98,7 +172,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -107,29 +180,48 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Promote exact scanned image
+      - name: Push immutable staging image
         id: push
         shell: bash
-        env:
-          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
           source_image="freellmpool:release-scan-$GITHUB_SHA"
-          mapfile -t tags <<< "$IMAGE_TAGS"
-          test "${#tags[@]}" -gt 0
-          digest=""
-          for tag in "${tags[@]}"; do
-            docker tag "$source_image" "$tag"
-            docker push "$tag"
-            tag_digest="sha256:$(docker buildx imagetools inspect "$tag" --raw | sha256sum | cut -d ' ' -f 1)"
-            if test -z "$digest"; then
-              digest="$tag_digest"
-            else
-              test "$tag_digest" = "$digest"
-            fi
-          done
+          staging="ghcr.io/$GITHUB_REPOSITORY:staging-$GITHUB_SHA"
+          docker tag "$source_image" "$staging"
+          docker push "$staging"
+          digest="sha256:$(docker buildx imagetools inspect "$staging" --raw | sha256sum | cut -d ' ' -f 1)"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "staging=$staging" >> "$GITHUB_OUTPUT"
+
+      - name: Preflight immutable version tags
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          STAGING_DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags <<< "$IMAGE_TAGS"
+          test "${#tags[@]}" -gt 0
+          for tag in "${tags[@]}"; do
+            manifest=$(mktemp)
+            inspect_error=$(mktemp)
+            if docker buildx imagetools inspect "$tag" --raw \
+              > "$manifest" 2> "$inspect_error"; then
+              existing_digest="sha256:$(sha256sum "$manifest" | cut -d ' ' -f 1)"
+            elif grep -Eqi 'manifest unknown|not found' "$inspect_error"; then
+              existing_digest=""
+            else
+              cat "$inspect_error" >&2
+              exit 1
+            fi
+            rm -f "$manifest" "$inspect_error"
+            if test -n "$existing_digest" && \
+              test "$existing_digest" != "$STAGING_DIGEST"; then
+              echo "Refusing to overwrite immutable version tag $tag" >&2
+              exit 1
+            fi
+          done
 
       - name: Generate downloadable image SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
@@ -155,3 +247,40 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           sbom-path: container-sbom.spdx.json
           push-to-registry: true
+
+      - name: Promote attested release image
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          STAGING_IMAGE: ${{ steps.push.outputs.staging }}
+          STAGING_DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags <<< "$IMAGE_TAGS"
+          test "${#tags[@]}" -gt 0
+          for tag in "${tags[@]}"; do
+            manifest=$(mktemp)
+            inspect_error=$(mktemp)
+            if docker buildx imagetools inspect "$tag" --raw \
+              > "$manifest" 2> "$inspect_error"; then
+              existing_digest="sha256:$(sha256sum "$manifest" | cut -d ' ' -f 1)"
+            elif grep -Eqi 'manifest unknown|not found' "$inspect_error"; then
+              existing_digest=""
+            else
+              cat "$inspect_error" >&2
+              exit 1
+            fi
+            rm -f "$manifest" "$inspect_error"
+            if test "$existing_digest" = "$STAGING_DIGEST"; then
+              echo "$tag already points to the attested digest."
+              continue
+            fi
+            if test -n "$existing_digest"; then
+              echo "Refusing to overwrite immutable version tag $tag" >&2
+              exit 1
+            fi
+            docker buildx imagetools create --tag "$tag" \
+              --prefer-index=false "$STAGING_IMAGE@$STAGING_DIGEST"
+            tag_digest="sha256:$(docker buildx imagetools inspect "$tag" --raw | sha256sum | cut -d ' ' -f 1)"
+            test "$tag_digest" = "$STAGING_DIGEST"
+          done

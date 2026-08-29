@@ -17,9 +17,9 @@ https://github.com/0xzr/freellmpool
 ## Description
 
 freellmpool is a local stdio MCP server that lets MCP clients use pooled free LLM
-provider tiers. It works with no API keys through keyless providers, and users
-can add their own free-tier provider keys to unlock more models and higher
-limits.
+provider tiers. It can start with no API keys when a keyless provider is
+available, and users can add their own free-tier provider keys to unlock more
+models and higher limits.
 
 ## Features
 

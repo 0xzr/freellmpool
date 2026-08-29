@@ -162,6 +162,33 @@ def test_container_base_is_digest_pinned():
     )
 
 
+def test_container_runtime_dependency_resolution_is_exactly_pinned():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    pins = set(re.findall(r'"([a-z0-9-]+==[^"]+)"', dockerfile))
+
+    assert pins == {
+        "anyio==4.14.2",
+        "certifi==2026.7.22",
+        "h11==0.16.0",
+        "httpcore==1.0.9",
+        "httpx==0.28.1",
+        "idna==3.19",
+    }
+
+
+def test_container_recovery_reproducibility_limit_is_documented():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    checklist = (ROOT / "docs" / "RELEASE_CHECKLIST.md").read_text(encoding="utf-8")
+
+    if "apk upgrade --no-cache" in dockerfile:
+        for required in (
+            "not guaranteed to be bit-for-bit identical",
+            "immutable version-tag preflight must refuse a differing existing digest",
+            "stop rather than overwriting that tag",
+        ):
+            assert required in checklist
+
+
 def test_pull_requests_have_source_dependency_workflow_and_container_gates():
     codeql = (WORKFLOWS / "codeql.yml").read_text(encoding="utf-8")
     security = (WORKFLOWS / "security.yml").read_text(encoding="utf-8")
@@ -191,40 +218,146 @@ def test_release_artifacts_and_images_have_sboms_and_provenance():
     package_jobs = yaml.safe_load(packages)["jobs"]
     image_jobs = yaml.safe_load(images)["jobs"]
 
+    assert "workflow_dispatch:" not in packages
+    assert "if: github.ref_type == 'tag'" not in packages
+    assert 'tags: ["v*"]' in packages
+    assert "workflow_call:" in images
+    assert 'tags: ["v*"]' not in images
+
     for workflow in (packages, images):
-        assert "workflow_dispatch:" not in workflow
-        assert "if: github.ref_type == 'tag'" not in workflow
-        assert 'tags: ["v*"]' in workflow
         assert "git merge-base --is-ancestor" in workflow
+        assert "git cat-file -t" in workflow
+        assert '")" = tag' in workflow
+        assert 'test "$(git rev-parse origin/main)" = "$GITHUB_SHA"' not in workflow
+        for release_gate in (
+            "ruff check .",
+            "scripts/validate_catalog.py",
+            "scripts/check-counts",
+            "scripts/check_release_ready.py --skip-build",
+            "pytest --cov=freellmpool --cov-branch",
+            "scripts/check_coverage.py .coverage.json",
+        ):
+            assert release_gate in workflow
+        assert "code-scanning/alerts?state=open&severity=high" in workflow
+        assert "code-scanning/alerts?state=open&severity=critical" in workflow
 
     assert "anchore/sbom-action@" in packages
     assert "pip-audit==2.10.1" in packages
     assert "scripts/security_exceptions.py validate" in packages
-    assert package_jobs["gate"]["permissions"] == {"contents": "read"}
+    assert package_jobs["gate"]["permissions"] == {
+        "contents": "read",
+        "security-events": "read",
+    }
     assert package_jobs["packages"]["needs"] == "gate"
     assert package_jobs["packages"]["permissions"]["id-token"] == "write"
     assert packages.count("actions/attest@") >= 3
     assert "actions/upload-artifact@" in packages
     assert "dist/*.whl" in packages
     assert "dist/*.tar.gz" in packages
+    assert package_jobs["container"]["needs"] == "packages"
+    assert package_jobs["container"]["uses"] == "./.github/workflows/docker.yml"
+    assert package_jobs["container"]["permissions"] == {
+        "attestations": "write",
+        "contents": "read",
+        "id-token": "write",
+        "packages": "write",
+        "security-events": "read",
+    }
 
     assert "anchore/sbom-action@" in images
     assert "aquasecurity/trivy-action@" in images
     assert images.index("aquasecurity/trivy-action@") < images.index(
-        "Promote exact scanned image"
+        "Push immutable staging image"
     )
     assert images.count("docker/build-push-action@") == 1
-    assert "docker/setup-buildx-action@" in images
+    assert images.count("docker/setup-buildx-action@") == 2
+    assert images.count("version: v0.36.1") == 2
+    assert images.count(
+        "image=moby/buildkit@sha256:"
+        "28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8"
+    ) == 2
     assert "type=docker,dest=/tmp/freellmpool-image.tar" in images
     assert "input: /tmp/freellmpool-image.tar" in images
     assert "actions/download-artifact@" in images
     assert "sha256sum --check freellmpool-image.tar.sha256" in images
     assert "docker load --input" in images
-    assert image_jobs["gate"]["permissions"] == {"contents": "read"}
+    assert "docker run --rm --entrypoint python" in images
+    assert 'docker run --rm "$image" --version' in images
+    assert "/healthz" in images
+    assert image_jobs["gate"]["permissions"] == {
+        "contents": "read",
+        "security-events": "read",
+    }
     assert image_jobs["publish"]["needs"] == "gate"
     assert image_jobs["publish"]["permissions"]["packages"] == "write"
     assert images.count("actions/attest@") >= 2
     assert "push-to-registry: true" in images
+    assert "staging-$GITHUB_SHA" in images
+    assert images.index("Push immutable staging image") < images.index(
+        "Generate downloadable image SBOM"
+    )
+    assert images.index("Generate downloadable image SBOM") < images.index(
+        "Attest image provenance"
+    )
+    assert images.index("Attest image SBOM") < images.index(
+        "Promote attested release image"
+    )
+    assert "docker buildx imagetools create --tag" in images
+    assert "--prefer-index=false" in images
+    assert "type=raw,value=latest" not in images
+    assert "*:latest" not in images
+    assert "Preflight immutable version tags" in images
+    assert "manifest unknown|not found" in images
+    assert "Refusing to overwrite immutable version tag" in images
+    assert "existing_digest" in images
+    assert images.index("Preflight immutable version tags") < images.index(
+        "Promote attested release image"
+    )
+
+
+def test_latest_container_promotion_follows_authoritative_immutable_release():
+    workflow = (WORKFLOWS / "promote-latest.yml").read_text(encoding="utf-8")
+    jobs = yaml.safe_load(workflow)["jobs"]
+    promote = jobs["promote"]
+
+    assert "release:\n    types: [published]" in workflow
+    assert "push:" not in workflow
+    assert "pull_request:" not in workflow
+    assert "group: ghcr-latest-promotion" in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert promote["permissions"] == {
+        "attestations": "read",
+        "contents": "read",
+        "packages": "write",
+    }
+    assert promote["if"] == (
+        "github.event.release.draft == false && "
+        "github.event.release.prerelease == false"
+    )
+    for required in (
+        "gh_2.98.0_linux_amd64.tar.gz",
+        "3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de",
+        "repos/$GITHUB_REPOSITORY/releases/latest",
+        "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG",
+        ".immutable",
+        "git merge-base --is-ancestor",
+        "git cat-file -t",
+        "version: v0.36.1",
+        "image=moby/buildkit@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8",
+        "attestation verify",
+        '"oci://$image@$version_digest"',
+        '--source-ref "refs/tags/$RELEASE_TAG"',
+        '--source-digest "$RELEASE_COMMIT"',
+        '"$GITHUB_REPOSITORY/.github/workflows/docker.yml"',
+        "--deny-self-hosted-runners",
+        'imagetools create --tag "$latest_image"',
+        'test "$latest_digest" = "$version_digest"',
+    ):
+        assert required in workflow
+    assert workflow.count("repos/$GITHUB_REPOSITORY/releases/latest") >= 3
+    assert workflow.index("attestation verify") < workflow.index(
+        'imagetools create --tag "$latest_image"'
+    )
 
 
 def test_release_checklist_only_passes_distributions_to_twine():
@@ -234,7 +367,109 @@ def test_release_checklist_only_passes_distributions_to_twine():
     assert ".[dev,security]" in checklist
     assert 'twine check "$release_evidence_dir"/*.whl' in checklist
     assert '"$release_evidence_dir"/*.tar.gz' in checklist
-    assert 'twine upload "$release_evidence_dir"/*.whl' in checklist
+    assert 'twine upload --skip-existing "$release_evidence_dir"/*.whl' in checklist
+    assert "twine upload --skip-existing" in checklist
+    subset = (
+        'freellmpool "$release_version" "$release_evidence_dir" --mode subset'
+    )
+    exact = 'freellmpool "$release_version" "$release_evidence_dir" --mode exact'
+    upload = 'twine upload --skip-existing "$release_evidence_dir"/*.whl'
+    assert subset in checklist
+    assert exact in checklist
+    assert "published_artifacts_verified=false" in checklist
+    assert 'test "$published_artifacts_verified" = true' in checklist
+    assert checklist.index(subset) < checklist.index(upload) < checklist.index(exact)
+    assert (
+        "aquasec/trivy:0.72.0@sha256:"
+        "cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f"
+    ) in checklist
+    assert "/var/run/docker.sock" not in checklist
+    assert "--input /scan/freellmpool-image.tar" in checklist
+
+
+def test_release_checklist_binds_provenance_and_publishes_immutable_assets():
+    checklist = (ROOT / "docs" / "RELEASE_CHECKLIST.md").read_text(encoding="utf-8")
+
+    for required in (
+        "gh_2.98.0_linux_amd64.tar.gz",
+        "3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de",
+        "repos/0xzr/freellmpool/immutable-releases",
+        '--source-ref "refs/tags/$release_tag"',
+        '--source-digest "$release_commit"',
+        "--signer-workflow",
+        "0xzr/freellmpool/.github/workflows/release-evidence.yml",
+        "0xzr/freellmpool/.github/workflows/docker.yml",
+        "--deny-self-hosted-runners",
+        'release create "$release_tag"',
+        "--draft",
+        "--verify-tag",
+        'release edit "$release_tag" --draft=false --latest',
+        'release verify "$release_tag"',
+        'release verify-asset "$release_tag" "$asset"',
+        "--json isDraft,isImmutable",
+        "repos/0xzr/freellmpool/releases/latest",
+        'git show "${release_commit}:CHANGELOG.md"',
+        "git show HEAD:pyproject.toml",
+        'git ls-remote origin "refs/tags/$release_tag^{}"',
+        'git cat-file -t "refs/tags/$release_tag"',
+        "docker buildx version",
+        'release download "$release_tag" --dir "$draft_assets_dir"',
+        'sha256sum "$draft_assets_dir/$asset_name"',
+        "run list --workflow promote-latest.yml",
+        'run watch "$promotion_run_id" --exit-status',
+        "run list --workflow pages.yml",
+        'run watch "$pages_run_id" --exit-status',
+        '"oci://ghcr.io/0xzr/freellmpool:latest"',
+    ):
+        assert required in checklist
+
+    assert "isLatest" not in checklist
+    assert checklist.count("```bash\n") == checklist.count(
+        "```bash\nset -euo pipefail\n"
+    )
+    assert checklist.index("set -euo pipefail") < checklist.index(
+        "gh_2.98.0_linux_amd64.tar.gz"
+    )
+
+    assert checklist.index('release create "$release_tag"') < checklist.index(
+        'release edit "$release_tag" --draft=false --latest'
+    )
+    assert checklist.index('release edit "$release_tag" --draft=false --latest') < (
+        checklist.index('release verify "$release_tag"')
+    )
+    clean_gate = 'test -z "$(git status --porcelain=v1 --untracked-files=all)"'
+    assert checklist.count(clean_gate) >= 3
+    remote_tag_gate = 'git ls-remote origin "refs/tags/$release_tag^{}"'
+    assert checklist.count(remote_tag_gate) >= 3
+    assert checklist.index(remote_tag_gate) < checklist.index(
+        'release create "$release_tag"'
+    )
+    assert checklist.rindex(remote_tag_gate, 0, checklist.index("twine upload")) > (
+        checklist.index("--mode subset")
+    )
+    asset_check = 'sha256sum "$draft_assets_dir/$asset_name"'
+    assert checklist.index(asset_check) < checklist.index(
+        'release edit "$release_tag" --draft=false --latest'
+    )
+    assert checklist.index('release edit "$release_tag" --draft=false --latest') < (
+        checklist.index('run list --workflow promote-latest.yml')
+    )
+    assert checklist.index('run watch "$promotion_run_id" --exit-status') < (
+        checklist.index('run watch "$pages_run_id" --exit-status')
+    )
+    pages_selector = checklist.split('pages_run_id=""', maxsplit=1)[1].split(
+        "release_verified=false", maxsplit=1
+    )[0]
+    for required in (
+        "run list --workflow pages.yml",
+        '.headSha == \\"$release_commit\\"',
+        '.headBranch == \\"$release_tag\\"',
+        '.event == \\"release\\"',
+        "sort_by(.databaseId) | last | .databaseId // empty",
+        'test -n "$pages_run_id"',
+        'run watch "$pages_run_id" --exit-status',
+    ):
+        assert required in pages_selector
 
 
 def test_ci_and_release_evidence_validate_built_distribution_metadata():
@@ -245,7 +480,11 @@ def test_ci_and_release_evidence_validate_built_distribution_metadata():
     assert "python -m twine check dist/*.whl dist/*.tar.gz" in ci
     assert "twine==7.0.0" in release
     assert "python -m twine check dist/*.whl dist/*.tar.gz" in release
+    assert '"pip==26.2.1"' in readiness
+    assert '"build==1.5.0"' in readiness
     assert '"twine==7.0.0"' in readiness
+    assert '"pkginfo==1.12.1.2"' in readiness
+    assert '"build>=1.2"' not in readiness
 
 
 def test_security_enforcement_is_documented():

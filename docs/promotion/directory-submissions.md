@@ -95,7 +95,7 @@ Captions and alt text:
 
 - `assets/social-preview.png`: "Project preview card for freellmpool: free LLM
   API pool for agents and local proxies." Alt text: "Dark social preview image
-  for freellmpool with feature labels for keyless start, 24 providers, OpenAI
+  for freellmpool with feature labels for keyless start, 22 providers, OpenAI
   proxy, MCP, transcription, and tokenmax."
 - `assets/demo.png`: "Terminal demo showing freellmpool routing through its
   local proxy and reporting catalog/provider status." Alt text: "Screenshot of a

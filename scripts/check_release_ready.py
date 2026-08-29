@@ -27,6 +27,8 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from catalog_counts import catalog_counts  # noqa: E402
+from check_assets import check_assets  # noqa: E402
+from check_docs import check_docs  # noqa: E402
 
 from freellmpool._version import __version__  # noqa: E402
 
@@ -83,6 +85,8 @@ def metadata_errors(root: Path, *, version: str | None = None) -> list[str]:
     changelog = _read(root / "CHANGELOG.md")
     demo_script = _read(root / "scripts" / "demo.sh")
     counts = catalog_counts(root)
+    errors.extend(f"generated assets: {error}" for error in check_assets(root))
+    errors.extend(f"documentation: {error}" for error in check_docs(root / "docs"))
 
     def require(condition: bool, message: str) -> None:
         if not condition:
@@ -110,7 +114,7 @@ def metadata_errors(root: Path, *, version: str | None = None) -> list[str]:
     require(provider_phrase in readme, "README provider count mismatch")
     require(f"{counts.providers} cataloged providers" in demo, "demo SVG provider count mismatch")
     require(
-        f"{counts.enabled_chat_models} enabled routes" in demo,
+        f"{counts.enabled_chat_models} enabled chat routes" in demo,
         "demo SVG enabled route count mismatch",
     )
     require(
@@ -175,28 +179,44 @@ def _run(cmd: list[str], *, cwd: Path) -> None:
     subprocess.run(cmd, cwd=cwd, check=True)
 
 
+def _prepare_dist_dir(root: Path, requested: Path) -> Path:
+    """Resolve a caller-owned artifact directory without removing existing data."""
+    repository = root.resolve()
+    dist = requested.expanduser().resolve()
+    if dist in {repository, *repository.parents}:
+        raise ValueError("release output cannot be the repository root or an ancestor")
+    if dist.exists():
+        if not dist.is_dir() or any(dist.iterdir()):
+            raise ValueError("release output directory must be empty")
+    else:
+        dist.mkdir(parents=True, exist_ok=False)
+    return dist
+
+
 def build_and_smoke(root: Path, *, version: str, dist_dir: Path | None = None) -> None:
     if dist_dir is None:
         tmp = tempfile.TemporaryDirectory(prefix="flp-release-ready-")
         dist = Path(tmp.name) / "dist"
     else:
         tmp = None
-        dist = dist_dir
-        if dist.exists():
-            shutil.rmtree(dist)
+        dist = _prepare_dist_dir(root, dist_dir)
 
     # The host toolchain may ship an old pkginfo/twine that rejects modern
     # metadata. Create an isolated checker venv with
     # packaging tools known to support modern metadata.
     checker_tmp = tempfile.TemporaryDirectory(prefix="flp-release-checker-")
     checker = Path(checker_tmp.name) / "venv"
+    smoke_tmp = tempfile.TemporaryDirectory(prefix="flp-wheel-smoke-")
 
     try:
         dist.mkdir(parents=True, exist_ok=True)
 
         _run([sys.executable, "-m", "venv", str(checker)], cwd=root)
         checker_py = checker / "bin" / "python"
-        _run([str(checker_py), "-m", "pip", "install", "--upgrade", "pip"], cwd=root)
+        _run(
+            [str(checker_py), "-m", "pip", "install", "--upgrade", "pip==26.2.1"],
+            cwd=root,
+        )
         _run(
             [
                 str(checker_py),
@@ -204,9 +224,9 @@ def build_and_smoke(root: Path, *, version: str, dist_dir: Path | None = None) -
                 "pip",
                 "install",
                 "--upgrade",
-                "build>=1.2",
+                "build==1.5.0",
                 "twine==7.0.0",
-                "pkginfo>=1.12,<2.0",
+                "pkginfo==1.12.1.2",
             ],
             cwd=root,
         )
@@ -227,13 +247,14 @@ def build_and_smoke(root: Path, *, version: str, dist_dir: Path | None = None) -
         if not wheels:
             raise RuntimeError("build produced no wheel")
 
-        venv = dist.parent / "wheel-smoke"
-        if venv.exists():
-            shutil.rmtree(venv)
+        venv = Path(smoke_tmp.name) / "venv"
         _run([sys.executable, "-m", "venv", str(venv)], cwd=root)
         py = venv / "bin" / "python"
         cli = venv / "bin" / "freellmpool"
-        _run([str(py), "-m", "pip", "install", "--upgrade", "pip"], cwd=root)
+        _run(
+            [str(py), "-m", "pip", "install", "--upgrade", "pip==26.2.1"],
+            cwd=root,
+        )
         _run([str(py), "-m", "pip", "install", "--no-cache-dir", str(wheels[0])], cwd=root)
         check = (
             "import freellmpool; "
@@ -247,6 +268,7 @@ def build_and_smoke(root: Path, *, version: str, dist_dir: Path | None = None) -
         if tmp is not None:
             tmp.cleanup()
         checker_tmp.cleanup()
+        smoke_tmp.cleanup()
 
 
 def pypi_smoke(version: str) -> None:
@@ -267,6 +289,14 @@ def docker_smoke(image: str, version: str) -> None:
     if docker is None:
         raise RuntimeError("docker is not installed")
     _run([docker, "pull", image], cwd=Path.cwd())
+    version_check = (
+        "import freellmpool; "
+        f"assert freellmpool.__version__ == {version!r}, freellmpool.__version__"
+    )
+    _run(
+        [docker, "run", "--rm", "--entrypoint", "python", image, "-c", version_check],
+        cwd=Path.cwd(),
+    )
     _run([docker, "run", "--rm", image, "--version"], cwd=Path.cwd())
     # Keep this smoke cheap and non-networked inside the container.
     _run(

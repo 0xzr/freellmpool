@@ -7,7 +7,7 @@
       .bg { fill: #0b1020; }
       .panel { fill: #121a2b; stroke: #273149; stroke-width: 1; }
       .muted { fill: #8da0bf; }
-      .text { fill: #eef4ff; font: 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .text { fill: #eef4ff; font: 18px "DejaVu Sans Mono"; }
       .small { font-size: 15px; }
       .prompt { fill: #63d297; }
       .dim { fill: #64748b; }
@@ -41,13 +41,13 @@
     <text class="text line l1" style="opacity:1" x="0" y="0"><tspan class="prompt">$</tspan> pip install -e .</text>
     <text class="text line l2" style="opacity:1" x="0" y="42"><tspan class="green">Installed from current checkout</tspan> <tspan class="dim">(httpx only)</tspan></text>
     <text class="text line l3" style="opacity:1" x="0" y="84"><tspan class="prompt">$</tspan> freellmpool tokenmax "name this free LLM gateway" --max-models 6</text>
-    <text class="text line l4" style="opacity:1" x="0" y="126"><tspan class="pink">TOKENMAXXING</tspan> <tspan class="yellow">6/6</tspan> models across <tspan class="cyan">4 providers</tspan></text>
+    <text class="text line l4" style="opacity:1" x="0" y="126"><tspan class="pink">TOKENMAXXING</tspan> <tspan class="yellow">6/6</tspan> models across <tspan class="cyan">4 live targets</tspan></text>
     <text class="text line l5" style="opacity:1" x="0" y="168"><tspan class="cyan">pollinations/openai-fast</tspan>  "freellmpool"</text>
     <text class="text line l5" style="opacity:1" x="0" y="202"><tspan class="purple">ovh/Meta-Llama-3_3-70B-Instruct</tspan> "FreePool"</text>
     <text class="text line l6" style="opacity:1" x="0" y="236"><tspan class="yellow">kilo/openrouter/free</tspan>      "ZeroKey"</text>
-    <text class="text line l6" style="opacity:1" x="0" y="270"><tspan class="green">llm7/gpt-oss:20b</tspan>          "PoolPilot"</text>
+    <text class="text line l6" style="opacity:1" x="0" y="270"><tspan class="green">llm7/default</tspan>              "PoolPilot"</text>
     <text class="text line l7" style="opacity:1" x="0" y="326"><tspan class="pink">SYNTHESIS</tspan> freellmpool: one local API over the free tiers.</text>
-    <text class="text line l8" style="opacity:1" x="0" y="348"><tspan class="green">current checkout catalog:</tspan> 24 cataloged providers, 226 enabled routes</text>
+    <text class="text line l8" style="opacity:1" x="0" y="348"><tspan class="green">current checkout catalog:</tspan> 22 cataloged providers, 177 enabled chat routes</text>
     <text class="text line l8" style="opacity:1" x="0" y="382">keyless start when available; add free keys for more capacity</text>
     <rect class="cursor" x="0" y="404" width="10" height="22" fill="#eef4ff"/>
   </g>

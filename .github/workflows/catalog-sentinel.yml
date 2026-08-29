@@ -135,20 +135,17 @@ jobs:
           python-version: "3.14"
       - name: Install runtime
         run: python -m pip install --disable-pip-version-check .
-      - name: Detect protected probe configuration
-        id: probe-config
+      - name: Require protected probe credentials
         env:
-          SENTINEL_KEYS: ${{ secrets.FREELLMPOOL_SENTINEL_KEYS_JSON }}
+          FREELLMPOOL_SENTINEL_KEYS_JSON: ${{ secrets.FREELLMPOOL_SENTINEL_KEYS_JSON }}
         shell: bash
         run: |
-          if test -n "$SENTINEL_KEYS"; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "Protected probe secret is not configured; public discovery still completed."
+          set -euo pipefail
+          if test -z "$FREELLMPOOL_SENTINEL_KEYS_JSON"; then
+            echo "::error title=Catalog sentinel credentials missing::FREELLMPOOL_SENTINEL_KEYS_JSON must be configured in the protected catalog-sentinel environment."
+            exit 1
           fi
       - name: Restore prior probe lifecycle state
-        if: steps.probe-config.outputs.configured == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
@@ -158,7 +155,6 @@ jobs:
           restore-keys: |
             catalog-sentinel-probe-
       - name: Run bounded authenticated probes
-        if: steps.probe-config.outputs.configured == 'true'
         env:
           FREELLMPOOL_SENTINEL_KEYS_JSON: ${{ secrets.FREELLMPOOL_SENTINEL_KEYS_JSON }}
         shell: bash
@@ -178,7 +174,6 @@ jobs:
             "${previous[@]}"
           cp .sentinel-artifacts/probe.json .sentinel-state/probe.json
       - name: Run bounded protocol conformance canaries
-        if: steps.probe-config.outputs.configured == 'true'
         env:
           FREELLMPOOL_CONFORMANCE_FILE: .sentinel-state/conformance.json
           FREELLMPOOL_CONFORMANCE_KEYS_JSON: ${{ secrets.FREELLMPOOL_SENTINEL_KEYS_JSON }}
@@ -193,7 +188,6 @@ jobs:
             --json > .sentinel-artifacts/conformance.json
           cp .sentinel-state/conformance.json .sentinel-artifacts/conformance-state.json
       - name: Prepare bounded probe issue
-        if: steps.probe-config.outputs.configured == 'true'
         id: probe-drift
         shell: bash
         run: |
@@ -240,7 +234,6 @@ jobs:
               --body-file .sentinel-artifacts/probe-issue.md
           fi
       - name: Upload sanitized protected evidence
-        if: steps.probe-config.outputs.configured == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: catalog-sentinel-probes-${{ github.run_id }}
@@ -252,7 +245,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Save probe lifecycle state
-        if: steps.probe-config.outputs.configured == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |

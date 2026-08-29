@@ -1,0 +1,197 @@
+name: Publish MCP registry manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact released package and manifest version
+        required: true
+        type: string
+      commit:
+        description: Exact immutable release source SHA referenced by the release tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-mcp-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: mcp-registry
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Validate immutable inputs
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          case "$RELEASE_COMMIT" in
+            *[!0-9a-f]*|"") exit 1 ;;
+          esac
+          test "${#RELEASE_COMMIT}" -eq 40
+          python -c \
+            'import re, sys; assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", sys.argv[1])' \
+            "$RELEASE_VERSION"
+
+      - name: Check out the exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require an ancestor of main and its exact annotated release tag
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch --force origin main \
+            "refs/tags/v$RELEASE_VERSION:refs/tags/v$RELEASE_VERSION"
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main
+          test "$(git cat-file -t "refs/tags/v$RELEASE_VERSION")" = tag
+          test "$(git rev-parse "refs/tags/v$RELEASE_VERSION^{commit}")" = "$RELEASE_COMMIT"
+          package_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          manifest_version=$(python -c \
+            'import json; print(json.load(open("server.json"))["version"])')
+          test "$package_version" = "$RELEASE_VERSION"
+          test "$manifest_version" = "$RELEASE_VERSION"
+
+      - name: Require the public immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          release_tag="v$RELEASE_VERSION"
+          release_state=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$release_tag" \
+            --jq '[.tag_name, .draft, .prerelease, .immutable] | @tsv')
+          test "$release_state" = "$release_tag"$'\tfalse\tfalse\ttrue'
+
+      - name: Require the exact package version on PyPI
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python - "$RELEASE_VERSION" <<'PY'
+          import json
+          import sys
+          import urllib.request
+
+          with urllib.request.urlopen(
+              f"https://pypi.org/pypi/freellmpool/{sys.argv[1]}/json", timeout=20
+          ) as response:
+              payload = json.load(response)
+          assert payload["info"]["version"] == sys.argv[1]
+          PY
+
+      - name: Install checksum-pinned mcp-publisher 1.7.9
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/mcp-publisher_linux_amd64.tar.gz"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            --output "$archive" \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_linux_amd64.tar.gz
+          echo "ab128162b0616090b47cf245afe0a23f3ef08936fdce19074f5ba0a4469281ac  $archive" \
+            | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP" mcp-publisher
+          chmod 0755 "$RUNNER_TEMP/mcp-publisher"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Validate the exact tagged manifest
+        run: mcp-publisher validate server.json
+
+      - name: Detect an exact existing registry record
+        id: registry-preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python scripts/verify_mcp_registry.py server.json; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Authenticate and publish, with exact-record recovery
+        if: steps.registry-preflight.outputs.complete != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mcp-publisher login github-oidc
+          if mcp-publisher publish server.json; then
+            exit 0
+          fi
+          for attempt in $(seq 1 12); do
+            if python scripts/verify_mcp_registry.py server.json; then
+              echo "The publish response failed, but the exact active/latest record is present."
+              exit 0
+            fi
+            if test "$attempt" -lt 12; then sleep 5; fi
+          done
+          echo "MCP publication failed without an exact recoverable registry record." >&2
+          exit 1
+
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Validate immutable inputs
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          case "$RELEASE_COMMIT" in
+            *[!0-9a-f]*|"") exit 1 ;;
+          esac
+          test "${#RELEASE_COMMIT}" -eq 40
+          python -c \
+            'import re, sys; assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", sys.argv[1])' \
+            "$RELEASE_VERSION"
+
+      - name: Check out the exact published commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate the immutable release tag and manifest
+        env:
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch --force origin \
+            "refs/tags/v$RELEASE_VERSION:refs/tags/v$RELEASE_VERSION"
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$(git cat-file -t "refs/tags/v$RELEASE_VERSION")" = tag
+          test "$(git rev-parse "refs/tags/v$RELEASE_VERSION^{commit}")" = "$RELEASE_COMMIT"
+          package_version=$(python -c \
+            'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          manifest_version=$(python -c \
+            'import json; print(json.load(open("server.json"))["version"])')
+          test "$package_version" = "$RELEASE_VERSION"
+          test "$manifest_version" = "$RELEASE_VERSION"
+
+      - name: Verify normalized registry equality
+        run: |
+          for attempt in $(seq 1 12); do
+            if python scripts/verify_mcp_registry.py server.json; then
+              exit 0
+            fi
+            if test "$attempt" -lt 12; then sleep 5; fi
+          done
+          python scripts/verify_mcp_registry.py server.json
