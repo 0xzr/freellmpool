@@ -10,7 +10,7 @@
 > free tiers are usable right now and help configure more.
 
 ## Release status
-- Latest release: 0.12.1. GitHub and PyPI include the audited provider catalog,
+- Latest release: 0.12.2. GitHub and PyPI include the audited provider catalog,
   bounded streaming and sentinel hardening, the Hermes profile, `spread` routing,
   `/livez`, `/readyz`, `/v1/providers`, `/v1/models?ready=true`, and OpenCode
   registry-readiness hardening.

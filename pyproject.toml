@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "freellmpool"
-version = "0.12.1"
+version = "0.12.2"
 description = "Free LLM gateway: 22 LLM providers, 177 enabled chat routes, 431 cataloged chat models; keyless start when available."
 readme = "README.md"
 license = "MIT"
