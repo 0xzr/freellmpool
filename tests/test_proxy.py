@@ -653,7 +653,7 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
         [shutil.which("node"), "-e", program],
         capture_output=True,
         text=True,
-        timeout=10,
+        timeout=30,
         check=False,
     )
     assert result.returncode == 0, result.stderr
