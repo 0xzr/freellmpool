@@ -7,10 +7,13 @@
 > start (`pip install freellmpool`); the proxy speaks the OpenAI API and has an experimental Anthropic-compatible path,
 > so Codex, Claude Code, and aider run on pooled free models unchanged. MIT licensed.
 > Capacity tools (`freellmpool capacity status`, `providers health`, `keys add`) show which
-> free tiers are usable right now and help configure more.
+> free tiers are usable right now and help configure more. Capacity status is offline/cache-first;
+> use `--refresh` only when you want to update the advisory external catalog.
+> Text-only Responses and Anthropic requests stream incrementally. Tool calls and richer content remain
+> buffered, and stream failover is allowed only before the downstream response is committed.
 
 ## Release status
-- Latest release: 0.12.3. GitHub and PyPI include the audited provider catalog,
+- Latest release: 0.13.0. GitHub and PyPI include the audited provider catalog,
   bounded streaming and sentinel hardening, the Hermes profile, `spread` routing,
   `/livez`, `/readyz`, `/v1/providers`, `/v1/models?ready=true`, and OpenCode
   registry-readiness hardening.
@@ -21,6 +24,7 @@
 - [README](https://github.com/0xzr/freellmpool/blob/main/README.md): install, CLI, library, proxy, MCP, provider keys, routing.
 - [Landing page / FAQ](https://0xzr.github.io/freellmpool/): what it is, how it compares, frequently asked questions.
 - [Capacity & provider health](https://github.com/0xzr/freellmpool/blob/main/docs/CAPACITY.md): capacity status, health checks, key inventory, external catalog. Guide: https://0xzr.github.io/freellmpool/capacity-management.html
+- [Local runtimes](https://github.com/0xzr/freellmpool/blob/main/README.md#local-runtimes-explicit-pin-only): explicitly preview fixed literal-loopback runtimes, affirmatively import pin-only routes, and remove managed imports without credentials or network scanning.
 - [CHANGELOG](https://github.com/0xzr/freellmpool/blob/main/CHANGELOG.md): release history.
 - [Integrations](https://github.com/0xzr/freellmpool/blob/main/docs/INTEGRATIONS.md): OpenCode, Hermes, metaswarm review adapter, aider, Continue, Cline, Cursor, Open WebUI, LangChain, LlamaIndex, and more.
 - [Run OpenCode on free models](https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html): OpenCode setup with an embedded TUI dashboard, long-run agent routing (`freellmpool/agent`), raised stream timeouts, and usage tools.

@@ -9,6 +9,7 @@ from freellmpool.catalog import (
     create_user_provider_stub,
     discover_openai_models,
     import_external_provider_to_user_catalog,
+    load_external_catalog,
     match_local_provider,
     parse_external_catalog,
     suggest_external_provider,
@@ -277,3 +278,101 @@ def test_create_user_provider_stub_allows_http_localhost(tmp_path, monkeypatch):
 def test_discover_openai_models_rejects_non_http_scheme():
     with pytest.raises(ValueError, match="http"):
         discover_openai_models("file:///etc/passwd")
+
+
+def _stub_capacity_dependencies(monkeypatch):
+    class EmptyReport:
+        healthy_count = 0
+        low_quota_count = 0
+        needs_action = False
+        providers = []
+
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: [])
+    monkeypatch.setattr("freellmpool.key_inventory.load_inventory", lambda: [])
+    monkeypatch.setattr(
+        "freellmpool.capacity.build_capacity_report", lambda **_kwargs: EmptyReport()
+    )
+
+
+def test_capacity_status_sanitizes_and_bounds_untrusted_cached_catalog_fields(
+    tmp_path, monkeypatch, capsys
+):
+    from freellmpool.cli import main
+
+    cache = tmp_path / "provider_catalog.json"
+    malicious_name = "Trusted\x1b[31m\nFORGED-NAME\r" + ("N" * 4_000)
+    malicious_url = (
+        "https://catalog.example.test/\x1b]8;;https://evil.test\x07\nFORGED-URL"
+        + ("U" * 5_000)
+    )
+    cache.write_text(
+        json.dumps(
+            {
+                "providers": [
+                    {
+                        "name": malicious_name,
+                        "url": malicious_url,
+                        "baseUrl": "https://api.example.test/v1\x1b[2J",
+                        "models": [],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(cache))
+    _stub_capacity_dependencies(monkeypatch)
+
+    providers = load_external_catalog(cache)
+    assert len(providers) == 1
+    assert len(providers[0].name) <= 128
+    assert providers[0].url is not None and len(providers[0].url) <= 2_048
+
+    assert (
+        main(
+            [
+                "capacity",
+                "status",
+                "--all",
+                "--target",
+                "0",
+                "--no-catalog-sync",
+                "--external-limit",
+                "1",
+            ]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "\x07" not in out
+    assert "\r" not in out
+    assert "\nFORGED-NAME" not in out
+    assert "\nFORGED-URL" not in out
+    external_line = next(line for line in out.splitlines() if "external    " in line)
+    assert len(external_line) <= 2_300
+
+
+def test_capacity_status_treats_non_utf8_cached_catalog_as_empty(
+    tmp_path, monkeypatch, capsys
+):
+    from freellmpool.cli import main
+
+    cache = tmp_path / "provider_catalog.json"
+    cache.write_bytes(b'{"providers": [{"name": "Safe"}]}\xff')
+    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(cache))
+    _stub_capacity_dependencies(monkeypatch)
+
+    assert load_external_catalog(cache) == []
+    assert main(["capacity", "status", "--all", "--target", "0"]) == 0
+    captured = capsys.readouterr()
+    assert "External catalog cache: 0 providers" in captured.out
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_load_external_catalog_ignores_invalid_provider_container(tmp_path):
+    cache = tmp_path / "provider_catalog.json"
+    cache.write_text('{"providers": 7}', encoding="utf-8")
+
+    assert load_external_catalog(cache) == []

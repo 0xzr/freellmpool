@@ -17,7 +17,7 @@ model setting untouched — just set the base URL and any API key.
 
 ## Release status
 
-Latest release: 0.12.3. GitHub and PyPI both provide the Hermes profile, the
+Latest release: 0.13.0. GitHub and PyPI both provide the Hermes profile, the
 readiness/provider operations APIs, refreshed providers, Vercel AI Gateway
 support, `spread` routing, and registry-readiness hardening for the existing
 repository-local OpenCode plugins. Install it with
@@ -71,12 +71,43 @@ Anthropic bridge, `/v1/models` for concrete `provider/model` ids, `/dashboard`
 for operations, `/playground` for browser-side battle runs, and
 `/freellmpool/battle` for JSON/Markdown comparison results.
 
+Text-only Responses and Anthropic Messages use incremental text streaming: the
+first downstream delta is sent as soon as the selected provider yields it.
+Protocol events remain correctly ordered, and a post-commit upstream failure is
+an error rather than a false successful terminal. Rich content stays buffered;
+tool requests stay on the buffered path so compatibility translation remains atomic.
+
+The dashboard and playground are one public, data-free browser shell. On an
+authenticated proxy, the shell prompts locally for the bearer token, clears the
+password field, retains the token only in its JavaScript closure, and sends it
+as an `Authorization` header. Status, inventory, model, and battle data remain
+protected; the token is never placed in a URL, cookie, browser storage, DOM
+node, or generated HTML.
+
 In release 0.12.0, automation can use `/healthz` and `/livez` as public liveness aliases;
 `/readyz` is a public advisory local-capacity probe (200 or 503), and
 `/v1/providers` is the authenticated secret-free inventory. Use
 `/v1/models?ready=true` to keep the normal OpenAI/Anthropic model-list shape
 while filtering out locally exhausted or cooling-down targets. These are local
 snapshots and never live-probe an upstream provider.
+
+### Local model runtimes
+
+Local OpenAI-compatible runtimes are deliberately opt-in and pin-only:
+
+```bash
+freellmpool local discover
+freellmpool local discover --name ollama
+freellmpool local import --name ollama --yes
+freellmpool ask --providers local_ollama --model "<discovered-model>" "hello"
+freellmpool local remove local_ollama --yes
+```
+
+Discovery checks only a small fixed list of canonical literal-loopback URLs, or
+one exact loopback URL you supply. It sends no credential, follows no redirect,
+and performs no LAN, DNS, or process scan. Import is a separate affirmative,
+atomic user-catalog change; every imported model has `auto = false`, so normal
+routing remains unchanged.
 
 ### opencode
 
@@ -344,8 +375,10 @@ freellmpool tailnet connect <tailnet-ip> --port 8080
 ```
 
 Both commands degrade to loopback guidance when Tailscale is missing or logged out.
-When auth is enabled, `/playground` and all model API routes require the same
-proxy key as `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`.
+When auth is enabled, the public `/playground` shell contains no protected data
+and prompts for the proxy key. Its battle call and every model/status/inventory
+API still require that key as a bearer `Authorization` header, matching
+`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` clients.
 
 ## Roles, recipes, jobs, and reports
 

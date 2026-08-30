@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -826,8 +827,11 @@ def cmd_keys_add(args: argparse.Namespace) -> int:
     print(f"Wrote: {', '.join(written_names)}")
     print(f"Config: {config_path}")
     print(f"Inventory: {inventory_path}")
+    unlocked = sum(1 for model in provider.models if model.enabled)
+    suffix = "route" if unlocked == 1 else "routes"
+    print(f"Unlocked {unlocked} enabled model {suffix} for {provider.label}.")
     print("Next command:")
-    print("  python3 -m freellmpool providers health -p " + provider.id)
+    print("  freellmpool providers health -p " + provider.id)
     return 0
 
 
@@ -838,13 +842,13 @@ def cmd_capacity_status(args: argparse.Namespace) -> int:
 
     external = []
     cache_note = None
-    if not args.no_catalog_sync:
+    if args.refresh:
         try:
             path, external = sync_external_catalog(timeout=args.catalog_timeout)
-            cache_note = f"External catalog synced: {len(external)} providers ({path})"
+            cache_note = f"External catalog refreshed: {len(external)} providers ({path})"
         except Exception as exc:  # noqa: BLE001 - capacity must still work offline
             external = load_external_catalog()
-            cache_note = f"External catalog sync failed ({type(exc).__name__}); using cache with {len(external)} providers"
+            cache_note = f"External catalog refresh failed ({type(exc).__name__}); using cache with {len(external)} providers"
     else:
         external = load_external_catalog()
         cache_note = f"External catalog cache: {len(external)} providers"
@@ -892,6 +896,137 @@ def cmd_catalog_sync(args: argparse.Namespace) -> int:
         for provider in top:
             score = provider.best_tpd or provider.best_rpd or provider.best_rpm
             print(f"  {provider.name}: score={score} models={provider.model_count}")
+    return 0
+
+
+def cmd_local_discover(args: argparse.Namespace) -> int:
+    """Preview explicitly requested or fixed-list loopback model runtimes."""
+
+    import json
+
+    from .local_runtime import discover_known_runtimes, discover_runtime
+
+    if args.name or args.base_url:
+        if not args.name:
+            print("freellmpool: --base-url requires --name", file=sys.stderr)
+            return 2
+        try:
+            runtime = discover_runtime(
+                name=args.name,
+                base_url=args.base_url,
+                timeout=args.timeout,
+            )
+        except ValueError as exc:
+            print(f"freellmpool: {exc}", file=sys.stderr)
+            return 3
+        if args.json:
+            print(json.dumps(runtime.as_json(), separators=(",", ":"), sort_keys=True))
+        else:
+            print(f"Found {runtime.label} at {runtime.base_url}")
+            print(f"  pin-only provider id: {runtime.provider_id}")
+            print(f"  models ({len(runtime.models)}):")
+            for model in runtime.models:
+                print(f"    {model}")
+            print("Preview only; no files were written.")
+        return 0
+
+    found, unavailable = discover_known_runtimes(timeout=args.timeout)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "found": [runtime.as_json() for runtime in found],
+                    "unavailable": unavailable,
+                },
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+    else:
+        if not found:
+            print("No known local OpenAI-compatible runtime answered on loopback.")
+        for runtime in found:
+            print(f"Found {runtime.label}: {runtime.base_url} ({len(runtime.models)} models)")
+        print("Preview only; no files were written.")
+    return 0
+
+
+def cmd_local_import(args: argparse.Namespace) -> int:
+    """Discover and atomically import one explicitly selected local runtime."""
+
+    from .local_runtime import discover_runtime, import_runtime
+
+    if not args.yes:
+        print(
+            "freellmpool: local import changes the user catalog; review `local discover` "
+            "then repeat with --yes",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        runtime = discover_runtime(
+            name=args.name,
+            base_url=args.base_url,
+            timeout=args.timeout,
+        )
+        if not runtime.models:
+            raise ValueError("local runtime exposed no models; nothing to import")
+        path = import_runtime(runtime)
+    except ValueError as exc:
+        print(f"freellmpool: {exc}", file=sys.stderr)
+        return 3
+    except OSError as exc:
+        print(
+            f"freellmpool: local catalog update failed ({type(exc).__name__})",
+            file=sys.stderr,
+        )
+        return 3
+    print(f"Imported {runtime.provider_id} as a pin-only local provider.")
+    print(f"Catalog: {path}")
+    print("No credential was read or stored; automatic routing remains unchanged.")
+    print("Example exact pin:")
+    print(
+        "  "
+        + shlex.join(
+            [
+                "freellmpool",
+                "ask",
+                "--providers",
+                runtime.provider_id,
+                "--model",
+                runtime.models[0],
+                "hello",
+            ]
+        )
+    )
+    print("Revert:")
+    print(f"  freellmpool local remove {runtime.provider_id} --yes")
+    return 0
+
+
+def cmd_local_remove(args: argparse.Namespace) -> int:
+    """Remove only a user-catalog block managed by ``local import``."""
+
+    from .local_runtime import remove_runtime
+
+    if not args.yes:
+        print("freellmpool: local remove requires --yes", file=sys.stderr)
+        return 2
+    try:
+        removed = remove_runtime(args.provider_id)
+    except ValueError as exc:
+        print(f"freellmpool: {exc}", file=sys.stderr)
+        return 3
+    except OSError as exc:
+        print(
+            f"freellmpool: local catalog update failed ({type(exc).__name__})",
+            file=sys.stderr,
+        )
+        return 3
+    if not removed:
+        print(f"freellmpool: no managed local runtime named {args.provider_id}", file=sys.stderr)
+        return 3
+    print(f"Removed {args.provider_id} from the user provider catalog.")
     return 0
 
 
@@ -979,20 +1114,54 @@ def cmd_conformance_run(args: argparse.Namespace) -> int:
         )
         return 2
     configured = configured_providers(catalog, env)
-    only = {part.strip() for part in args.providers.split(",")} if args.providers else None
     targets = []
-    for provider in configured:
-        if only is not None and provider.id not in only:
-            continue
-        models = [
-            model
-            for model in provider.models
-            if model.enabled and (args.model is None or model.name == args.model)
-        ]
-        if not args.all_models:
-            models = models[:1]
-        targets.extend((provider, model.name) for model in models)
-    targets = targets[: args.max_targets]
+    if args.include_disabled:
+        if not args.provider or not args.model or args.providers or args.all_models:
+            print(
+                "freellmpool: --include-disabled requires one exact --provider and --model",
+                file=sys.stderr,
+            )
+            return 2
+        provider = next((item for item in configured if item.id == args.provider), None)
+        model = (
+            next((item for item in provider.models if item.name == args.model), None)
+            if provider is not None
+            else None
+        )
+        if model is None:
+            print(
+                "freellmpool: exact disabled canary target is missing or not configured",
+                file=sys.stderr,
+            )
+            return 3
+        if model.enabled:
+            print(
+                "freellmpool: --include-disabled is only for a model that is off by default",
+                file=sys.stderr,
+            )
+            return 2
+        targets = [(provider, model.name)]
+    else:
+        if args.provider:
+            print(
+                "freellmpool: --provider is reserved for exact --include-disabled canaries; "
+                "use --providers for enabled targets",
+                file=sys.stderr,
+            )
+            return 2
+        only = {part.strip() for part in args.providers.split(",")} if args.providers else None
+        for provider in configured:
+            if only is not None and provider.id not in only:
+                continue
+            models = [
+                model
+                for model in provider.models
+                if model.enabled and (args.model is None or model.name == args.model)
+            ]
+            if not args.all_models:
+                models = models[:1]
+            targets.extend((provider, model.name) for model in models)
+        targets = targets[: args.max_targets]
     if not targets:
         print("freellmpool: no configured provider/model matched the conformance filters", file=sys.stderr)
         return 3
@@ -1092,9 +1261,11 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     from .cache import default_cache_path, default_max_entries
     from .catalog import default_external_catalog_path, load_external_catalog
     from .catalog_validation import validate_catalog
+    from .config import config_diagnostics, effective_env, settings
     from .key_inventory import default_config_path
 
-    env = os.environ
+    env = effective_env()
+    cfg = settings()
     catalog = load_catalog()
     configured = configured_providers(catalog, env)
     pool = Pool.from_default_config()
@@ -1102,6 +1273,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     cache_path = default_cache_path()
     external_path = default_external_catalog_path()
     external = load_external_catalog(external_path)
+    config_issues = config_diagnostics()
     external_note = "missing"
     if external_path.exists():
         import time
@@ -1118,11 +1290,25 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     print(f"providers: {len(configured)}/{len(catalog)} configured")
     print(f"routing: {pool.routing}")
     print(f"quota: {quota_path} ({'exists' if quota_path.exists() else 'new'})")
-    print(f"cache: {cache_path} ttl={env.get('FREELLMPOOL_CACHE_TTL', '0')} max={default_max_entries()}")
+    cache_ttl = env.get("FREELLMPOOL_CACHE_TTL") or cfg.get("cache_ttl", 0)
+    print(f"cache: {cache_path} ttl={cache_ttl} max={default_max_entries()}")
     print(
         f"external catalog: {external_path} "
         f"({len(external)} cached provider{'s' if len(external) != 1 else ''}, {external_note})"
     )
+    if config_issues:
+        print("config validation: FAIL")
+        for issue in config_issues[:20]:
+            location = ""
+            if issue.get("line") is not None:
+                location += f" line={issue['line']}"
+            if issue.get("column") is not None:
+                location += f" column={issue['column']}"
+            print(f"  - {issue.get('code', 'invalid_config')}{location}: {issue['message']}")
+        if len(config_issues) > 20:
+            print(f"  ... {len(config_issues) - 20} more")
+    else:
+        print("config validation: ok")
     if errors:
         print("catalog: FAIL")
         for error in errors[:20]:
@@ -1131,7 +1317,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print(f"  ... {len(errors) - 20} more")
         return 1
     print("catalog: ok")
-    return 0
+    return 1 if config_issues else 0
 
 
 def cmd_proxy(args: argparse.Namespace) -> int:
@@ -1618,12 +1804,15 @@ def cmd_playground(args: argparse.Namespace) -> int:
     import urllib.error
     import urllib.request
 
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
     base = f"http://127.0.0.1:{args.port}"
-    proxy_key = os.environ.get("FREELLMPOOL_PROXY_KEY") or settings().get("proxy_key")
     try:
-        headers = {"Authorization": f"Bearer {proxy_key}"} if proxy_key else {}
-        req = urllib.request.Request(f"{base}/playground", headers=headers)
-        with urllib.request.urlopen(req, timeout=1.5) as resp:  # noqa: S310
+        req = urllib.request.Request(f"{base}/playground")
+        opener = urllib.request.build_opener(_NoRedirect())
+        with opener.open(req, timeout=1.5) as resp:  # noqa: S310
             if resp.status == 200 and "text/html" in resp.headers.get("Content-Type", ""):
                 print(f"{base}/playground")
                 return 0
@@ -1960,6 +2149,9 @@ def cmd_profile_install(args: argparse.Namespace) -> int:
 
 
 def cmd_profile_doctor(args: argparse.Namespace) -> int:
+    import math
+
+    from .config import effective_env, settings
     from .profiles import (
         get_profile,
         profile_with_base_url,
@@ -1971,12 +2163,29 @@ def cmd_profile_doctor(args: argparse.Namespace) -> int:
     if profile is None:
         print(f"freellmpool: unknown profile '{args.name}'", file=sys.stderr)
         return 3
+    if not math.isfinite(args.timeout) or args.timeout <= 0:
+        print(
+            "freellmpool profile doctor: timeout must be a finite positive number",
+            file=sys.stderr,
+        )
+        return 3
     if args.base_url:
-        profile = profile_with_base_url(profile, args.base_url)
+        try:
+            profile = profile_with_base_url(profile, args.base_url)
+        except (TypeError, ValueError):
+            print("freellmpool profile doctor: invalid --base-url", file=sys.stderr)
+            return 3
     if args.dry_run:
         print(render_doctor_plan(profile))
         return 0
-    code, lines = run_doctor(profile, timeout=args.timeout)
+    env = effective_env()
+    proxy_key = env.get("FREELLMPOOL_PROXY_KEY") or settings().get("proxy_key")
+    code, lines = run_doctor(
+        profile,
+        timeout=args.timeout,
+        env=env,
+        proxy_key=str(proxy_key) if proxy_key else None,
+    )
     print("\n".join(lines))
     return code
 
@@ -2343,7 +2552,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--target", type=int, default=5, help="desired healthy provider count"
     )
     p_keys_checklist.set_defaults(func=cmd_keys_checklist)
-    p_keys_add = keys_sub.add_parser("add")
+    p_keys_add = keys_sub.add_parser(
+        "add", help="store a provider key and print newly unlocked model routes"
+    )
     p_keys_add.add_argument("provider_arg", nargs="?", help="provider id or external provider name")
     p_keys_add.add_argument("-p", "--provider")
     p_keys_add.add_argument("--value")
@@ -2354,6 +2565,58 @@ def build_parser() -> argparse.ArgumentParser:
     p_keys_add.add_argument("--commercial-allowed", action="store_true")
     p_keys_add.add_argument("-y", "--yes", action="store_true")
     p_keys_add.set_defaults(func=cmd_keys_add)
+
+    p_local = sub.add_parser(
+        "local",
+        help="explicitly discover and import loopback OpenAI-compatible runtimes",
+    )
+    local_sub = p_local.add_subparsers(dest="local_command", required=True)
+    p_local_discover = local_sub.add_parser(
+        "discover",
+        help="preview models from fixed or explicit literal-loopback endpoints",
+    )
+    p_local_discover.add_argument(
+        "--name",
+        help="runtime id (lm_studio, ollama, llama_cpp, or a custom lowercase id)",
+    )
+    p_local_discover.add_argument(
+        "--base-url",
+        help="explicit http://127.x.x.x:port/v1 or http://[::1]:port/v1 endpoint",
+    )
+    p_local_discover.add_argument(
+        "--timeout", type=float, default=1.0, help="per-endpoint timeout, clamped to 0.05..5s"
+    )
+    p_local_discover.add_argument("--json", action="store_true", help="emit sanitized JSON")
+    p_local_discover.set_defaults(func=cmd_local_discover)
+    p_local_import = local_sub.add_parser(
+        "import",
+        help="affirmatively add one discovered runtime as a reversible pin-only provider",
+    )
+    p_local_import.add_argument(
+        "--name",
+        required=True,
+        help="runtime id (lm_studio, ollama, llama_cpp, or a custom lowercase id)",
+    )
+    p_local_import.add_argument(
+        "--base-url",
+        help="explicit literal-loopback endpoint (required for custom runtime ids)",
+    )
+    p_local_import.add_argument(
+        "--timeout", type=float, default=1.0, help="discovery timeout, clamped to 0.05..5s"
+    )
+    p_local_import.add_argument(
+        "--yes", action="store_true", help="confirm the user-catalog change"
+    )
+    p_local_import.set_defaults(func=cmd_local_import)
+    p_local_remove = local_sub.add_parser(
+        "remove",
+        help="remove a provider block previously written by `local import`",
+    )
+    p_local_remove.add_argument("provider_id", help="managed local provider id")
+    p_local_remove.add_argument(
+        "--yes", action="store_true", help="confirm the user-catalog change"
+    )
+    p_local_remove.set_defaults(func=cmd_local_remove)
 
     p_catalog = sub.add_parser(
         "catalog", help="sync and inspect advisory external provider metadata"
@@ -2419,7 +2682,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"comma-separated features ({', '.join(FEATURES)})",
     )
     p_conf_run.add_argument("--providers", help="comma-separated configured provider ids")
+    p_conf_run.add_argument(
+        "--provider",
+        help="one exact configured provider id (only with --include-disabled)",
+    )
     p_conf_run.add_argument("--model", help="exact model name to probe")
+    p_conf_run.add_argument(
+        "--include-disabled",
+        action="store_true",
+        help="maintainer canary for one exact disabled --provider/--model target",
+    )
     p_conf_run.add_argument(
         "--all-models",
         action="store_true",
@@ -2457,10 +2729,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--target", type=int, default=5, help="desired healthy provider count"
     )
     p_capacity_status.add_argument("--all", action="store_true", help="include missing providers")
-    p_capacity_status.add_argument(
+    capacity_refresh = p_capacity_status.add_mutually_exclusive_group()
+    capacity_refresh.add_argument(
+        "--refresh",
+        action="store_true",
+        help="explicitly refresh the external catalog before showing capacity",
+    )
+    capacity_refresh.add_argument(
         "--no-catalog-sync",
         action="store_true",
-        help="use external catalog cache without refreshing",
+        help="deprecated compatibility alias; cache-first is now the default",
     )
     p_capacity_status.add_argument(
         "--catalog-timeout", type=float, default=8.0, help="external catalog sync timeout seconds"

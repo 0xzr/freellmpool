@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How to run Claude Code, Codex, Hermes, or Aider on free LLM models</title>
-<meta name="description" content="Run Claude Code, Codex, Hermes, Aider, Cline, and Cursor through freellmpool: a local proxy with 177 enabled chat routes across 22 cataloged provider groups. Keyless start when an enabled route is available.">
+<meta name="description" content="Run Claude Code, Codex, Hermes, Aider, Cline, and Cursor through freellmpool: a local proxy with 178 enabled chat routes across 22 cataloged provider groups. Keyless start when an enabled route is available.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/run-coding-agents-on-free-models.html">
 <meta property="og:title" content="Run Claude Code, Codex, or Aider on free LLM models">
 <meta property="og:description" content="Point your coding agent at one local proxy and run it on pooled free LLM tiers — keyless start when routes are available.">
@@ -42,10 +42,10 @@
 free LLM tiers by pointing them at a local proxy that speaks the OpenAI API and has an experimental Anthropic-compatible path. The
     open-source tool <a href="https://github.com/0xzr/freellmpool">freellmpool</a> is that proxy. It catalogs
     22 provider groups spanning recurring free tiers, keyless endpoints, finite trials, pin-only routes, and
-    disabled candidates (177 enabled chat routes), and automatically fails over only across enabled routes you
+    disabled candidates (178 enabled chat routes), and automatically fails over only across enabled routes you
     can access. You can start without provider credentials when an enabled keyless route is available.</strong></p>
 
-<div class="note"><strong>Release status:</strong> Latest release: 0.12.3. GitHub and PyPI both
+<div class="note"><strong>Release status:</strong> Latest release: 0.13.0. GitHub and PyPI both
 provide the Hermes profile, operational endpoints, refreshed providers, Vercel AI Gateway support,
 <code>spread</code> routing, and OpenCode registry-readiness hardening.</div>
 
@@ -54,7 +54,9 @@ provide the Hermes profile, operational endpoints, refreshed providers, Vercel A
 freellmpool proxy            # serves http://localhost:8080</code></pre>
 <p>The proxy now accepts both OpenAI (<code>/v1/chat/completions</code>) and Anthropic
     (<code>/v1/messages</code>) requests. It routes each request to an enabled target you can access and
-    fails over when one is rate-limited.</p>
+    fails over when one is rate-limited. For streaming requests, failover is possible only before the
+    downstream event stream is committed. A later upstream error is reported in that protocol and never
+    followed by a successful terminal event.</p>
 
 <h2>2. Point your agent at it</h2>
 
@@ -63,12 +65,15 @@ freellmpool proxy            # serves http://localhost:8080</code></pre>
 export ANTHROPIC_API_KEY=anything   # ignored
 claude</code></pre>
 <p>Or run <code>freellmpool code claude</code> to print these steps. (The Claude Code path is
-experimental: text and tool use work; no vision yet.)</p>
+experimental: text and tool use work; no vision yet.) Text-only Anthropic Messages requests stream
+incrementally; tool use and richer content remain buffered until translation is complete.</p>
 
 <h3>OpenAI Codex CLI</h3>
 <pre><code>export OPENAI_BASE_URL=http://localhost:8080/v1
 export OPENAI_API_KEY=anything
 codex</code></pre>
+<p>The Responses bridge emits text-only events incrementally and in protocol order. Tool calls and richer
+Responses inputs remain on the buffered compatibility path.</p>
 
 <h3>Aider</h3>
 <pre><code>export OPENAI_API_BASE=http://localhost:8080/v1
@@ -97,7 +102,28 @@ refactors, tests, commit messages, and everyday edits — not a substitute for a
 <code>/v1/models?ready=true</code>. Readiness is a local quota/cooldown snapshot; it does not
 probe upstream providers.</p>
 
-<h2>4. (Optional) add credentials for more capacity</h2>
+<p>Open <code>http://localhost:8080/dashboard</code> or <code>/playground</code> for the unified browser
+shell. The public HTML contains no usage or provider data. When proxy auth is configured, enter its token
+in the page: the input is cleared immediately, the bearer is sent only in <code>Authorization</code> headers,
+and it stays only in the page's JavaScript closure until reload. It is not stored in the URL, cookies,
+Web Storage, rendered page, globals, or logs.</p>
+
+<pre><code>freellmpool capacity status          # cache-first; no external refresh
+freellmpool capacity status --refresh
+freellmpool doctor                   # strict, secret-safe config diagnostics</code></pre>
+
+<h2>4. (Optional) add a local model runtime</h2>
+<pre><code>freellmpool local discover
+freellmpool local discover --name ollama
+freellmpool local import --name ollama --yes
+# Use the exact provider/model pin printed by import.
+freellmpool local remove local_ollama --yes</code></pre>
+<p>Discovery is explicit and bounded. It checks only fixed LM Studio, Ollama, and llama.cpp endpoints, or
+one canonical literal-loopback URL you supply. It sends no credentials, follows no redirects, and performs
+no DNS, LAN, or process scan. Import requires confirmation, adds pin-only routes without changing automatic
+routing, and can remove only its own managed catalog block.</p>
+
+<h2>5. (Optional) add credentials for more capacity</h2>
 <p>If a keyless route is available it can get you started; adding applicable credentials for recurring
     free tiers such as Groq or Gemini can unlock more routes and capacity. Finite trials and priced or
     pin-only routes remain distinct. Each provider's current setup and caveats are listed in the

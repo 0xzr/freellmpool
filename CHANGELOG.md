@@ -6,6 +6,64 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-08-29
+
+### Added
+- Explicit, bounded discovery and reversible import for Ollama, LM Studio, and
+  llama.cpp on canonical literal-loopback endpoints. Imported routes are
+  credential-free, pin-only, collision-safe, and excluded from automatic
+  routing.
+- A unified local browser shell for the dashboard and playground, with
+  header-only authentication for protected inventory, capacity, and battle
+  calls and strict no-storage token handling.
+- Genuine incremental text streaming for the OpenAI Responses and Anthropic
+  Messages proxy surfaces, while structured tool and rich-content responses
+  retain completed-reply framing.
+- Strict, secret-safe config diagnostics, authenticated profile health checks,
+  guarded disabled-route conformance probes, and actionable key-add health
+  guidance.
+- Groq's Preview `qwen/qwen3.8-27b` route as an explicit text/streaming pin
+  after three sequential completion canaries and a separate streaming pass.
+  It remains outside automatic routing because its forced tool canary was
+  unsupported.
+
+### Changed
+- Multi-provider retries now prefer provider diversity before retrying a failed
+  provider, while exact pins and direct single-provider transports preserve
+  their existing retry behavior.
+- Quota, route-health, and success telemetry now use bounded count/age batches
+  with explicit flush/close lifecycle hooks and immediate in-memory snapshots.
+  The measured hot persistence paths are roughly 20–33× faster than the
+  previous implementation.
+- Catalog parsing is cached against full file identity and local-provider opt-in
+  state; returned collections remain isolated from caller mutation.
+- `capacity status` is cache-first and offline by default; catalog refresh is
+  now an explicit `--refresh` action.
+- `init`, profile quickstarts, browser onboarding, README guidance, and GitHub
+  Pages now separate long-running server commands from client setup and reflect
+  the current 22-provider, 178-enabled-route, 431-model catalog.
+
+### Fixed
+- Timeout saturation no longer poisons provider health, deferred retry leases
+  cannot overwrite newer circuit generations, and failure state is persisted
+  before retry deferral.
+- Browser and doctor probes no longer forward proxy bearer credentials through
+  redirects or environment-configured HTTP proxies.
+- Local provider validation now accepts only managed canonical loopback URLs,
+  and `doctor` accepts those imported routes without weakening remote URL
+  validation.
+- Local model identifiers are allowlisted and shell-quoted before display;
+  catalog mutations are serialized, validate existing TOML, refuse symlink
+  targets, preserve concurrent updates, and fsync atomic replacements.
+- Corrupt or hostile external-catalog cache fields are size-bounded and
+  terminal-safe, including invalid UTF-8, control characters, and malformed
+  provider containers.
+- Browser battles and dashboard refreshes are single-flight, duplicate quota
+  spend is blocked, and users can visibly forget the in-memory proxy token.
+- Profile doctor now uses a non-inference authenticated Claude health probe and
+  rejects malformed base URLs and non-finite or non-positive timeouts without
+  tracebacks or secret disclosure.
+
 ## [0.12.3] — 2026-08-29
 
 This release includes the maintenance changes below. Versions 0.12.1 and 0.12.2

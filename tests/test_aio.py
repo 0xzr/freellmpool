@@ -344,3 +344,182 @@ def test_async_default_apost_retries_with_original_request_headers(providers, en
     result = asyncio.run(pool._apost("https://x.test/v1", request_headers, {}, 30.0))
     assert result.status == 200
     assert calls == [request_headers, request_headers]
+
+
+def _async_diversity_providers():
+    return [
+        Provider(
+            id=provider_id,
+            label=provider_id.upper(),
+            adapter="openai",
+            base_url=f"https://{provider_id}.test/v1",
+            auth="none",
+            models=(Model("shared"),),
+        )
+        for provider_id in ("alpha", "beta")
+    ]
+
+
+def test_async_unpinned_chat_tries_distinct_provider_before_retry(
+    quota, tmp_path, monkeypatch
+):
+    from freellmpool.route_health import RouteHealthStore
+
+    calls: list[str] = []
+
+    class Client:
+        def stream(self, method, url, **kwargs):
+            provider = "alpha" if "alpha.test" in url else "beta"
+            calls.append(provider)
+            status = 503 if provider == "alpha" else 200
+            body = (
+                b'{"error":"down"}'
+                if status != 200
+                else b'{"choices":[{"message":{"content":"ok"}}]}'
+            )
+            return _AsyncCM(_AsyncResp([body], status=status))
+
+    health = RouteHealthStore(path=tmp_path / "health.json")
+    pool = AsyncPool(
+        Pool(
+            _async_diversity_providers(),
+            quota=quota,
+            env={},
+            route_health=health,
+        )
+    )
+
+    async def client_obj():
+        return Client()
+
+    pool._client_obj = client_obj
+    monkeypatch.setattr(sync_client, "_RETRY_BACKOFF_S", 0.0)
+
+    reply = asyncio.run(
+        pool.achat([{"role": "user", "content": "hi"}], model="shared")
+    )
+    assert reply.provider_id == "beta"
+    assert calls == ["alpha", "beta"]
+    assert RouteHealthStore(path=tmp_path / "health.json").state("alpha/shared").failures == 1
+
+
+def test_async_unpinned_chat_retries_original_after_alternatives(
+    quota, tmp_path, monkeypatch
+):
+    from freellmpool.route_health import RouteHealthStore
+
+    calls: list[str] = []
+
+    class Client:
+        def stream(self, method, url, **kwargs):
+            provider = "alpha" if "alpha.test" in url else "beta"
+            calls.append(provider)
+            success = calls == ["alpha", "beta", "alpha"]
+            body = (
+                b'{"choices":[{"message":{"content":"ok"}}]}'
+                if success
+                else b'{"error":"down"}'
+            )
+            return _AsyncCM(_AsyncResp([body], status=200 if success else 503))
+
+    health = RouteHealthStore(
+        path=tmp_path / "health.json", failure_threshold=1, base_cooldown=60
+    )
+    pool = AsyncPool(
+        Pool(
+            _async_diversity_providers(),
+            quota=quota,
+            env={},
+            route_health=health,
+        )
+    )
+
+    async def client_obj():
+        return Client()
+
+    pool._client_obj = client_obj
+    monkeypatch.setattr(sync_client, "_RETRY_BACKOFF_S", 0.0)
+
+    reply = asyncio.run(
+        pool.achat([{"role": "user", "content": "hi"}], model="shared")
+    )
+    assert reply.provider_id == "alpha"
+    assert calls == ["alpha", "beta", "alpha"]
+    alpha = RouteHealthStore(path=tmp_path / "health.json").state("alpha/shared")
+    assert alpha.state == "closed"
+    assert alpha.failures == 1 and alpha.successes == 1
+
+
+def test_async_local_pool_timeout_fails_over_without_poisoning(
+    quota, tmp_path, monkeypatch
+):
+    import httpx
+
+    from freellmpool.route_health import RouteHealthStore
+
+    calls: list[str] = []
+
+    async def apost(url, headers, body, timeout):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if provider == "alpha":
+            raise httpx.PoolTimeout("local connection pool saturated")
+        return sync_client.HTTPResult(
+            200,
+            {"choices": [{"message": {"content": "ok"}}]},
+            "ok",
+        )
+
+    health = RouteHealthStore(path=tmp_path / "health.json")
+    pool = AsyncPool(
+        Pool(
+            _async_diversity_providers(),
+            quota=quota,
+            env={},
+            route_health=health,
+        ),
+        apost=apost,
+    )
+    monkeypatch.setattr(sync_client, "_RETRY_BACKOFF_S", 0.0)
+
+    reply = asyncio.run(
+        pool.achat([{"role": "user", "content": "hi"}], model="shared")
+    )
+    alpha = health.state("alpha/shared")
+    assert reply.provider_id == "beta"
+    assert calls == ["alpha", "beta"]
+    assert alpha is not None and alpha.failures == 0 and alpha.state == "closed"
+
+
+def test_async_close_flushes_underlying_pool_telemetry(tmp_path):
+    from freellmpool.quota import QuotaStore
+    from freellmpool.route_health import RouteHealthStore
+    from freellmpool.stats import StatsStore
+
+    quota = QuotaStore(path=tmp_path / "quota.json", flush_every=100)
+    stats = StatsStore(tmp_path / "stats.json", flush_every=100)
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        success_flush_every=100,
+        success_flush_interval=60,
+    )
+    apost = _async_post({})
+    pool = AsyncPool(
+        Pool(
+            _async_diversity_providers(),
+            quota=quota,
+            env={},
+            stats_store=stats,
+            route_health=health,
+        ),
+        apost=apost,
+    )
+
+    async def run():
+        await pool.aask("hello")
+        await pool.aclose()
+
+    asyncio.run(run())
+    assert (tmp_path / "quota.json").exists()
+    assert (tmp_path / "stats.json").exists()
+    assert (tmp_path / "health.json").exists()

@@ -8,6 +8,7 @@ This feature is intentionally read-only. It does not create accounts, does not m
 
 ```bash
 freellmpool capacity status --target 5
+freellmpool capacity status --refresh
 freellmpool keys status --target 5
 freellmpool keys checklist --target 5
 freellmpool providers health
@@ -127,17 +128,20 @@ freellmpool providers health -p groq,gemini
 freellmpool providers health -m openai/gpt-oss-120b
 ```
 
-This is different from `capacity status`. `providers health` sends real test requests to each configured provider's API. `capacity status` never calls a provider, but by default it does refresh the advisory external catalog over the network (a read-only metadata fetch); pass `--no-catalog-sync` to keep it fully local.
+This is different from `capacity status`. `providers health` sends real test requests to each configured provider's API. `capacity status` never calls a provider and uses the cached advisory catalog by default. Pass `--refresh` only when you explicitly want a read-only metadata fetch; `--no-catalog-sync` remains as a compatibility alias for the now-default offline behavior.
 
 `benchmark` uses the same real-provider path but reports the timing table used
 to warm latency-aware routing. Run it before long agent sessions when you want
 `FREELLMPOOL_ROUTING=fast` to start with fresh latency information.
 
 `doctor` is a local diagnostic command. It does not call provider APIs; it checks
-version/config/quota/cache/catalog state and exits non-zero when catalog
-validation fails. If you are deliberately testing a local HTTP provider, opt in
-with `FREELLMPOOL_ALLOW_LOCAL_PROVIDERS=1` for runtime calls, but expect catalog
-validation to keep requiring HTTPS-safe provider metadata.
+version/config/quota/cache/catalog state and exits non-zero for malformed TOML,
+wrong config table types, or catalog validation failures. Config errors report a
+sanitized type or line/column and never print values. For LM Studio, Ollama, or
+llama.cpp, use `freellmpool local discover` and the separate affirmative
+`local import`; those managed entries allow only canonical literal loopback URLs
+and remain pin-only. The broader `FREELLMPOOL_ALLOW_LOCAL_PROVIDERS=1` escape
+hatch is still available for deliberately configured custom development targets.
 
 ## Dashboard
 
@@ -147,7 +151,12 @@ When the proxy is running, open:
 http://127.0.0.1:8080/dashboard
 ```
 
-The dashboard shows request counters, cache hits, estimated savings, provider usage, capacity status, and measured latency if the process has already made calls or health checks.
+The unified dashboard/playground shell is public but contains no pool data. If
+proxy auth is enabled, it prompts for the bearer token, keeps it only in page
+memory, and sends it in the `Authorization` header for protected status,
+inventory, model, and battle calls. The loaded dashboard shows request counters,
+cache hits, estimated savings, provider usage, capacity status, and measured
+latency if the process has already made calls or health checks.
 
 ## Recommended workflow
 

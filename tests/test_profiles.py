@@ -4,6 +4,8 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import pytest
+
 from freellmpool.cli import main
 from freellmpool.profiles import (
     PROFILES,
@@ -63,6 +65,10 @@ def test_profile_install_prints_quickstart_and_snippets(capsys):
     assert main(["profile", "install", "opencode"]) == 0
     out = capsys.readouterr().out
     assert "freellmpool proxy --port 8080" in out
+    assert "Terminal 1" in out
+    assert "keep the proxy running" in out
+    assert "Terminal 2" in out
+    assert "configure and launch" in out
     assert "opencode.json" in out
     assert '"freellmpool"' in out
 
@@ -192,8 +198,9 @@ def test_profile_doctor_opencode_fake_proxy(monkeypatch, capsys):
     assert "All required checks passed" in out
 
 
-def test_profile_doctor_hermes_accepts_authenticated_proxy(monkeypatch, capsys):
+def test_profile_doctor_hermes_warns_when_auth_cannot_be_verified(monkeypatch, capsys):
     monkeypatch.setattr("freellmpool.profiles.shutil.which", lambda name: f"/fake/{name}")
+    monkeypatch.delenv("FREELLMPOOL_PROXY_KEY", raising=False)
 
     class _LockedModelsHandler(_ModelsHandler):
         def do_GET(self):  # noqa: N802
@@ -205,14 +212,147 @@ def test_profile_doctor_hermes_accepts_authenticated_proxy(monkeypatch, capsys):
     thread.start()
     base_url = f"http://127.0.0.1:{server.server_address[1]}"
     try:
-        assert main(["profile", "doctor", "hermes", "--base-url", base_url]) == 0
+        assert main(["profile", "doctor", "hermes", "--base-url", base_url]) == 1
     finally:
         server.shutdown()
         server.server_close()
     out = capsys.readouterr().out
     assert "doctor results for 'hermes'" in out
-    assert "responded HTTP 401" in out
-    assert "All required checks passed" in out
+    assert "[WARN]" in out
+    assert "authentication unverified (HTTP 401)" in out
+    assert "All required checks passed" not in out
+
+
+def test_profile_doctor_sends_configured_proxy_key_and_requires_2xx(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr("freellmpool.profiles.shutil.which", lambda name: f"/fake/{name}")
+    secret = "doctor-proxy-secret"
+    config = tmp_path / "config.toml"
+    config.write_text(f'[settings]\nproxy_key = "{secret}"\n', encoding="utf-8")
+    monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(config))
+    seen = []
+
+    class _AuthenticatedModelsHandler(_ModelsHandler):
+        def do_GET(self):  # noqa: N802
+            seen.append(self.headers.get("Authorization"))
+            if self.headers.get("Authorization") != f"Bearer {secret}":
+                self.send_response(401)
+                self.end_headers()
+                return
+            super().do_GET()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _AuthenticatedModelsHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        assert main(["profile", "doctor", "hermes", "--base-url", base_url]) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+    captured = capsys.readouterr()
+    assert seen == [f"Bearer {secret}"]
+    assert "reachable (200; authentication verified)" in captured.out
+    assert "All required checks passed" in captured.out
+    assert secret not in captured.out
+    assert secret not in captured.err
+
+
+def test_profile_doctor_authenticated_claude_uses_non_inference_probe(
+    tmp_path, monkeypatch, capsys
+):
+    """A healthy authenticated proxy must be checkable without invoking a model."""
+    monkeypatch.setattr("freellmpool.profiles.shutil.which", lambda name: f"/fake/{name}")
+    secret = "claude-doctor-proxy-secret"
+    config = tmp_path / "config.toml"
+    config.write_text(f'[settings]\nproxy_key = "{secret}"\n', encoding="utf-8")
+    monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(config))
+    seen_gets = []
+    seen_posts = []
+
+    class _AuthenticatedClaudeProxy(_ModelsHandler):
+        def do_GET(self):  # noqa: N802
+            seen_gets.append((self.path, self.headers.get("Authorization")))
+            if self.headers.get("Authorization") != f"Bearer {secret}":
+                self.send_response(401)
+                self.end_headers()
+                return
+            super().do_GET()
+
+        def do_POST(self):  # noqa: N802
+            seen_posts.append((self.path, self.headers.get("Authorization")))
+            self.send_response(400)
+            self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _AuthenticatedClaudeProxy)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        assert main(["profile", "doctor", "claude", "--base-url", base_url]) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+    captured = capsys.readouterr()
+    assert seen_gets == [("/v1/models", f"Bearer {secret}")]
+    assert seen_posts == []
+    assert "reachable (200; authentication verified)" in captured.out
+    assert secret not in captured.out
+    assert secret not in captured.err
+
+
+def test_profile_doctor_default_opener_never_uses_environment_proxies(monkeypatch):
+    """A configured proxy bearer must travel directly to the selected endpoint."""
+    import urllib.request
+
+    from freellmpool.profiles import _build_doctor_opener
+
+    captured = {}
+    sentinel = object()
+
+    def _capture(*handlers):
+        captured["handlers"] = handlers
+        return sentinel
+
+    monkeypatch.setattr(urllib.request, "build_opener", _capture)
+
+    assert _build_doctor_opener() is sentinel
+    proxy_handlers = [
+        handler
+        for handler in captured["handlers"]
+        if isinstance(handler, urllib.request.ProxyHandler)
+    ]
+    assert len(proxy_handlers) == 1
+    assert proxy_handlers[0].proxies == {}
+
+
+def test_profile_doctor_rejected_configured_proxy_key_is_failure(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr("freellmpool.profiles.shutil.which", lambda name: f"/fake/{name}")
+    config = tmp_path / "config.toml"
+    config.write_text('[settings]\nproxy_key = "wrong-secret"\n', encoding="utf-8")
+    monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(config))
+
+    class _RejectingModelsHandler(_ModelsHandler):
+        def do_GET(self):  # noqa: N802
+            self.send_response(403)
+            self.end_headers()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _RejectingModelsHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        assert main(["profile", "doctor", "hermes", "--base-url", base_url]) == 3
+    finally:
+        server.shutdown()
+        server.server_close()
+    out = capsys.readouterr().out
+    assert "[FAIL]" in out
+    assert "configured authentication rejected (HTTP 403)" in out
+    assert "required check(s) failed" in out
 
 
 def test_hermes_base_url_override_preserves_v1_contract():
@@ -228,3 +368,44 @@ def test_profile_with_base_url_normalizes_openai_url():
     assert profile.base_url == "http://example.test:9000/v1"
     url_checks = [check for check in profile.doctor_checks if check.kind == "url"]
     assert url_checks[0].url() == "http://example.test:9000/v1/models"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        "ftp://example.test",
+        "http://user:password@example.test",
+        "http://example.test:99999",
+        "http://example.test/v2",
+        "http://example.test?token=sentinel-profile-url-secret",
+        "http://example.test/#fragment",
+        "http://example.test/\nheader",
+    ),
+)
+def test_profile_doctor_rejects_unsafe_base_url_without_traceback(base_url, capsys):
+    assert main(["profile", "doctor", "hermes", "--base-url", base_url, "--dry-run"]) == 3
+    captured = capsys.readouterr()
+    assert "invalid --base-url" in captured.err
+    assert "Traceback" not in captured.err
+    assert "sentinel-profile-url-secret" not in captured.out + captured.err
+
+
+@pytest.mark.parametrize("timeout", ("0", "-1", "nan", "inf"))
+def test_profile_doctor_rejects_nonpositive_or_nonfinite_timeout(timeout, capsys):
+    assert main(["profile", "doctor", "hermes", "--timeout", timeout, "--dry-run"]) == 3
+    captured = capsys.readouterr()
+    assert "timeout must be a finite positive number" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_run_doctor_check_sanitizes_malformed_url_construction():
+    from freellmpool.profiles import run_doctor_check
+
+    check = DoctorCheck("url", "malformed", "http://[sentinel-url-secret", path="/v1/models")
+
+    status, message = run_doctor_check(check, proxy_key="sentinel-proxy-secret")
+
+    assert status == "fail"
+    assert "invalid endpoint" in message
+    assert "sentinel-url-secret" not in message
+    assert "sentinel-proxy-secret" not in message

@@ -13,6 +13,7 @@ environment are returned by :func:`configured_providers`.
 
 from __future__ import annotations
 
+import copy
 import ipaddress
 import logging
 import os
@@ -33,6 +34,7 @@ _log = logging.getLogger("freellmpool")
 # into X-Freellmpool-* headers) and request smuggling.
 _CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
 _ENV_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_TOML_LOCATION_RE = re.compile(r"at line (\d+), column (\d+)")
 
 
 def _allow_local_providers() -> bool:
@@ -104,6 +106,38 @@ def _safe_base_url(url: str, *, allow_local: bool) -> bool:
     )
 
 
+def _safe_local_catalog_url(url: str) -> bool:
+    """True only for a canonical literal loopback URL trusted by local import.
+
+    ``local = true`` is intentionally narrower than the legacy environment opt-in:
+    it cannot authorize localhost DNS, LAN/private addresses, alternate IPv4
+    spellings, or IPv4-mapped IPv6 addresses.
+    """
+    if not url or _CTRL_RE.search(url) or any(c.isspace() for c in url):
+        return False
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    if (
+        parts.scheme not in ("http", "https")
+        or parts.username
+        or parts.password
+        or not parts.hostname
+    ):
+        return False
+    host = parts.hostname
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    if getattr(ip, "ipv4_mapped", None) is not None or not ip.is_loopback:
+        return False
+    # Reject resolver-compatible shorthand/non-canonical text such as 127.1 and
+    # verbose IPv6. urlsplit removes brackets, so ::1 is the one canonical v6 form.
+    return host == str(ip)
+
+
 # Common OpenAI / Anthropic model names mapped to a free target, so existing
 # code (which hardcodes e.g. "gpt-4o-mini") works against freellmpool unchanged.
 # "auto" means "let the pool pick the least-used free provider". Override or add
@@ -145,6 +179,8 @@ def resolve_alias(name: str, env: dict[str, str] | None = None) -> str:
         if key.startswith(_ALIAS_ENV_PREFIX) and _norm(key[len(_ALIAS_ENV_PREFIX) :]) == target:
             return value or name
     cfg_aliases = load_config_file(env).get("aliases", {})
+    if not isinstance(cfg_aliases, dict):
+        cfg_aliases = {}
     if name in cfg_aliases:
         return str(cfg_aliases[name])
     if name in _DEFAULT_ALIASES:
@@ -189,23 +225,16 @@ def _alias_cache_key(env: dict[str, str]) -> tuple:
     edits without re-reading TOML on every `/v1/models` request.
     """
     path = _config_file_path(env)
-    try:
-        stat = path.stat() if path is not None else None
-    except OSError:
-        stat = None
-    config_sig = (
-        str(path) if path is not None else "",
-        stat.st_mtime_ns if stat is not None else 0,
-        stat.st_size if stat is not None else 0,
-    )
+    config_sig = _path_signature(path)
     env_aliases = tuple(sorted((k, v) for k, v in env.items() if k.startswith(_ALIAS_ENV_PREFIX)))
-    return config_sig + (env_aliases,)
+    return config_sig, env_aliases
 
 
 # LRU eviction is fine here: a dropped entry recomputes from env/config metadata.
 @lru_cache(maxsize=64)
 def _known_aliases_cached(cache_key: tuple) -> tuple[str, ...]:
-    path_str, _, _, env_aliases = cache_key
+    config_sig, env_aliases = cache_key
+    path_str = config_sig[0]
     aliases = set(_DEFAULT_ALIASES)
     if path_str:
         cfg = load_config_file({"FREELLMPOOL_CONFIG_FILE": path_str})
@@ -218,8 +247,7 @@ def _user_catalog_path() -> Path | None:
     override = os.environ.get("FREELLMPOOL_CONFIG")
     if override:
         return Path(override).expanduser()
-    default = Path.home() / ".config" / "freellmpool" / "providers.toml"
-    return default if default.exists() else None
+    return Path.home() / ".config" / "freellmpool" / "providers.toml"
 
 
 def _config_file_path(env: dict[str, str]) -> Path | None:
@@ -228,6 +256,56 @@ def _config_file_path(env: dict[str, str]) -> Path | None:
         return Path(override).expanduser()
     default = Path.home() / ".config" / "freellmpool" / "config.toml"
     return default if default.exists() else None
+
+
+def _path_signature(path: Path | None) -> tuple:
+    """Full cache identity, including create/delete and atomic replacement."""
+    if path is None:
+        return ("", False, 0, 0, 0, 0, 0, 0)
+    normalized = path.expanduser().resolve(strict=False)
+    try:
+        stat = normalized.stat()
+    except OSError:
+        return (str(normalized), False, 0, 0, 0, 0, 0, 0)
+    return (
+        str(normalized),
+        True,
+        int(getattr(stat, "st_dev", 0)),
+        int(getattr(stat, "st_ino", 0)),
+        int(getattr(stat, "st_mode", 0)),
+        int(stat.st_size),
+        int(stat.st_mtime_ns),
+        int(getattr(stat, "st_ctime_ns", 0)),
+    )
+
+
+@lru_cache(maxsize=128)
+def _read_toml_cached(signature: tuple) -> tuple[dict, tuple | None]:
+    """Parse one immutable path/stat version, retaining sanitized error metadata."""
+    path_str, exists, *_ = signature
+    if not path_str or not exists:
+        return {}, None
+    path = Path(path_str)
+    try:
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+        return (data if isinstance(data, dict) else {}), None
+    except tomllib.TOMLDecodeError as exc:
+        message = str(exc)
+        match = _TOML_LOCATION_RE.search(message)
+        line = int(match.group(1)) if match else None
+        column = int(match.group(2)) if match else None
+        if line is None or column is None:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                text = ""
+            lines = text.splitlines() or [""]
+            line = len(lines)
+            column = len(lines[-1]) + 1
+        return {}, ("toml_syntax", line, column)
+    except OSError:
+        return {}, ("config_unreadable", None, None)
 
 
 def load_config_file(env: dict[str, str] | None = None) -> dict:
@@ -242,11 +320,48 @@ def load_config_file(env: dict[str, str] | None = None) -> dict:
     path = _config_file_path(env)
     if path is None:
         return {}
-    try:
-        with path.open("rb") as fh:
-            return tomllib.load(fh)
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
+    data, error = _read_toml_cached(_path_signature(path))
+    return {} if error is not None else copy.deepcopy(data)
+
+
+def config_diagnostics(env: dict[str, str] | None = None) -> list[dict[str, object]]:
+    """Strict, secret-safe diagnostics for the otherwise tolerant config loader."""
+    env = env if env is not None else dict(os.environ)
+    path = _config_file_path(env)
+    if path is None:
+        return []
+    signature = _path_signature(path)
+    data, error = _read_toml_cached(signature)
+    if error is not None:
+        code, line, column = error
+        message = (
+            "config.toml contains invalid TOML syntax"
+            if code == "toml_syntax"
+            else "config.toml could not be read"
+        )
+        return [
+            {
+                "code": code,
+                "message": message,
+                "path": signature[0],
+                "line": line,
+                "column": column,
+            }
+        ]
+    diagnostics: list[dict[str, object]] = []
+    for table in ("keys", "settings", "aliases"):
+        if table in data and not isinstance(data[table], dict):
+            diagnostics.append(
+                {
+                    "code": "table_type",
+                    "message": f"[{table}] must be a table",
+                    "path": signature[0],
+                    "table": table,
+                    "line": None,
+                    "column": None,
+                }
+            )
+    return diagnostics
 
 
 def effective_env(env: dict[str, str] | None = None) -> dict[str, str]:
@@ -254,6 +369,8 @@ def effective_env(env: dict[str, str] | None = None) -> dict[str, str]:
     actual env vars always win but config.toml provides defaults."""
     env = env if env is not None else dict(os.environ)
     keys = load_config_file(env).get("keys", {})
+    if not isinstance(keys, dict):
+        keys = {}
     merged = {str(k): str(v) for k, v in keys.items() if v}
     merged.update(env)
     return merged
@@ -261,7 +378,8 @@ def effective_env(env: dict[str, str] | None = None) -> dict[str, str]:
 
 def settings(env: dict[str, str] | None = None) -> dict:
     """The ``[settings]`` table from config.toml (or {})."""
-    return load_config_file(env).get("settings", {})
+    value = load_config_file(env).get("settings", {})
+    return value if isinstance(value, dict) else {}
 
 
 def _maybe_int(value, *, positive: bool = False) -> int | None:
@@ -276,24 +394,29 @@ def _maybe_int(value, *, positive: bool = False) -> int | None:
     return n
 
 
-def _parse_rows(rows: list) -> list[Provider]:
+def _parse_rows(rows: list, *, allow_local: bool | None = None) -> list[Provider]:
     """Parse provider rows tolerantly: a malformed row (missing id/base_url/name,
     bad int) is skipped, not fatal, so one typo in a user catalog can't brick the
     whole tool. The packaged catalog is valid, so this is a no-op for it."""
     providers: list[Provider] = []
-    allow_local = _allow_local_providers()
+    allow_local = _allow_local_providers() if allow_local is None else allow_local
     for row in rows:
         if not isinstance(row, dict) or not row.get("id") or not row.get("base_url"):
             continue
         provider_id = str(row["id"])
         base_url = str(row["base_url"]).rstrip("/")
+        local_catalog = row.get("local") is True
         # Security: a bad base_url turns this provider's API key into an SSRF /
         # key-exfil POST; a control char in the id/name injects response headers.
         # Drop the offending row (tolerant, like a malformed row) and warn.
         if not _safe_name(provider_id):
             _log.warning("skipping provider with unsafe id %r", provider_id)
             continue
-        if not _safe_base_url(base_url, allow_local=allow_local):
+        if local_catalog:
+            safe_url = _safe_local_catalog_url(base_url)
+        else:
+            safe_url = _safe_base_url(base_url, allow_local=allow_local)
+        if not safe_url:
             _log.warning("skipping provider %s: unsafe base_url %r", provider_id, base_url)
             continue
         models = []
@@ -344,11 +467,25 @@ def _parse_catalog(data: dict) -> list[Provider]:
     return _parse_rows(data.get("provider", []))
 
 
+@lru_cache(maxsize=128)
+def _parsed_section_cached(
+    signature: tuple, section: str, allow_local: bool
+) -> tuple[Provider, ...]:
+    data, error = _read_toml_cached(signature)
+    if error is not None:
+        return ()
+    rows = data.get(section, []) if isinstance(data, dict) else []
+    return tuple(_parse_rows(rows if isinstance(rows, list) else [], allow_local=allow_local))
+
+
 def load_embedders(path: Path | None = None) -> list[Provider]:
     """Load the embedder catalog ([[embedder]] rows). Same shape as providers."""
     base_path = path or _PACKAGED_CATALOG
-    with base_path.open("rb") as fh:
-        return _parse_rows(tomllib.load(fh).get("embedder", []))
+    return list(
+        _parsed_section_cached(
+            _path_signature(base_path), "embedder", _allow_local_providers()
+        )
+    )
 
 
 def configured_embedders(
@@ -363,8 +500,11 @@ def load_transcribers(path: Path | None = None) -> list[Provider]:
     """Load the transcriber catalog ([[transcriber]] rows). Same shape as providers —
     audio→text (Whisper) endpoints on the OpenAI /audio/transcriptions surface."""
     base_path = path or _PACKAGED_CATALOG
-    with base_path.open("rb") as fh:
-        return _parse_rows(tomllib.load(fh).get("transcriber", []))
+    return list(
+        _parsed_section_cached(
+            _path_signature(base_path), "transcriber", _allow_local_providers()
+        )
+    )
 
 
 def configured_transcribers(
@@ -378,17 +518,19 @@ def configured_transcribers(
 def load_catalog(path: Path | None = None) -> list[Provider]:
     """Load the full provider catalog (built-ins + user overrides)."""
     base_path = path or _PACKAGED_CATALOG
-    with base_path.open("rb") as fh:
-        providers = _parse_catalog(tomllib.load(fh))
+    allow_local = _allow_local_providers()
+    providers = list(
+        _parsed_section_cached(_path_signature(base_path), "provider", allow_local)
+    )
 
     if path is None:
         user_path = _user_catalog_path()
         if user_path is not None:
-            try:
-                with user_path.open("rb") as fh:
-                    user_providers = _parse_catalog(tomllib.load(fh))
-            except (OSError, tomllib.TOMLDecodeError, TypeError, ValueError, AttributeError):
-                user_providers = []  # a broken user catalog must not brick the tool
+            user_providers = list(
+                _parsed_section_cached(
+                    _path_signature(user_path), "provider", allow_local
+                )
+            )
             by_id = {p.id: p for p in providers}
             for up in user_providers:
                 by_id[up.id] = up

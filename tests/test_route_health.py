@@ -6,8 +6,10 @@ import asyncio
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
+from helpers import make_post
 
 from freellmpool.aio import AsyncPool
 from freellmpool.client import HTTPResult
@@ -17,6 +19,17 @@ from freellmpool.proxy import _readiness_snapshot, _status_payload
 from freellmpool.quota import QuotaStore
 from freellmpool.route_health import FailureUpdate, RouteHealthStore
 from freellmpool.router import Pool
+from freellmpool.stats import StatsStore
+
+
+def _route_process_acquire(path: str, gate, results) -> None:
+    store = RouteHealthStore(
+        path=Path(path),
+        clock=lambda: 100.0,
+        failure_threshold=1,
+    )
+    gate.wait(10)
+    results.put(store.acquire_many(("alpha/model",)) is not None)
 
 
 def _provider() -> Provider:
@@ -90,6 +103,63 @@ def test_retry_after_opens_until_provider_reset(tmp_path):
     assert not store.allow("alpha/*")
     now[0] = 141.0
     assert store.allow("alpha/*")
+
+
+def test_local_saturation_releases_half_open_probe_without_healing(tmp_path):
+    now = [1_000.0]
+    store = RouteHealthStore(
+        path=tmp_path / "health.json",
+        clock=lambda: now[0],
+        failure_threshold=1,
+        base_cooldown=10.0,
+    )
+    store.record_failure("alpha/model", "availability")
+    now[0] = 1_011.0
+    lease = store.acquire_many(("alpha/model",))
+    assert lease is not None
+    assert store.state("alpha/model").state == "half_open"
+
+    store.release_many(("alpha/model",), lease=lease)
+
+    released = store.state("alpha/model")
+    assert released.state == "open"
+    assert released.failures == 1
+    assert store.acquire_many(("alpha/model",)) is not None
+
+
+def test_half_open_lease_is_single_across_real_processes(tmp_path):
+    import multiprocessing
+
+    import freellmpool.route_health as route_health_module
+
+    if route_health_module.fcntl is None:
+        pytest.skip("cross-process file locking is unavailable")
+    path = tmp_path / "health.json"
+    RouteHealthStore(
+        path=path,
+        clock=lambda: 0.0,
+        failure_threshold=1,
+        base_cooldown=1.0,
+    ).record_failure("alpha/model", "availability")
+
+    context = multiprocessing.get_context("spawn")
+    gate = context.Event()
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_route_process_acquire,
+            args=(str(path), gate, results),
+        )
+        for _ in range(4)
+    ]
+    for process in processes:
+        process.start()
+    gate.set()
+    for process in processes:
+        process.join(15)
+        assert process.exitcode == 0
+
+    assert sum(results.get(timeout=2) for _ in processes) == 1
 
 
 def test_client_and_capability_failures_do_not_poison_availability(tmp_path):
@@ -406,6 +476,22 @@ def test_telemetry_filesystem_failure_cannot_break_successful_request(tmp_path):
 
     assert pool.ask("hello").text == "ok"
     assert store.state("alpha/alpha-model").successes == 1
+
+
+def test_failed_batched_health_flush_stays_visible_without_double_counting(tmp_path):
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("file", encoding="utf-8")
+    store = RouteHealthStore(
+        path=blocker / "health.json",
+        success_flush_every=10,
+        success_flush_interval=60,
+    )
+    store.record_success("alpha/model", 10.0)
+
+    assert store.state("alpha/model").successes == 1
+    store.flush()
+    store.flush()
+    assert store.state("alpha/model").successes == 1
 
 
 def test_pool_restart_skips_open_route_then_runs_one_half_open_probe(tmp_path):
@@ -923,3 +1009,176 @@ def test_async_ordering_keeps_persistent_disk_reads_off_event_loop(
 
     assert asyncio.run(AsyncPool(pool, apost=post).aask("hello")).text == "ok"
     assert seen and seen[0] != loop_thread
+
+
+def test_closed_success_is_batched_and_snapshot_does_not_force_flush(tmp_path):
+    path = tmp_path / "health.json"
+    store = RouteHealthStore(
+        path=path,
+        success_flush_every=10,
+        success_flush_interval=60,
+    )
+    store.record_success("alpha/model", 10.0)
+
+    row = store.state("alpha/model")
+    assert row is not None and row.successes == 1
+    assert not path.exists()
+
+    store.flush()
+    assert RouteHealthStore(path=path).state("alpha/model").successes == 1
+
+
+def test_closed_success_threshold_bounds_physical_writes(tmp_path, monkeypatch):
+    store = RouteHealthStore(
+        path=tmp_path / "health.json",
+        success_flush_every=4,
+        success_flush_interval=60,
+    )
+    writes = 0
+    original = store._write
+
+    def counted_write(routes) -> None:
+        nonlocal writes
+        writes += 1
+        original(routes)
+
+    monkeypatch.setattr(store, "_write", counted_write)
+    for _ in range(3):
+        store.record_success("alpha/model", 10.0)
+    assert store.state("alpha/model").successes == 3
+    assert writes == 0
+
+    store.record_success("alpha/model", 10.0)
+    assert writes == 1
+
+
+def test_failure_flushes_pending_success_and_persists_immediately(tmp_path):
+    path = tmp_path / "health.json"
+    store = RouteHealthStore(
+        path=path,
+        success_flush_every=10,
+        success_flush_interval=60,
+        failure_threshold=1,
+    )
+    store.record_success("alpha/model", 10.0)
+    store.record_failure("beta/model", "availability")
+
+    persisted = RouteHealthStore(path=path, failure_threshold=1).snapshot()
+    assert persisted["alpha/model"].successes == 1
+    assert persisted["beta/model"].state == "open"
+
+
+def test_half_open_success_is_never_batched(tmp_path):
+    path = tmp_path / "health.json"
+    now = [100.0]
+    store = RouteHealthStore(
+        path=path,
+        clock=lambda: now[0],
+        success_flush_every=100,
+        success_flush_interval=60,
+        failure_threshold=1,
+        base_cooldown=1,
+    )
+    store.record_failure("alpha/model", "availability")
+    now[0] = 102.0
+    lease = store.acquire_many(("alpha/model",))
+    assert lease is not None
+    store.record_success("alpha/model", 8.0, lease=lease)
+
+    recovered = RouteHealthStore(path=path, clock=lambda: now[0]).state("alpha/model")
+    assert recovered is not None and recovered.state == "closed"
+
+
+def test_pool_flush_persists_all_success_telemetry(providers, env, tmp_path):
+    quota = QuotaStore(path=tmp_path / "quota.json", flush_every=100)
+    stats = StatsStore(tmp_path / "stats.json", flush_every=100)
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        success_flush_every=100,
+        success_flush_interval=60,
+    )
+    pool = Pool(
+        providers,
+        quota=quota,
+        env=env,
+        post=make_post({}),
+        stats_store=stats,
+        route_health=health,
+    )
+    pool.ask("hello")
+    pool.flush()
+
+    assert (tmp_path / "quota.json").exists()
+    assert (tmp_path / "stats.json").exists()
+    assert RouteHealthStore(path=tmp_path / "health.json").snapshot()
+
+
+def test_batched_success_flushes_at_max_age(tmp_path):
+    import time
+
+    path = tmp_path / "health.json"
+    store = RouteHealthStore(
+        path=path,
+        success_flush_every=100,
+        success_flush_interval=0.02,
+    )
+    store.record_success("alpha/model", 5.0)
+    deadline = time.monotonic() + 1.0
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert path.exists()
+    assert RouteHealthStore(path=path).state("alpha/model").successes == 1
+
+
+def test_batched_stale_success_cannot_close_newer_cross_process_failure(tmp_path):
+    path = tmp_path / "health.json"
+    older = RouteHealthStore(
+        path=path,
+        success_flush_every=100,
+        success_flush_interval=60,
+        failure_threshold=1,
+    )
+    newer = RouteHealthStore(path=path, failure_threshold=1)
+    old_lease = older.acquire_many(("alpha/model",))
+    assert old_lease is not None
+    older.record_success("alpha/model", 10.0, lease=old_lease)
+
+    new_lease = newer.acquire_many(("alpha/model",))
+    assert new_lease is not None
+    newer.record_failure("alpha/model", "availability", lease=new_lease)
+    older.flush()
+
+    row = RouteHealthStore(path=path, failure_threshold=1).state("alpha/model")
+    assert row.state == "open"
+    assert row.successes == 1
+    assert row.failures == 1
+
+
+def test_route_health_preserves_future_fields_and_quarantines_corruption(tmp_path):
+    path = tmp_path / "health.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "future_top": {"keep": True},
+                "routes": {
+                    "alpha/model": {
+                        "state": "closed",
+                        "updated_at": 1_000,
+                        "future_row": "keep",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    store = RouteHealthStore(path=path, clock=lambda: 1_000)
+    store.record_success("alpha/model", 10.0)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["future_top"] == {"keep": True}
+    assert payload["routes"]["alpha/model"]["future_row"] == "keep"
+
+    path.write_text("{not-json", encoding="utf-8")
+    store = RouteHealthStore(path=path, clock=lambda: 1_001)
+    store.record_failure("beta/model", "availability")
+    assert path.with_suffix(path.suffix + ".corrupt").read_text(encoding="utf-8") == "{not-json"

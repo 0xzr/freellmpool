@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .capability import capability_table, model_capability
-from .config import load_catalog, load_embedders, load_transcribers
+from .config import _safe_local_catalog_url, load_catalog, load_embedders, load_transcribers
 from .models import Provider
 
 _ADAPTERS = {"openai", "gemini", "cloudflare"}
@@ -50,9 +50,11 @@ def normalize_model_listing(payload: Any) -> tuple[str, ...]:
 
 def _valid_url(value: str) -> bool:
     parsed = urlsplit(value)
-    return parsed.scheme == "https" and bool(parsed.netloc) and not any(
-        ch in value for ch in "\r\n\t"
-    )
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.netloc)
+        and not any(ch in value for ch in "\r\n\t")
+    ) or _safe_local_catalog_url(value)
 
 
 def _check_group(name: str, providers: list[Provider]) -> list[str]:
@@ -68,7 +70,10 @@ def _check_group(name: str, providers: list[Provider]) -> list[str]:
         if provider.auth not in _AUTH:
             errors.append(f"{prefix}: unsupported auth {provider.auth!r}")
         if not _valid_url(provider.base_url):
-            errors.append(f"{prefix}: base_url must be https without control chars")
+            errors.append(
+                f"{prefix}: base_url must be https or canonical literal loopback "
+                "without control chars"
+            )
         if not provider.models:
             errors.append(f"{prefix}: no models configured")
         model_names = Counter(model.name for model in provider.models)

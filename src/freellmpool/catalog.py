@@ -10,6 +10,7 @@ import json
 import os
 import re
 import urllib.request
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,12 @@ DEFAULT_SOURCE_URL = "https://raw.githubusercontent.com/mnfst/awesome-free-llm-a
 # Cap network reads so a huge/hostile body can't exhaust memory.
 _MAX_CATALOG_BYTES = 8 * 1024 * 1024
 _MAX_DISCOVER_BYTES = 4 * 1024 * 1024
+_MAX_EXTERNAL_NAME_CHARS = 128
+_MAX_EXTERNAL_URL_CHARS = 2_048
+_MAX_EXTERNAL_CATEGORY_CHARS = 128
+_MAX_EXTERNAL_DESCRIPTION_CHARS = 2_048
+_MAX_EXTERNAL_MODEL_TERM_CHARS = 512
+_MAX_EXTERNAL_RATE_LIMIT_CHARS = 1_024
 
 
 def _validated_base_url(raw: str, *, https_only: bool, what: str, strip: bool = False) -> str:
@@ -57,7 +64,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     request carrying an Authorization header can't forward the key to a redirect
     target (credential leak / SSRF)."""
 
-    def redirect_request(self, *args, **kwargs):  # noqa: D102
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:  # noqa: D102
         return None
 
 
@@ -114,29 +121,37 @@ def sync_external_catalog(
 def load_external_catalog(path: Path | None = None) -> list[ExternalProvider]:
     path = path or default_external_catalog_path()
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        with path.open("rb") as fh:
+            raw_bytes = fh.read(_MAX_CATALOG_BYTES + 1)
+        if len(raw_bytes) > _MAX_CATALOG_BYTES:
+            return []
+        data = json.loads(raw_bytes.decode("utf-8"))
+    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
         return []
     return parse_external_catalog(data)
 
 
 def parse_external_catalog(data: Any) -> list[ExternalProvider]:
-    rows = data.get("providers", []) if isinstance(data, dict) else []
-    providers = []
+    raw_rows = data.get("providers") if isinstance(data, dict) else None
+    rows: list[Any] = raw_rows if isinstance(raw_rows, list) else []
+    providers: list[ExternalProvider] = []
     for row in rows:
         if not isinstance(row, dict):
             continue
-        name = str(row.get("name") or "").strip()
+        name = _external_text(row.get("name"), max_chars=_MAX_EXTERNAL_NAME_CHARS)
         if not name:
             continue
-        models = row.get("models") if isinstance(row.get("models"), list) else []
+        raw_models = row.get("models")
+        models: list[Any] = raw_models if isinstance(raw_models, list) else []
         best_rpd = 0
         best_rpm = 0
         best_tpd = 0
         for model in models:
             if not isinstance(model, dict):
                 continue
-            limit = str(model.get("rateLimit") or "")
+            limit = _external_text(
+                model.get("rateLimit"), max_chars=_MAX_EXTERNAL_RATE_LIMIT_CHARS
+            )
             best_rpd = max(best_rpd, _extract_limit(limit, "RPD"))
             best_rpm = max(best_rpm, _extract_limit(limit, "RPM"))
             best_tpd = max(best_tpd, _extract_limit(limit, "TPD"))
@@ -145,17 +160,24 @@ def parse_external_catalog(data: Any) -> list[ExternalProvider]:
             ExternalProvider(
                 name=name,
                 slug=_slug(name),
-                category=_optional(row.get("category")),
-                url=_optional(row.get("url")),
-                base_url=_optional(row.get("baseUrl")),
-                description=str(row.get("description") or ""),
+                category=_optional(
+                    row.get("category"), max_chars=_MAX_EXTERNAL_CATEGORY_CHARS
+                ),
+                url=_optional(row.get("url"), max_chars=_MAX_EXTERNAL_URL_CHARS),
+                base_url=_optional(row.get("baseUrl"), max_chars=_MAX_EXTERNAL_URL_CHARS),
+                description=_external_text(
+                    row.get("description"), max_chars=_MAX_EXTERNAL_DESCRIPTION_CHARS
+                ),
                 model_count=len(models),
                 best_rpd=best_rpd,
                 best_rpm=best_rpm,
                 best_tpd=best_tpd,
                 generous_score=score,
                 search_terms=tuple(
-                    str(model.get("id") or model.get("name") or "").strip()
+                    _external_text(
+                        model.get("id") or model.get("name"),
+                        max_chars=_MAX_EXTERNAL_MODEL_TERM_CHARS,
+                    )
                     for model in models
                     if isinstance(model, dict) and (model.get("id") or model.get("name"))
                 ),
@@ -165,10 +187,42 @@ def parse_external_catalog(data: Any) -> list[ExternalProvider]:
     return providers
 
 
-def _optional(value: Any) -> str | None:
+def _external_text(value: Any, *, max_chars: int) -> str:
+    """Return bounded, single-line-safe text from an untrusted catalog field.
+
+    JSON strings may contain terminal controls such as ESC, BEL, newlines, or
+    bidi-formatting characters. Render every non-printable code point as visible
+    ASCII and cap the final representation before it reaches CLI output.
+    """
+    if value is None or max_chars <= 0:
+        return ""
+    raw = str(value)
+    pieces: list[str] = []
+    used = 0
+    truncated = False
+    for char in raw:
+        if char.isprintable():
+            rendered = char
+        else:
+            codepoint = ord(char)
+            rendered = (
+                f"\\u{codepoint:04x}" if codepoint <= 0xFFFF else f"\\U{codepoint:08x}"
+            )
+        if used + len(rendered) > max_chars:
+            truncated = True
+            break
+        pieces.append(rendered)
+        used += len(rendered)
+    text = "".join(pieces)
+    if truncated:
+        text = text[: max_chars - 1] + "…"
+    return text.strip()
+
+
+def _optional(value: Any, *, max_chars: int) -> str | None:
     if value is None:
         return None
-    text = str(value).strip()
+    text = _external_text(value, max_chars=max_chars)
     return text or None
 
 
@@ -205,21 +259,23 @@ def _parse_number(value: str) -> int:
         text = text[:-1]
     try:
         return int(float(text.strip()) * multiplier)
-    except ValueError:
+    except (ValueError, OverflowError):
         return 0
 
 
-def match_local_provider(external: ExternalProvider, local_providers) -> str | None:
+def match_local_provider(
+    external: ExternalProvider, local_providers: Iterable[Any]
+) -> str | None:
     """Return the local provider id matching an external catalog row, if any."""
     external_base = (external.base_url or "").rstrip("/").lower()
     for provider in local_providers:
         local_base = (provider.base_url or "").rstrip("/").lower()
         if local_base == external_base and external_base:
-            return provider.id
+            return str(provider.id)
     external_slug = external.slug
     for provider in local_providers:
         if _slug(provider.id) == external_slug or _slug(provider.label) == external_slug:
-            return provider.id
+            return str(provider.id)
     aliases = {
         "google-gemini": "gemini",
         "github-models": "github",
@@ -435,7 +491,7 @@ def _external_lookup_slug(value: str) -> str:
     return aliases.get(slug, slug)
 
 
-def _find_external_provider_row(data: Any, query: str) -> dict | None:
+def _find_external_provider_row(data: Any, query: str) -> dict[str, Any] | None:
     needle = _external_lookup_slug(query)
     rows = data.get("providers", []) if isinstance(data, dict) else []
     for row in rows:

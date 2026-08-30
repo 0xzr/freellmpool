@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Run OpenCode agentically on free LLM models — long sessions without stalls</title>
-<meta name="description" content="Run OpenCode through freellmpool's 177 enabled chat routes across 22 cataloged provider groups, with strongest-tier routing, long timeouts, failover, and an embedded TUI dashboard.">
+<meta name="description" content="Run OpenCode through freellmpool's 178 enabled chat routes across 22 cataloged provider groups, with strongest-tier routing, long timeouts, failover, and an embedded TUI dashboard.">
 <link rel="canonical" href="https://0xzr.github.io/freellmpool/run-opencode-on-free-models.html">
 <meta property="og:title" content="Run OpenCode agentically on strong free LLMs">
 <meta property="og:description" content="Strongest-tier agent routing, long stream timeouts, automatic failover, and a live dashboard for sustained OpenCode sessions.">
@@ -42,19 +42,20 @@
 free LLM tiers — no API bill — by pointing it at a local proxy that speaks the OpenAI API. The
     open-source tool <a href="https://github.com/0xzr/freellmpool">freellmpool</a> is that proxy. It catalogs
     22 provider groups spanning recurring free tiers, keyless endpoints, finite trials, pin-only routes, and
-    disabled candidates (177 enabled chat routes), and automatically fails over only across enabled routes you
+    disabled candidates (178 enabled chat routes), and automatically fails over only across enabled routes you
     can access. It can start without provider credentials when an enabled keyless route is available. It also
     ships an OpenCode plugin with a <strong>live dashboard, quality
 routing, and usage tools</strong> built in.</strong></p>
 
-<div class="note"><strong>Release status:</strong> Latest release: 0.12.3. GitHub and PyPI include
+<div class="note"><strong>Release status:</strong> Latest release: 0.13.0. GitHub and PyPI include
 <code>spread</code> routing and the operations APIs described below. Repository-local OpenCode plugin sources are included in 0.12.0 with registry-readiness hardening and corrected defaults.</div>
 
 <h2>1. Install the release, then start the proxy</h2>
 <pre><code>python -m pip install freellmpool
 freellmpool proxy            # serves http://localhost:8080</code></pre>
 <p>The proxy routes OpenAI-style requests to enabled targets you can access and fails over when one is
-    rate-limited.</p>
+    rate-limited. A stream can fail over only before the downstream response is committed; after that,
+    an upstream failure ends as a protocol error and never as a successful terminal event.</p>
 
 <h2>2. Add freellmpool as an OpenCode provider</h2>
 <p>In your <code>opencode.json</code> (or <code>~/.config/opencode/opencode.jsonc</code>), add a
@@ -114,13 +115,34 @@ liveness and <code>/readyz</code> for advisory local capacity. With proxy authen
 <code>/v1/models?ready=true</code> returns only locally ready targets. These endpoints are
 released operations, and readiness does not probe upstream providers.</p>
 
+<p>The proxy also serves a unified browser shell at <code>/dashboard</code> and <code>/playground</code>.
+Its public HTML contains no usage or inventory data. When proxy auth is configured, the page clears the
+token input, keeps the bearer only in a JavaScript closure, and sends it only in
+<code>Authorization</code> headers to the protected data and battle APIs. Reloading forgets it; it is never
+stored in a URL, cookie, Web Storage, rendered page, global, or log.</p>
+
+<pre><code>freellmpool capacity status          # cache-first; no external refresh
+freellmpool capacity status --refresh
+freellmpool doctor                   # strict, secret-safe config diagnostics</code></pre>
+
 <div class="note">Free-tier models are smaller than frontier models. They're great for scaffolding,
 refactors, tests, commit messages, and everyday edits — not a substitute for a frontier model on the
     hardest reasoning. freellmpool's local per-day counters reset at UTC midnight; upstream providers
     use their own limit and reset windows. <code>freellmpool/quality</code> keeps effective quality high as
     local counters fill.</div>
 
-<h2>6. (Optional) add credentials for more capacity</h2>
+<h2>6. (Optional) add a local model runtime</h2>
+<pre><code>freellmpool local discover
+freellmpool local discover --name ollama
+freellmpool local import --name ollama --yes
+# Use the exact provider/model pin printed by import.
+freellmpool local remove local_ollama --yes</code></pre>
+<p>The command probes only fixed LM Studio, Ollama, and llama.cpp literal-loopback endpoints, or one explicit
+canonical literal-loopback URL. It sends no credentials, follows no redirects, and does no DNS, LAN, or
+process scan. Confirmed imports are reversible and pin-only, so they do not silently join OpenCode's
+automatic routing aliases.</p>
+
+<h2>7. (Optional) add credentials for more capacity</h2>
 <p>If a keyless route is available it can get you started; applicable credentials for recurring free tiers
     such as Groq or Gemini can unlock more routes and capacity. Finite trials and priced or pin-only routes
     remain distinct — see the

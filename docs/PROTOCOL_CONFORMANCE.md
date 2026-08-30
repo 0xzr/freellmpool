@@ -59,6 +59,23 @@ provider availability health and do not open availability circuits.
 `freellmpool models --json`, the proxy `/v1/models` responses, and `/status`
 include `capabilities` and `verified_features`.
 
+## Streaming delivery contract
+
+A passing `streaming` canary is target-specific evidence that an upstream can
+produce a stream. At the proxy boundary, text-only OpenAI Responses and
+Anthropic Messages requests are forwarded incrementally rather than collected
+into a complete answer first. Tool calls and richer content still use the
+buffered compatibility path and are framed only after the complete upstream
+reply is available.
+
+Streaming failover is allowed only before freellmpool commits the downstream
+event stream. The proxy selects an upstream and obtains its first usable text
+delta before sending downstream stream headers or events; a failure in that
+pre-commit phase may try another eligible target. After commit, it never
+replays the request on another provider. If the committed stream fails, the
+proxy emits the protocol's error framing when the connection is still writable
+and closes without a successful terminal event.
+
 ## Protected automation
 
 The scheduled and manually dispatchable catalog-sentinel workflow runs a

@@ -517,8 +517,9 @@ def test_groq_catalog_matches_august_29_free_plan_and_retirements():
 
     assert models["groq/compound"].rpd == 250
     assert models["groq/compound-mini"].rpd == 250
-    assert models["qwen/qwen3.8-27b"].enabled is False
+    assert models["qwen/qwen3.8-27b"].enabled is True
     assert models["qwen/qwen3.8-27b"].auto is False
+    assert models["qwen/qwen3.8-27b"].context == 131_042
 
 
 def test_packaged_catalog_includes_frontier_free_providers():
@@ -703,3 +704,91 @@ def test_custom_provider_rejects_unsafe_environment_variable_names():
     assert [provider.id for provider in providers] == ["valid"]
     assert providers[0].key_env == "PROVIDER_KEY"
     assert providers[0].extra_env == ("ACCOUNT_ID",)
+
+
+def test_catalog_toml_is_parsed_once_across_surfaces(tmp_path, monkeypatch):
+    import freellmpool.config as config_module
+
+    path = tmp_path / "all.toml"
+    path.write_text(
+        "[[provider]]\n"
+        'id = "chat"\nbase_url = "https://chat.test/v1"\n'
+        'models = [{ name = "chat-model" }]\n'
+        "[[embedder]]\n"
+        'id = "embed"\nbase_url = "https://embed.test/v1"\n'
+        'models = [{ name = "embed-model" }]\n'
+        "[[transcriber]]\n"
+        'id = "audio"\nbase_url = "https://audio.test/v1"\n'
+        'models = [{ name = "audio-model" }]\n'
+    )
+    original = config_module.tomllib.load
+    calls = 0
+
+    def counted(handle):
+        nonlocal calls
+        calls += 1
+        return original(handle)
+
+    monkeypatch.setattr(config_module.tomllib, "load", counted)
+
+    assert load_catalog(path)[0].id == "chat"
+    assert load_embedders(path)[0].id == "embed"
+    assert config_module.load_transcribers(path)[0].id == "audio"
+    assert calls == 1
+
+    first = load_catalog(path)
+    first.clear()
+    assert load_catalog(path)[0].id == "chat"
+
+
+def test_local_catalog_marker_only_accepts_canonical_literal_loopback(monkeypatch):
+    from freellmpool.config import _parse_rows
+
+    monkeypatch.delenv("FREELLMPOOL_ALLOW_LOCAL_PROVIDERS", raising=False)
+
+    def row(provider_id, base_url):
+        return {
+            "id": provider_id,
+            "base_url": base_url,
+            "local": True,
+            "models": [{"name": "model"}],
+        }
+
+    parsed = _parse_rows(
+        [
+            row("v4", "http://127.0.0.2:11434/v1"),
+            row("v6", "http://[::1]:1234/v1"),
+            row("lan", "http://192.168.1.2:11434/v1"),
+            row("localhost", "http://localhost:11434/v1"),
+            row("short", "http://127.1:11434/v1"),
+            row("mapped", "http://[::ffff:127.0.0.1]:11434/v1"),
+            row("public", "https://api.example.test/v1"),
+        ]
+    )
+
+    assert [provider.id for provider in parsed] == ["v4", "v6"]
+
+
+def test_catalog_cache_invalidates_on_local_opt_in_and_same_size_replace(
+    tmp_path, monkeypatch
+):
+    import os
+
+    path = tmp_path / "providers.toml"
+    first = (
+        "[[provider]]\n"
+        'id = "local"\nbase_url = "http://192.168.1.2:1234/v1"\n'
+        'models = [{ name = "model-a" }]\n'
+    )
+    second = first.replace("model-a", "model-b")
+    path.write_text(first)
+    original_stat = path.stat()
+
+    monkeypatch.delenv("FREELLMPOOL_ALLOW_LOCAL_PROVIDERS", raising=False)
+    assert load_catalog(path) == []
+    monkeypatch.setenv("FREELLMPOOL_ALLOW_LOCAL_PROVIDERS", "1")
+    assert load_catalog(path)[0].models[0].name == "model-a"
+
+    path.write_text(second)
+    os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+    assert load_catalog(path)[0].models[0].name == "model-b"

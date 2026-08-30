@@ -251,6 +251,113 @@ def test_cli_conformance_run_is_bounded_machine_readable(monkeypatch, capsys, tm
     assert evidence["tools"]["status"] == "unsupported"
 
 
+def test_cli_conformance_disabled_canary_requires_one_exact_target(
+    monkeypatch, capsys, tmp_path
+):
+    from freellmpool.cli import main
+    from freellmpool.conformance import ConformanceStore
+
+    provider = Provider(
+        id="candidate",
+        label="Candidate",
+        adapter="openai",
+        base_url="https://candidate.test/v1",
+        auth="none",
+        models=(Model("enabled"), Model("disabled", enabled=False)),
+    )
+    store = ConformanceStore(tmp_path / "conformance.json")
+    captured = []
+
+    def fake_run(provider, model, **kwargs):
+        captured.append((provider.id, model, kwargs["features"]))
+        return {"chat": {"status": "pass", "classification": "verified"}}
+
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: [provider])
+    monkeypatch.setattr("freellmpool.cli.configured_providers", lambda catalog, env=None: catalog)
+    monkeypatch.setattr("freellmpool.cli.ConformanceStore", lambda: store)
+    monkeypatch.setattr("freellmpool.cli.run_target_canaries", fake_run)
+
+    assert (
+        main(
+            [
+                "conformance",
+                "run",
+                "--include-disabled",
+                "--provider",
+                "candidate",
+                "--features",
+                "chat",
+            ]
+        )
+        == 2
+    )
+    assert captured == []
+    assert "requires one exact --provider and --model" in capsys.readouterr().err
+
+    assert (
+        main(
+            [
+                "conformance",
+                "run",
+                "--include-disabled",
+                "--provider",
+                "candidate",
+                "--model",
+                "disabled",
+                "--features",
+                "chat",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    assert captured == [("candidate", "disabled", ("chat",))]
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == [
+        {
+            "provider": "candidate",
+            "model": "disabled",
+            "features": {"chat": {"status": "pass", "classification": "verified"}},
+        }
+    ]
+
+
+def test_cli_conformance_normal_mode_never_selects_disabled_model(monkeypatch, capsys):
+    from freellmpool.cli import main
+
+    provider = Provider(
+        id="candidate",
+        label="Candidate",
+        adapter="openai",
+        base_url="https://candidate.test/v1",
+        auth="none",
+        models=(Model("disabled", enabled=False),),
+    )
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: [provider])
+    monkeypatch.setattr("freellmpool.cli.configured_providers", lambda catalog, env=None: catalog)
+    monkeypatch.setattr(
+        "freellmpool.cli.run_target_canaries",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not probe")),
+    )
+
+    assert (
+        main(
+            [
+                "conformance",
+                "run",
+                "--providers",
+                "candidate",
+                "--model",
+                "disabled",
+                "--features",
+                "chat",
+            ]
+        )
+        == 3
+    )
+    assert "no configured provider/model matched" in capsys.readouterr().err
+
+
 def test_cli_conformance_run_uses_only_catalog_allowlisted_secret_keys(
     monkeypatch, capsys, tmp_path
 ):
@@ -711,6 +818,30 @@ def test_cli_capacity_status_smoke(monkeypatch, capsys):
     assert "LLM capacity:" in out
 
 
+def test_cli_capacity_status_is_cache_first_and_refresh_is_explicit(
+    tmp_path, monkeypatch, capsys
+):
+    from freellmpool.cli import main
+
+    calls = []
+    monkeypatch.setenv("FREELLMPOOL_KEYS_PATH", str(tmp_path / "missing-keys.toml"))
+    monkeypatch.setattr("freellmpool.catalog.load_external_catalog", lambda: [])
+
+    def sync_external_catalog(*, timeout):
+        calls.append(timeout)
+        return tmp_path / "external.json", []
+
+    monkeypatch.setattr("freellmpool.catalog.sync_external_catalog", sync_external_catalog)
+
+    assert main(["capacity", "status", "--target", "1"]) == 0
+    assert calls == []
+    assert "External catalog cache:" in capsys.readouterr().out
+
+    assert main(["capacity", "status", "--target", "1", "--refresh"]) == 0
+    assert calls == [8.0]
+    assert "External catalog refreshed:" in capsys.readouterr().out
+
+
 def _install_capacity_status_edge_fixture(tmp_path, monkeypatch):
     catalog = [
         Provider(
@@ -801,6 +932,82 @@ def test_cli_doctor_smoke(tmp_path, monkeypatch, capsys):
     assert "catalog: ok" in out
 
 
+def test_cli_doctor_uses_effective_config_without_disclosing_secrets(
+    tmp_path, monkeypatch, capsys
+):
+    from freellmpool.cli import main
+
+    secret = "doctor-provider-secret"
+    config = tmp_path / "config.toml"
+    config.write_text(
+        f'[keys]\nDOCTOR_API_KEY = "{secret}"\n[settings]\ncache_ttl = 17\n',
+        encoding="utf-8",
+    )
+    catalog = [
+        Provider(
+            id="doctor",
+            label="Doctor",
+            adapter="openai",
+            base_url="https://doctor.test/v1",
+            key_env="DOCTOR_API_KEY",
+            models=(Model("doctor-model"),),
+        )
+    ]
+    monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(config))
+    monkeypatch.setenv("FREELLMPOOL_QUOTA_PATH", str(tmp_path / "quota.json"))
+    monkeypatch.setenv("FREELLMPOOL_CACHE_PATH", str(tmp_path / "cache.db"))
+    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(tmp_path / "external.json"))
+    monkeypatch.setattr("freellmpool.cli.load_catalog", lambda: catalog)
+
+    assert main(["doctor"]) == 0
+    captured = capsys.readouterr()
+    assert "providers: 1/1 configured" in captured.out
+    assert "ttl=17" in captured.out
+    assert secret not in captured.out
+    assert secret not in captured.err
+
+
+def test_cli_doctor_fails_with_sanitized_toml_location(tmp_path, monkeypatch, capsys):
+    from freellmpool.cli import main
+
+    secret = "malformed-secret-must-not-appear"
+    config = tmp_path / "config.toml"
+    config.write_text(f'[keys]\nGROQ_API_KEY = "{secret}\n', encoding="utf-8")
+    monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(config))
+    monkeypatch.setenv("FREELLMPOOL_QUOTA_PATH", str(tmp_path / "quota.json"))
+    monkeypatch.setenv("FREELLMPOOL_CACHE_PATH", str(tmp_path / "cache.db"))
+    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(tmp_path / "external.json"))
+
+    assert main(["doctor"]) == 1
+    captured = capsys.readouterr()
+    assert "config validation: FAIL" in captured.out
+    assert "toml_syntax" in captured.out
+    assert "line=" in captured.out
+    assert "column=" in captured.out
+    assert secret not in captured.out
+    assert secret not in captured.err
+
+
+def test_cli_doctor_fails_on_wrong_config_table_type_without_values(
+    tmp_path, monkeypatch, capsys
+):
+    from freellmpool.cli import main
+
+    config = tmp_path / "config.toml"
+    config.write_text('keys = "sensitive-wrong-type-value"\n', encoding="utf-8")
+    monkeypatch.setenv("FREELLMPOOL_CONFIG_FILE", str(config))
+    monkeypatch.setenv("FREELLMPOOL_QUOTA_PATH", str(tmp_path / "quota.json"))
+    monkeypatch.setenv("FREELLMPOOL_CACHE_PATH", str(tmp_path / "cache.db"))
+    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(tmp_path / "external.json"))
+
+    assert main(["doctor"]) == 1
+    captured = capsys.readouterr()
+    assert "table_type" in captured.out
+    assert "[keys] must be a table" in captured.out
+    assert "sensitive-wrong-type-value" not in captured.out
+    assert "sensitive-wrong-type-value" not in captured.err
+
+
 def test_cli_keys_checklist_smoke(monkeypatch, capsys):
     from freellmpool.cli import main
 
@@ -876,7 +1083,11 @@ def test_cli_keys_add_cloudflare_prompts_for_account_id(tmp_path, monkeypatch, c
     env = effective_env({"FREELLMPOOL_CONFIG_FILE": str(config)})
     cloudflare = next(p for p in load_catalog() if p.id == "cloudflare")
     assert cloudflare.is_configured(env)
-    assert "CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID" in out
+    assert "Unlocked " in out
+    assert "freellmpool providers health -p cloudflare" in out
+    assert "python3 -m freellmpool" not in out
 
 
 def test_cli_keys_add_cloudflare_uses_existing_account_id(tmp_path, monkeypatch, capsys):
@@ -1422,3 +1633,56 @@ def test_cli_proxy_loopback_no_key_unchanged(monkeypatch, capsys):
     assert "WARNING" not in out
     assert captured["host"] == "127.0.0.1"
     assert captured["api_key"] is None
+
+
+def test_cli_playground_probe_is_data_free_and_does_not_follow_redirects(
+    monkeypatch, capsys
+):
+    """The public shell probe must never attach or redirect a proxy bearer token."""
+    import urllib.request
+
+    from freellmpool.cli import main
+
+    secret = "sentinel-playground-proxy-secret"
+    monkeypatch.setenv("FREELLMPOOL_PROXY_KEY", secret)
+    captured = {}
+
+    class _Response:
+        status = 200
+        headers = {"Content-Type": "text/html; charset=utf-8"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    class _Opener:
+        def open(self, request, *, timeout):
+            captured["request"] = request
+            captured["timeout"] = timeout
+            return _Response()
+
+    def _build_opener(*handlers):
+        captured["handlers"] = handlers
+        return _Opener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", _build_opener)
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("default redirect-following opener used")
+        ),
+    )
+
+    assert main(["playground", "--port", "8181"]) == 0
+    output = capsys.readouterr()
+    assert output.out.strip() == "http://127.0.0.1:8181/playground"
+    assert secret not in output.out + output.err
+    assert captured["request"].get_header("Authorization") is None
+    assert captured["timeout"] == 1.5
+    assert captured["handlers"]
+    redirect_handler = captured["handlers"][0]
+    assert isinstance(redirect_handler, urllib.request.HTTPRedirectHandler)
+    assert redirect_handler.redirect_request(None, None, 302, "", {}, "https://evil.invalid") is None

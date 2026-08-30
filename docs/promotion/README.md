@@ -5,18 +5,18 @@ registry polish. Use this pack when posting externally.
 
 ## Current launch facts
 
-These facts describe the 0.12.3 GitHub and PyPI release.
+These facts describe the 0.13.0 GitHub and PyPI release.
 
 - Repository: <https://github.com/0xzr/freellmpool>
 - Docs: <https://0xzr.github.io/freellmpool/>
 - PyPI: <https://pypi.org/project/freellmpool/>
-- Version: `0.12.3`
+- Version: `0.13.0`
 - First-run hook: installs with `pip install freellmpool` and can answer with no
   provider credentials while an enabled keyless/key-optional route is available.
 - Interfaces: CLI, Python library, OpenAI-compatible proxy, experimental
   Anthropic-compatible proxy path, and MCP server.
 - Audio: OpenAI-compatible speech-to-text through the transcription endpoint.
-- Released catalog: 22 cataloged providers, 177 enabled chat routes, 431
+- Released catalog: 22 cataloged providers, 178 enabled chat routes, 431
   cataloged chat models.
 - Strongest visual assets:
   - `assets/social-preview.png`

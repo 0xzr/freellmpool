@@ -324,8 +324,10 @@ def _exercise(base: str, index: int) -> tuple[str, int]:
             )
             assert _event_names(events) == [
                 "response.created",
+                "response.in_progress",
                 "response.output_item.added",
                 "response.content_part.added",
+                "response.output_text.delta",
                 "response.output_text.delta",
                 "response.output_text.done",
                 "response.content_part.done",
@@ -333,10 +335,21 @@ def _exercise(base: str, index: int) -> tuple[str, int]:
                 "response.completed",
             ]
             assert events[0][1]["response"]["output"] == []
-            assert [event["sequence_number"] for _, event in events] == list(
-                range(len(events))
+            assert events[1][1]["response"]["status"] == "in_progress"
+            assert [event["sequence_number"] for _, event in events] == list(range(len(events)))
+            assert (
+                "".join(
+                    event["delta"] for name, event in events if name == "response.output_text.delta"
+                )
+                == "ok"
+            )
+            assert (
+                next(event for name, event in events if name == "response.output_text.done")["text"]
+                == "ok"
             )
             assert events[-1][1]["type"] == "response.completed"
+            assert events[-1][1]["response"]["status"] == "completed"
+            assert events[-1][1]["response"]["output_text"] == "ok"
             return "responses_stream", status
         if route == 7:
             status, body = _request_json(
@@ -372,10 +385,22 @@ def _exercise(base: str, index: int) -> tuple[str, int]:
                 "message_start",
                 "content_block_start",
                 "content_block_delta",
+                "content_block_delta",
                 "content_block_stop",
                 "message_delta",
                 "message_stop",
             ]
+            assert events[0][1]["message"]["content"] == []
+            assert events[1][1]["content_block"] == {"type": "text", "text": ""}
+            assert (
+                "".join(
+                    event["delta"]["text"]
+                    for name, event in events
+                    if name == "content_block_delta"
+                )
+                == "ok"
+            )
+            assert events[-2][1]["delta"]["stop_reason"] == "end_turn"
             assert events[-1][1]["type"] == "message_stop"
             return "messages_stream", status
         if route == 9:

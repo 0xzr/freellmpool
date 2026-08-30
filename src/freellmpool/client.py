@@ -133,7 +133,14 @@ def _timeout(timeout: float):
     return httpx.Timeout(timeout, connect=min(_CONNECT_TIMEOUT, timeout))
 
 
-def default_post(url: str, headers: dict, json_body: dict, timeout: float) -> HTTPResult:
+def default_post(
+    url: str,
+    headers: dict,
+    json_body: dict,
+    timeout: float,
+    *,
+    max_attempts: int | None = None,
+) -> HTTPResult:
     """Real network POST via the pooled httpx client.
 
     Streams the response so we can (1) cap it at ``_MAX_RESPONSE_BYTES`` — a broken
@@ -144,9 +151,12 @@ def default_post(url: str, headers: dict, json_body: dict, timeout: float) -> HT
     import httpx
 
     deadline = time.monotonic() + timeout
+    attempt_limit = (
+        _MAX_TRANSPORT_ATTEMPTS if max_attempts is None else max(1, int(max_attempts))
+    )
     last_exc: httpx.HTTPError | None = None
     last_result: HTTPResult | None = None
-    for attempt in range(_MAX_TRANSPORT_ATTEMPTS):
+    for attempt in range(attempt_limit):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
@@ -156,7 +166,7 @@ def default_post(url: str, headers: dict, json_body: dict, timeout: float) -> HT
             last_exc = exc
             if not _retryable_transport_error(exc, httpx):
                 raise
-            if attempt + 1 >= _MAX_TRANSPORT_ATTEMPTS:
+            if attempt + 1 >= attempt_limit:
                 raise
             delay = _retry_delay(None, attempt, deadline)
             if delay is None:
@@ -164,7 +174,7 @@ def default_post(url: str, headers: dict, json_body: dict, timeout: float) -> HT
             time.sleep(delay)
             continue
         last_result = result
-        if _retryable(result.status) and attempt + 1 < _MAX_TRANSPORT_ATTEMPTS:
+        if _retryable(result.status) and attempt + 1 < attempt_limit:
             delay = _retry_delay(result, attempt, deadline)
             if delay is not None:
                 time.sleep(delay)
@@ -270,6 +280,14 @@ def _retry_delay_monotonic(
     result: HTTPResult | None, attempt: int, deadline: float, now
 ) -> float | None:
     base = _retry_after_seconds(result.headers if result is not None else None)
+    return _retry_delay_seconds(base, attempt, deadline, now)
+
+
+def _retry_delay_seconds(
+    retry_after: float | None, attempt: int, deadline: float, now
+) -> float | None:
+    """Return one bounded retry delay from already-parsed provider guidance."""
+    base = retry_after
     if base is None:
         base = _RETRY_BACKOFF_S * (attempt + 1)
     jitter = random.uniform(0.0, min(0.1, base * 0.1)) if base > 0 else 0.0
@@ -279,6 +297,19 @@ def _retry_delay_monotonic(
 
 def _retryable_transport_error(exc, httpx) -> bool:
     return isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout))
+
+
+def _retryable_transport_exception(exc: Exception) -> bool:
+    import httpx
+
+    return _retryable_transport_error(exc, httpx)
+
+
+def _is_local_pool_timeout(exc: Exception) -> bool:
+    """A connection-pool wait timeout is local saturation, not provider health."""
+    import httpx
+
+    return isinstance(exc, httpx.PoolTimeout)
 
 
 class _StreamLines:

@@ -17,7 +17,7 @@ provider tiers behind one interface. It can run as a CLI, a Python library, a
 local OpenAI-compatible proxy, an experimental Anthropic-compatible proxy path,
 or an MCP server.
 
-The current packaged catalog has 22 cataloged providers, 177 enabled chat routes,
+The current packaged catalog has 22 cataloged providers, 178 enabled chat routes,
 and 431 cataloged chat models. It can produce a first reply without any API keys
 when a keyless provider is available, and users can add their own free-tier
 provider keys for more capacity.
