@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 import os
+import signal
 import threading
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -1181,6 +1184,53 @@ def test_batched_route_health_rebases_pending_success_after_fork(tmp_path):
     store.flush()
     row = RouteHealthStore(path=path).state("alpha/model")
     assert row is not None and row.successes == 2
+
+
+@pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires POSIX at-fork hooks")
+@pytest.mark.filterwarnings("ignore:This process .* is multi-threaded.*:DeprecationWarning")
+def test_immediate_route_health_replaces_inherited_lock_after_fork(tmp_path):
+    store = RouteHealthStore(
+        path=tmp_path / "health.json",
+        success_flush_every=1,
+    )
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold_store_lock():
+        with store._thread_lock:
+            held.set()
+            release.wait(5)
+
+    thread = threading.Thread(target=hold_store_lock)
+    thread.start()
+    assert held.wait(2)
+
+    child = os.fork()
+    if child == 0:
+        signal.alarm(2)
+        try:
+            store.snapshot()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+
+    try:
+        _pid, status = os.waitpid(child, 0)
+    finally:
+        release.set()
+        thread.join(2)
+    assert os.waitstatus_to_exitcode(status) == 0
+
+
+@pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires at-fork hooks")
+def test_immediate_route_health_at_fork_registry_does_not_retain_store(tmp_path):
+    store = RouteHealthStore(path=tmp_path / "health.json", success_flush_every=1)
+    reference = weakref.ref(store)
+
+    del store
+    gc.collect()
+
+    assert reference() is None
 
 
 @pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires POSIX at-fork hooks")

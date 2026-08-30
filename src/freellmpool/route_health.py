@@ -9,6 +9,7 @@ import os
 import tempfile
 import threading
 import time
+import weakref
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -46,6 +47,7 @@ _MAX_STATE_BYTES = 2_000_000
 _UNKNOWN_SCORE = 0.5
 _PATH_LOCKS: dict[str, threading.RLock] = {}
 _PATH_LOCKS_GUARD = threading.Lock()
+_LIVE_STORES: weakref.WeakSet[RouteHealthStore] = weakref.WeakSet()
 
 
 def _reset_path_locks_after_fork() -> None:
@@ -53,6 +55,8 @@ def _reset_path_locks_after_fork() -> None:
     global _PATH_LOCKS, _PATH_LOCKS_GUARD
     _PATH_LOCKS = {}
     _PATH_LOCKS_GUARD = threading.Lock()
+    for store in tuple(_LIVE_STORES):
+        store._after_fork_child()
 
 
 if hasattr(os, "register_at_fork"):
@@ -160,11 +164,9 @@ class RouteHealthStore:
         self._success_flush_timer: threading.Timer | None = None
         self._future_top_level: dict[str, Any] = {}
         self._quarantine_on_write = False
+        _LIVE_STORES.add(self)
         if self.success_flush_every > 1:
             atexit.register(self.flush)
-            register_at_fork = getattr(os, "register_at_fork", None)
-            if callable(register_at_fork):
-                register_at_fork(after_in_child=self._after_fork_child)
 
     def _after_fork_child(self) -> None:
         """Drop parent-owned success samples and reset child-local locks."""

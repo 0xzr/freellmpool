@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -467,6 +468,352 @@ def test_catalog_lock_replacement_does_not_create_parallel_lock_domain(tmp_path,
         future.result(timeout=5)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX directory replacement regression")
+def test_catalog_parent_replacement_does_not_create_parallel_lock_domain(tmp_path):
+    from freellmpool import local_runtime
+
+    root = tmp_path / "root"
+    catalog = root / "catalog"
+    catalog.mkdir(parents=True)
+    path = catalog / "providers.toml"
+    moved_catalog = root / "catalog-old"
+    second_started = threading.Event()
+    second_acquired = threading.Event()
+
+    def acquire_replacement_catalog_lock():
+        second_started.set()
+        with local_runtime._catalog_lock(path):
+            second_acquired.set()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with pytest.raises(ValueError, match="parent directory changed"):
+            with local_runtime._catalog_lock(path):
+                catalog.rename(moved_catalog)
+                catalog.mkdir()
+                future = executor.submit(acquire_replacement_catalog_lock)
+                assert second_started.wait(timeout=5)
+                assert not second_acquired.wait(timeout=0.25)
+
+        assert second_acquired.wait(timeout=5)
+        future.result(timeout=5)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX canonical lock regression")
+def test_catalog_lock_domain_is_independent_of_runtime_environment(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    runtime_a = tmp_path / "runtime-a"
+    runtime_b = tmp_path / "runtime-b"
+    runtime_a.mkdir(mode=0o700)
+    runtime_b.mkdir(mode=0o700)
+    catalog = tmp_path / "catalog"
+    catalog.mkdir()
+    path = catalog / "providers.toml"
+    moved_catalog = tmp_path / "catalog-old"
+    started = tmp_path / "child-started"
+    entered = tmp_path / "child-entered"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    env["XDG_RUNTIME_DIR"] = str(runtime_b)
+    script = (
+        "import pathlib, sys; "
+        "from freellmpool.local_runtime import _catalog_lock; "
+        "path, started, entered = map(pathlib.Path, sys.argv[1:]); "
+        "started.write_text('started'); "
+        "ctx = _catalog_lock(path); ctx.__enter__(); "
+        "entered.write_text('entered'); ctx.__exit__(None, None, None)"
+    )
+    process = None
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_a))
+    try:
+        with pytest.raises(ValueError, match="parent directory changed"):
+            with local_runtime._catalog_lock(path):
+                catalog.rename(moved_catalog)
+                catalog.mkdir()
+                process = subprocess.Popen(
+                    [sys.executable, "-c", script, str(path), str(started), str(entered)],
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                for _attempt in range(100):
+                    if started.exists():
+                        break
+                    time.sleep(0.01)
+                assert started.exists()
+                time.sleep(0.25)
+                assert not entered.exists()
+    finally:
+        if process is not None:
+            stdout, stderr = process.communicate(timeout=5)
+            assert process.returncode == 0, (stdout, stderr)
+    assert entered.read_text(encoding="utf-8") == "entered"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX local-user lock regression")
+def test_unrelated_root_directory_flock_cannot_block_catalog_import(tmp_path):
+    ready = tmp_path / "holder-ready"
+    path = tmp_path / "providers.toml"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    holder_script = (
+        "import fcntl, os, pathlib, sys; "
+        "fd = os.open('/', os.O_RDONLY); fcntl.flock(fd, fcntl.LOCK_EX); "
+        "pathlib.Path(sys.argv[1]).write_text('ready'); sys.stdin.read()"
+    )
+    import_script = (
+        "import pathlib, sys; "
+        "from freellmpool.local_runtime import LocalRuntime, import_runtime; "
+        "runtime = LocalRuntime('local_lm_studio', 'LM Studio', "
+        "'http://127.0.0.1:1234/v1', ('qwen-local',)); "
+        "import_runtime(runtime, path=pathlib.Path(sys.argv[1]))"
+    )
+    holder = subprocess.Popen(
+        [sys.executable, "-c", holder_script, str(ready)],
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        for _attempt in range(100):
+            if ready.exists():
+                break
+            time.sleep(0.01)
+        assert ready.exists()
+        result = subprocess.run(
+            [sys.executable, "-c", import_script, str(path)],
+            check=False,
+            capture_output=True,
+            env=env,
+            text=True,
+            timeout=2,
+        )
+        assert result.returncode == 0, result.stderr
+    finally:
+        assert holder.stdin is not None
+        holder.stdin.close()
+        holder.wait(timeout=5)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX bounded-lock regression")
+def test_catalog_lock_contention_fails_within_a_bounded_interval(monkeypatch):
+    from freellmpool import local_runtime
+
+    monkeypatch.setattr(local_runtime, "_LOCK_TIMEOUT", 0.05)
+    monkeypatch.setattr(local_runtime, "_LOCK_POLL_INTERVAL", 0.001)
+
+    def contend():
+        with local_runtime._stable_catalog_lock():
+            pytest.fail("contending lock unexpectedly entered")
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with local_runtime._stable_catalog_lock():
+            future = executor.submit(contend)
+            with pytest.raises(ValueError, match="lock is busy"):
+                future.result(timeout=1)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX private-lock regression")
+def test_readable_home_fallback_uses_private_file_not_directory_lock(tmp_path, monkeypatch):
+    import fcntl
+
+    from freellmpool import local_runtime
+
+    home = tmp_path / "home"
+    home.mkdir(mode=0o755)
+    home.chmod(0o755)
+    monkeypatch.setattr(local_runtime, "_canonical_lock_directory", lambda _path=None: home)
+    directory_fd = os.open(home, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        fcntl.flock(directory_fd, fcntl.LOCK_EX)
+        with local_runtime._stable_catalog_lock():
+            pass
+    finally:
+        fcntl.flock(directory_fd, fcntl.LOCK_UN)
+        os.close(directory_fd)
+
+    lock_path = home / ".freellmpool-catalog.lock"
+    assert stat.S_IMODE(lock_path.stat().st_mode) == 0o600
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file-lock regression")
+def test_private_runtime_uses_writable_file_when_directory_flock_is_rejected(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    runtime.chmod(0o700)
+    monkeypatch.setattr(local_runtime, "_canonical_lock_directory", lambda _path=None: runtime)
+    original_lock = local_runtime._lock_file
+
+    def reject_directory_lock(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError("exclusive directory flock requires a writable fd")
+        original_lock(fd)
+
+    monkeypatch.setattr(local_runtime, "_lock_file", reject_directory_lock)
+
+    path = tmp_path / "providers.toml"
+    local_model = LocalRuntime(
+        provider_id="local_lm_studio",
+        label="LM Studio",
+        base_url="http://127.0.0.1:1234/v1",
+        models=("qwen-local",),
+    )
+    assert import_runtime(local_model, path=path) == path
+    assert remove_runtime(local_model.provider_id, path=path) is True
+    assert stat.S_IMODE((runtime / ".freellmpool-catalog.lock").stat().st_mode) == 0o600
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX numeric-uid fallback regression")
+def test_passwdless_numeric_uid_uses_private_catalog_ancestor(tmp_path, monkeypatch):
+    import pwd
+
+    from freellmpool import local_runtime
+
+    missing_runtime = tmp_path / "missing-runtime"
+    fallback = tmp_path / "numeric-fallback"
+    fallback.mkdir(mode=0o700)
+    catalog = fallback / "providers.toml"
+    monkeypatch.setattr(local_runtime, "_runtime_lock_directory", lambda _uid: missing_runtime)
+    monkeypatch.setattr(
+        pwd,
+        "getpwuid",
+        lambda _uid: (_ for _ in ()).throw(KeyError("passwd entry missing")),
+    )
+
+    chosen = local_runtime._canonical_lock_directory(catalog)
+    assert chosen in catalog.parents
+    assert chosen.stat().st_uid == os.geteuid()
+    with local_runtime._stable_catalog_lock(catalog):
+        pass
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX dirfd replacement regression")
+def test_import_fails_closed_if_catalog_parent_is_replaced_after_read(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    root = tmp_path / "root"
+    catalog = root / "catalog"
+    catalog.mkdir(parents=True)
+    path = catalog / "providers.toml"
+    path.write_text("# original catalog\n", encoding="utf-8")
+    moved_catalog = root / "catalog-old"
+    replacement = "# replacement sentinel\n"
+    runtime = LocalRuntime(
+        provider_id="local_lm_studio",
+        label="LM Studio",
+        base_url="http://127.0.0.1:1234/v1",
+        models=("qwen-local",),
+    )
+    original_read = local_runtime._read_catalog
+
+    def replace_parent_after_read(access):
+        text = original_read(access)
+        catalog.rename(moved_catalog)
+        catalog.mkdir()
+        path.write_text(replacement, encoding="utf-8")
+        return text
+
+    monkeypatch.setattr(local_runtime, "_read_catalog", replace_parent_after_read)
+
+    with pytest.raises(ValueError, match="parent directory changed"):
+        import_runtime(runtime, path=path)
+    assert path.read_text(encoding="utf-8") == replacement
+
+
+def test_import_fails_closed_if_catalog_file_is_replaced_after_read(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    path = tmp_path / "providers.toml"
+    path.write_text("# original catalog\n", encoding="utf-8")
+    moved_path = tmp_path / "providers-old.toml"
+    replacement = "# replacement sentinel\n"
+    runtime = LocalRuntime(
+        provider_id="local_lm_studio",
+        label="LM Studio",
+        base_url="http://127.0.0.1:1234/v1",
+        models=("qwen-local",),
+    )
+    original_read = local_runtime._read_catalog
+
+    def replace_file_after_read(access):
+        text = original_read(access)
+        path.rename(moved_path)
+        path.write_text(replacement, encoding="utf-8")
+        return text
+
+    monkeypatch.setattr(local_runtime, "_read_catalog", replace_file_after_read)
+
+    with pytest.raises(ValueError, match="catalog changed"):
+        import_runtime(runtime, path=path)
+    assert path.read_text(encoding="utf-8") == replacement
+
+
+def test_import_fails_closed_if_missing_catalog_appears_after_read(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    path = tmp_path / "providers.toml"
+    replacement = "# replacement sentinel\n"
+    runtime = LocalRuntime(
+        provider_id="local_lm_studio",
+        label="LM Studio",
+        base_url="http://127.0.0.1:1234/v1",
+        models=("qwen-local",),
+    )
+    original_read = local_runtime._read_catalog
+
+    def create_file_after_read(access):
+        text = original_read(access)
+        path.write_text(replacement, encoding="utf-8")
+        return text
+
+    monkeypatch.setattr(local_runtime, "_read_catalog", create_file_after_read)
+
+    with pytest.raises(ValueError, match="catalog changed"):
+        import_runtime(runtime, path=path)
+    assert path.read_text(encoding="utf-8") == replacement
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX dirfd replacement regression")
+def test_import_fails_closed_if_catalog_parent_is_replaced_at_commit(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    root = tmp_path / "root"
+    catalog = root / "catalog"
+    catalog.mkdir(parents=True)
+    path = catalog / "providers.toml"
+    path.write_text("# original catalog\n", encoding="utf-8")
+    moved_catalog = root / "catalog-old"
+    replacement = "# replacement sentinel\n"
+    runtime = LocalRuntime(
+        provider_id="local_lm_studio",
+        label="LM Studio",
+        base_url="http://127.0.0.1:1234/v1",
+        models=("qwen-local",),
+    )
+    original_replace = local_runtime.os.replace
+    replaced = False
+
+    def replace_parent_before_commit(source, destination, *args, **kwargs):
+        nonlocal replaced
+        if not replaced:
+            catalog.rename(moved_catalog)
+            catalog.mkdir()
+            path.write_text(replacement, encoding="utf-8")
+            replaced = True
+        return original_replace(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(local_runtime.os, "replace", replace_parent_before_commit)
+
+    with pytest.raises(ValueError, match="parent directory changed"):
+        import_runtime(runtime, path=path)
+    assert path.read_text(encoding="utf-8") == replacement
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX inode substitution regression")
 def test_catalog_lock_fails_closed_on_inode_substitution(tmp_path, monkeypatch):
     from freellmpool import local_runtime
@@ -480,7 +827,11 @@ def test_catalog_lock_fails_closed_on_inode_substitution(tmp_path, monkeypatch):
     def substitute_after_lock(fd):
         nonlocal substituted
         original_lock_file(fd)
-        if stat.S_ISREG(os.fstat(fd).st_mode):
+        try:
+            named_lock = lock_path.lstat()
+        except FileNotFoundError:
+            return
+        if os.path.samestat(os.fstat(fd), named_lock):
             lock_path.rename(replaced_path)
             lock_path.write_text("replacement", encoding="utf-8")
             substituted = True
@@ -511,6 +862,36 @@ def test_import_refuses_existing_final_path_symlink(tmp_path):
     assert target.read_text(encoding="utf-8") == "sentinel\n"
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="requires FIFO support")
+def test_import_rejects_catalog_fifo_without_blocking(tmp_path):
+    path = tmp_path / "providers.toml"
+    os.mkfifo(path)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    script = (
+        "import pathlib, sys; "
+        "from freellmpool.local_runtime import LocalRuntime, import_runtime; "
+        "runtime = LocalRuntime('local_lm_studio', 'LM Studio', "
+        "'http://127.0.0.1:1234/v1', ('qwen-local',)); "
+        "path = pathlib.Path(sys.argv[1]); "
+        "\ntry: import_runtime(runtime, path=path)\n"
+        "except ValueError: raise SystemExit(0)\n"
+        "raise SystemExit(2)"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(path)],
+        check=False,
+        capture_output=True,
+        env=env,
+        text=True,
+        timeout=2,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert stat.S_ISFIFO(path.lstat().st_mode)
+
+
 def test_import_refuses_symlinked_parent_directory(tmp_path):
     actual_parent = tmp_path / "actual"
     actual_parent.mkdir()
@@ -527,6 +908,29 @@ def test_import_refuses_symlinked_parent_directory(tmp_path):
     with pytest.raises(ValueError, match="parent directory symlink"):
         import_runtime(runtime, path=path)
     assert not (actual_parent / "providers.toml").exists()
+
+
+def test_windows_311_catalog_mutation_does_not_require_fchmod(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    path = tmp_path / "providers.toml"
+    runtime = LocalRuntime(
+        provider_id="local_lm_studio",
+        label="LM Studio",
+        base_url="http://127.0.0.1:1234/v1",
+        models=("qwen-local",),
+    )
+    monkeypatch.setattr(local_runtime, "_WINDOWS", True)
+    monkeypatch.setattr(local_runtime, "_lock_file", lambda _fd: None)
+    monkeypatch.setattr(local_runtime, "_unlock_file", lambda _fd: None)
+    monkeypatch.setattr(
+        local_runtime.os,
+        "fchmod",
+        lambda *_args: pytest.fail("Windows Python 3.11 has no os.fchmod"),
+    )
+
+    assert import_runtime(runtime, path=path) == path
+    assert remove_runtime(runtime.provider_id, path=path) is True
 
 
 def test_cli_discover_is_preview_only_and_import_requires_affirmation(

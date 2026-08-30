@@ -2359,12 +2359,12 @@ byId('auth-form').addEventListener('submit', async event => {
     showAuth('Enter a proxy token.');
     return;
   }
-  authEpoch += 1;
+  const epoch = ++authEpoch;
   authMessage.textContent = 'Checking token...';
   try {
     await refreshDashboard();
   } catch (_error) {
-    if (authMessage.textContent === 'Checking token...') {
+    if (epoch === authEpoch && authMessage.textContent === 'Checking token...') {
       showAuth('The proxy could not be reached. Check it and try again.');
     }
   }

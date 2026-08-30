@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import gc
 import os
+import signal
+import threading
+import weakref
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -258,3 +262,47 @@ def test_batched_stats_rebases_pending_deltas_after_fork(tmp_path):
     assert os.waitstatus_to_exitcode(status) == 0
     store.flush()
     assert StatsStore(path).snapshot()["requests"] == 11
+
+
+@pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires POSIX at-fork hooks")
+@pytest.mark.filterwarnings("ignore:This process .* is multi-threaded.*:DeprecationWarning")
+def test_immediate_stats_replaces_inherited_lock_after_fork(tmp_path):
+    store = StatsStore(tmp_path / "stats.json", flush_every=1)
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold_store_lock():
+        with store._lock:
+            held.set()
+            release.wait(5)
+
+    thread = threading.Thread(target=hold_store_lock)
+    thread.start()
+    assert held.wait(2)
+
+    child = os.fork()
+    if child == 0:
+        signal.alarm(2)
+        try:
+            store.snapshot()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+
+    try:
+        _pid, status = os.waitpid(child, 0)
+    finally:
+        release.set()
+        thread.join(2)
+    assert os.waitstatus_to_exitcode(status) == 0
+
+
+@pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires at-fork hooks")
+def test_immediate_stats_at_fork_registry_does_not_retain_store(tmp_path):
+    store = StatsStore(tmp_path / "stats.json", flush_every=1)
+    reference = weakref.ref(store)
+
+    del store
+    gc.collect()
+
+    assert reference() is None

@@ -29,6 +29,7 @@ import contextlib
 import json
 import os
 import threading
+import weakref
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +45,16 @@ _FIELDS = ("requests", "prompt_tokens", "completion_tokens", "cache_hits")
 # Schema version stamped into the file. Bump only on a *breaking* layout change
 # (additive fields don't need it); a future reader can branch on it to migrate.
 _SCHEMA = 1
+_LIVE_STORES: weakref.WeakSet[StatsStore] = weakref.WeakSet()
+
+
+def _reset_live_stores_after_fork() -> None:
+    for store in tuple(_LIVE_STORES):
+        store._after_fork_child()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_live_stores_after_fork)
 
 
 def default_stats_path() -> Path:
@@ -86,11 +97,9 @@ class StatsStore:
         self._flush_timer: threading.Timer | None = None
         self._reload_after_fork = False
         self._data: dict = self._load()
+        _LIVE_STORES.add(self)
         if self.flush_every > 1:
             atexit.register(self.flush)
-            register_at_fork = getattr(os, "register_at_fork", None)
-            if callable(register_at_fork):
-                register_at_fork(after_in_child=self._after_fork_child)
 
     def _after_fork_child(self) -> None:
         """Drop parent-owned batches and locks in a freshly forked child."""

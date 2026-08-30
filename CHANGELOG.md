@@ -36,6 +36,8 @@ All notable changes to this project are documented here. The format is based on
   Under sustained success traffic, the default 32-operation batches reduce
   persistence commits by up to 32× versus immediate persistence; the one-second
   maximum age and failure/circuit transitions still force earlier writes.
+  Forked children rebase inherited buffers and locks without retaining
+  short-lived immediate-write stores in the parent.
   The [committed write-count contract](benchmarks/persistence-batching-v1.json)
   is deterministic, while wall-clock improvement varies by filesystem and host.
 - Catalog parsing is cached against full file identity and local-provider opt-in
@@ -56,13 +58,15 @@ All notable changes to this project are documented here. The format is based on
   and `doctor` accepts those imported routes without weakening remote URL
   validation.
 - Local model identifiers are allowlisted and shell-quoted before display;
-  catalog mutations are serialized, validate existing TOML, refuse symlink
-  targets, preserve concurrent updates, and fsync atomic replacements.
+  catalog mutations use bounded per-user serialization, validate existing TOML,
+  refuse symlink and non-regular targets, detect parent/file substitutions,
+  preserve concurrent updates, and fsync descriptor-anchored replacements.
 - Corrupt or hostile external-catalog cache fields are size-bounded and
   terminal-safe, including invalid UTF-8, control characters, and malformed
   provider containers.
 - Browser battles and dashboard refreshes are single-flight, duplicate quota
-  spend is blocked, and users can visibly forget the in-memory proxy token.
+  spend is blocked, stale authentication results cannot displace a newer token,
+  and users can visibly forget the in-memory proxy token.
 - Profile doctor now uses a non-inference authenticated Claude health probe and
   rejects malformed base URLs and non-finite or non-positive timeouts without
   tracebacks or secret disclosure.

@@ -611,10 +611,14 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
   check(blockedRefreshes.length === 6, 'new auth epoch reused the stale refresh');
   const staleRequests = blockedRefreshes.slice(0, 3);
   const freshRequests = blockedRefreshes.slice(3);
-  for (const pending of freshRequests) pending.resolve(response(payloadFor(pending.path)));
-  await freshSubmit;
   for (const pending of staleRequests) pending.resolve({{status: 401, ok: false, json: async () => ({{}})}});
   await staleSubmit;
+  check(elements['auth-message'].textContent === 'Checking token...',
+    'stale auth rejection displaced the pending replacement token');
+  check(calls.slice(-3).every(call => call.authorization === 'Bearer fresh'),
+    'pending replacement auth epoch did not retain the fresh bearer token');
+  for (const pending of freshRequests) pending.resolve(response(payloadFor(pending.path)));
+  await freshSubmit;
   check(elements['auth-panel'].hidden && !elements.app.hidden,
     'stale auth result displaced the accepted replacement token');
   check(elements['auth-message'].textContent !== 'Checking token...',
