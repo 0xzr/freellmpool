@@ -502,6 +502,27 @@ def test_parse_error_returns_neg32700():
     assert resp["id"] is None
 
 
+def test_stdio_eof_flushes_all_pool_telemetry(monkeypatch):
+    import io
+    import sys
+
+    from freellmpool.mcp_server import serve_stdio
+
+    class FakePool:
+        def __init__(self):
+            self.flush_calls = 0
+
+        def flush(self):
+            self.flush_calls += 1
+
+    pool = FakePool()
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+
+    serve_stdio(pool)
+
+    assert pool.flush_calls == 1
+
+
 def test_invalid_request_missing_method(providers, env, quota):
     from freellmpool.mcp_server import handle_message
     from freellmpool.router import Pool

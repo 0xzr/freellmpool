@@ -7,7 +7,7 @@ rate-limits you mid-run (exactly when long agent loops tend to die).
 
 ## Release status
 
-- **Latest release: 0.12.3.** GitHub and PyPI both provide 0.12.3, including
+- **Latest release: 0.13.0.** GitHub and PyPI both provide 0.13.0, including
   the Hermes profile, `freellmpool/spread` routing, public `/livez` and
   `/readyz`, authenticated `/v1/providers`, `/v1/models?ready=true`, refreshed
   providers, Vercel AI Gateway support, and OpenCode registry-readiness hardening.
@@ -76,8 +76,9 @@ claude   # now on free models
 ```
 
 > Experimental. Text and tool-use (the agentic file-editing loop) are translated;
-> vision isn't yet. Free models are weaker than Claude — great for cheap iteration,
-> not a full replacement. `freellmpool code claude` prints this.
+> text-only requests stream incrementally, while tool requests remain buffered.
+> Vision isn't yet supported. Free models are weaker than Claude — great for
+> cheap iteration, not a full replacement. `freellmpool code claude` prints this.
 
 ## OpenAI Codex CLI
 
@@ -90,9 +91,9 @@ export OPENAI_API_KEY=anything
 codex --config model_provider=openai   # or set base URL in ~/.codex/config.toml
 ```
 
-> The Responses shim is minimal (text in/out, streaming events). It's great for
-> running Codex/agents on free inference for everyday coding; tool-calling and
-> richer Responses features are a work in progress.
+> The Responses shim sends text-only events incrementally in protocol order.
+> Tool-calling and richer Responses requests remain on the buffered compatibility
+> path, so they do not claim incremental delivery.
 
 ## Hermes Agent (released in 0.12.0)
 

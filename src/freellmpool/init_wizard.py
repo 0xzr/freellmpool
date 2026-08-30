@@ -184,12 +184,16 @@ def render_setup_plan(
     if agent and agent != "mcp" and profile is None:
         valid = ", ".join(profile_names())
         raise ValueError(f"unknown agent '{agent}' (valid: {valid})")
+    if agent == "mcp" and tailnet:
+        raise ValueError("the MCP server uses local stdio and cannot be combined with --tailnet")
 
     host = report.tailnet_ipv4 if tailnet and report.tailnet_ipv4 else "<tailnet-host>"
     base = safe_base_url(host, port) if tailnet else f"http://127.0.0.1:{port}"
     serve_cmd = (
         f"freellmpool tailnet serve --port {port}" if tailnet else f"freellmpool proxy --port {port}"
     )
+    if agent == "mcp":
+        serve_cmd = "freellmpool mcp"
     lines = [
         "freellmpool init: setup plan",
         "",
@@ -197,31 +201,64 @@ def render_setup_plan(
         f"tailnet      : {'yes' if tailnet else 'no'}",
         f"write mode   : {'force requested, but no files are written by this setup plan' if force else 'print-only'}",
         "",
-        "Copy-paste command block:",
+        "Setup terminal (run once):",
         "```bash",
     ]
+    setup_lines: list[str] = []
     if tailnet and not report.tailnet_usable:
-        lines.extend(
+        setup_lines.extend(
             [
                 "# Tailscale is not usable yet.",
-                "# Fix this first, then run the serve command below:",
+                "# Fix this before starting the foreground server:",
                 f"# {report.tailnet_detail}",
             ]
         )
-    lines.append(serve_cmd)
+    if profile is not None:
+        setup_lines.append(f"freellmpool profile install {agent}")
     if agent == "mcp":
-        lines.append("freellmpool mcp")
+        setup_lines.extend(
+            [
+                "# Configure your MCP client to launch this stdio command:",
+                "# command: freellmpool",
+                "# args: mcp",
+            ]
+        )
+    if not setup_lines:
+        setup_lines.append("# No one-time setup commands are required.")
+    lines.extend(setup_lines)
+    lines.extend(
+        [
+            "```",
+            "",
+            "Foreground server terminal (keep running):",
+            "```bash",
+            serve_cmd,
+            "```",
+            "",
+            "Client follow-up terminal (new terminal):",
+            "```bash",
+        ]
+    )
+
+    client_lines: list[str] = []
+    if agent == "mcp":
+        client_lines.extend(
+            [
+                "# Normally your MCP client starts the stdio server above.",
+                "# Claude Code example (run instead of starting it manually):",
+                "claude mcp add freellmpool -- freellmpool mcp",
+            ]
+        )
     elif agent:
-        lines.append(f"freellmpool profile install {agent}")
         doctor = f"freellmpool profile doctor {agent} --dry-run"
         if tailnet:
             doctor = f"{doctor} --base-url {base}"
-        lines.append(doctor)
+        client_lines.append(doctor)
     if tailnet:
-        lines.append(f"freellmpool tailnet connect {host} --port {port}")
-        lines.append("")
-        lines.append("# Remote client environment")
-        lines.extend(
+        client_lines.append(f"freellmpool tailnet connect {host} --port {port}")
+        client_lines.append("")
+        client_lines.append("# Remote client environment")
+        client_lines.extend(
             _shell_safe_setup_lines(
                 format_setup_hints(
                     base_url=base,
@@ -230,19 +267,19 @@ def render_setup_plan(
                 )
             )
         )
-        lines.append("```")
-    else:
-        lines.append("```")
-        lines.extend(
+    elif agent != "mcp":
+        client_lines.extend(
             [
-                "",
-                "Local client environment:",
-                f"  export OPENAI_BASE_URL={base}/v1",
-                "  export OPENAI_API_KEY=anything",
-                f"  export FREELLMPOOL_BASE_URL={base}/v1",
+                "# Local client environment",
+                f"export OPENAI_BASE_URL={base}/v1",
+                "export OPENAI_API_KEY=anything",
+                f"export FREELLMPOOL_BASE_URL={base}/v1",
             ]
         )
-    lines.append("")
+    if not client_lines:
+        client_lines.append("# Connect your client after the foreground server is ready.")
+    lines.extend(client_lines)
+    lines.extend(["```", ""])
     lines.append("No files were written.")
     return "\n".join(lines)
 

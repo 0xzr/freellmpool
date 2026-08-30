@@ -15,6 +15,7 @@ and reused for the pool's lifetime; close it with ``await pool.aclose()`` or an
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from collections.abc import Awaitable, Callable, Iterable
 
 from . import client as _client
@@ -39,7 +40,13 @@ from .errors import (
 )
 from .models import Provider, Reply
 from .observe import emit
-from .router import Pool, _is_account_quota_exhaustion, _is_health_failure
+from .router import (
+    Pool,
+    _ChatAttempt,
+    _is_account_quota_exhaustion,
+    _is_health_failure,
+    _provider_first_wave,
+)
 from .routing_modes import normalize_routing_mode
 from .task_quality import TASK_GENERAL, resolve_task, validate_task
 
@@ -134,11 +141,14 @@ class AsyncPool:
             return self._aclient
 
     async def aclose(self) -> None:
-        async with self._aclient_lock:
-            if self._aclient is not None:
-                await self._aclient.aclose()
-                self._aclient = None
-                self._aclient_loop = None
+        try:
+            async with self._aclient_lock:
+                if self._aclient is not None:
+                    await self._aclient.aclose()
+                    self._aclient = None
+                    self._aclient_loop = None
+        finally:
+            await asyncio.to_thread(self._pool.flush)
 
     async def __aenter__(self) -> AsyncPool:
         return self
@@ -146,16 +156,29 @@ class AsyncPool:
     async def __aexit__(self, *exc) -> None:
         await self.aclose()
 
-    async def _apost(self, url: str, headers: dict, body: dict, timeout: float):
+    async def _apost(
+        self,
+        url: str,
+        headers: dict,
+        body: dict,
+        timeout: float,
+        *,
+        max_attempts: int | None = None,
+    ):
         if self._apost_fn is not None:
             return await self._apost_fn(url, headers, body, timeout)
         import httpx
 
         client = await self._client_obj()
         deadline = asyncio.get_running_loop().time() + timeout
+        attempt_limit = (
+            _client._MAX_TRANSPORT_ATTEMPTS
+            if max_attempts is None
+            else max(1, int(max_attempts))
+        )
         last_exc: httpx.HTTPError | None = None
         last_result: _client.HTTPResult | None = None
-        for attempt in range(_client._MAX_TRANSPORT_ATTEMPTS):
+        for attempt in range(attempt_limit):
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 break
@@ -176,7 +199,7 @@ class AsyncPool:
                 last_exc = exc
                 if not _client._retryable_transport_error(exc, httpx):
                     raise
-                if attempt + 1 >= _client._MAX_TRANSPORT_ATTEMPTS:
+                if attempt + 1 >= attempt_limit:
                     raise
                 delay = _client._retry_delay_monotonic(None, attempt, deadline, asyncio.get_running_loop().time)
                 if delay is None:
@@ -185,7 +208,7 @@ class AsyncPool:
                 continue
             result = _client._json_result(status, raw, text, headers=response_headers)
             last_result = result
-            if _retryable(result.status) and attempt + 1 < _client._MAX_TRANSPORT_ATTEMPTS:
+            if _retryable(result.status) and attempt + 1 < attempt_limit:
                 delay = _client._retry_delay_monotonic(
                     result, attempt, deadline, asyncio.get_running_loop().time
                 )
@@ -212,6 +235,7 @@ class AsyncPool:
         tools,
         tool_choice,
         response_format,
+        max_transport_attempts: int | None = None,
     ) -> Reply:
         if _is_thinking(model) and max_tokens < _THINKING_FLOOR:
             max_tokens = _THINKING_FLOOR
@@ -235,6 +259,7 @@ class AsyncPool:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 timeout=timeout,
+                max_transport_attempts=max_transport_attempts,
             )
         if provider.adapter not in ("openai", "cloudflare"):
             # A plugin-registered (sync) adapter — run it off the event loop so it
@@ -256,7 +281,11 @@ class AsyncPool:
                     tools=tools,
                     tool_choice=tool_choice,
                     response_format=response_format,
-                    post=self._pool._post,
+                    post=(
+                        self._pool._chat_post_once
+                        if max_transport_attempts == 1
+                        else self._pool._post
+                    ),
                 )
         return await self._acall_openai(
             provider,
@@ -269,6 +298,7 @@ class AsyncPool:
             tools=tools,
             tool_choice=tool_choice,
             response_format=response_format,
+            max_transport_attempts=max_transport_attempts,
         )
 
     async def _acall_openai(
@@ -284,6 +314,7 @@ class AsyncPool:
         tools,
         tool_choice,
         response_format,
+        max_transport_attempts,
     ) -> Reply:
         base_url = provider.base_url
         if provider.adapter == "cloudflare":
@@ -305,7 +336,13 @@ class AsyncPool:
                 body["tool_choice"] = tool_choice
         if response_format is not None:
             body["response_format"] = response_format
-        result = await self._apost(url, headers, body, timeout)
+        result = await self._apost(
+            url,
+            headers,
+            body,
+            timeout,
+            max_attempts=max_transport_attempts,
+        )
         if result.status != 200:
             raise _client._provider_http_error(result)
         choices = result.body.get("choices") or []
@@ -334,6 +371,7 @@ class AsyncPool:
         max_tokens,
         temperature,
         timeout,
+        max_transport_attempts=None,
     ) -> Reply:
         system_instruction, contents = _to_gemini_contents(messages)
         url = f"{provider.base_url}/models/{model}:generateContent"
@@ -344,7 +382,13 @@ class AsyncPool:
         }
         if system_instruction:
             body["systemInstruction"] = system_instruction
-        result = await self._apost(url, headers, body, timeout)
+        result = await self._apost(
+            url,
+            headers,
+            body,
+            timeout,
+            max_attempts=max_transport_attempts,
+        )
         if result.status != 200:
             raise _client._provider_http_error(result)
         candidates = result.body.get("candidates") or []
@@ -447,7 +491,7 @@ class AsyncPool:
             )
             if hit is not None and feature_cache_eligible:
                 emit(p._on_event, "cache_hit", key=cache_key)
-                p._bump_stats(cache_hits=1)
+                await asyncio.to_thread(p._bump_stats, cache_hits=1)
                 return Reply(
                     text=hit.get("text", ""),
                     provider_id=hit.get("provider_id", "cache"),
@@ -482,6 +526,20 @@ class AsyncPool:
             for t in targets
         ]
         sequence = [t for t, c in states if not c] + [t for t, c in states if c]
+        usable_provider_ids = {
+            target.provider.id
+            for target in sequence
+            if target.provider.keyless or target.provider.api_key(self.env) is not None
+        }
+        diversity_retry = not exact_pin and len(usable_provider_ids) > 1
+        if diversity_retry:
+            first_wave, later_targets = _provider_first_wave(sequence)
+            pending = deque(_ChatAttempt(target, allow_defer=True) for target in first_wave)
+            fallback = deque(_ChatAttempt(target) for target in later_targets)
+        else:
+            pending = deque(_ChatAttempt(target) for target in sequence)
+            fallback = deque()
+        deferred: deque[_ChatAttempt] = deque()
         attempts: list[tuple[str, str]] = []
         unavailable_providers: set[str] = set()
         client_error: ProviderHTTPError | None = None
@@ -489,8 +547,32 @@ class AsyncPool:
         needed = est_tokens + max_tokens
         ctx_overflow = False
         non_ctx_failure = False
-        for target in sequence:
-            if target.provider.id in unavailable_providers:
+        while pending or deferred or fallback:
+            if pending:
+                attempt = pending.popleft()
+            elif deferred:
+                attempt = deferred.popleft()
+            else:
+                attempt = fallback.popleft()
+            target = attempt.target
+            is_deferred = attempt.retry_error is not None
+            if is_deferred:
+                retry_after = (
+                    attempt.retry_error.retry_after
+                    if isinstance(attempt.retry_error, ProviderHTTPError)
+                    else None
+                )
+                delay = _client._retry_delay_seconds(
+                    retry_after,
+                    0,
+                    deadline,
+                    p._clock,
+                )
+                if delay is None:
+                    attempts.append((target.name, "skipped (retry delay exceeds timeout)"))
+                    continue
+                await asyncio.sleep(delay)
+            if target.provider.id in unavailable_providers and not is_deferred:
                 attempts.append((target.name, "skipped (provider quota unavailable this request)"))
                 continue
             api_key = target.provider.api_key(self.env)
@@ -511,7 +593,9 @@ class AsyncPool:
             if remaining <= 0:
                 attempts.append((target.name, "skipped (overall request timeout exhausted)"))
                 break
-            lease = await asyncio.to_thread(p._acquire_route, target)
+            lease = attempt.lease
+            if lease is None:
+                lease = await asyncio.to_thread(p._acquire_route, target)
             if lease is None:
                 non_ctx_failure = True
                 attempts.append((target.name, "skipped (persistent circuit open)"))
@@ -529,6 +613,9 @@ class AsyncPool:
                     tools=tools,
                     tool_choice=tool_choice,
                     response_format=response_format,
+                    max_transport_attempts=(
+                        1 if attempt.allow_defer or is_deferred else None
+                    ),
                 )
             except ProviderHTTPError as exc:
                 is_ctx, limit = context_limit_from_error(exc.status, str(exc))
@@ -544,11 +631,16 @@ class AsyncPool:
                         (target.name, f"context window exceeded (limit ~{limit or '?'})")
                     )
                     continue
+                account_exhausted = _is_account_quota_exhaustion(exc, target.provider.id)
+                defer_retry = (
+                    attempt.allow_defer
+                    and _client._retryable(exc.status)
+                    and not account_exhausted
+                )
                 if exc.status == 429:
                     p._mark_cooldown(target.provider.id, p._clock())
                     unavailable_providers.add(target.provider.id)
                     emit(p._on_event, "cooldown", target=target.name, status=429)
-                account_exhausted = _is_account_quota_exhaustion(exc, target.provider.id)
                 if account_exhausted:
                     p._mark_account_backoff(target.provider.id, p._clock())
                     unavailable_providers.add(target.provider.id)
@@ -559,18 +651,38 @@ class AsyncPool:
                     client_error = exc
                 if _is_health_failure(exc):
                     p.metrics.record_failure(target.name, str(exc))
-                await asyncio.to_thread(
-                    p._record_route_failure, target, exc, lease
-                )
+                await asyncio.to_thread(p._record_route_failure, target, exc, lease)
+                if defer_retry:
+                    retry_lease = await asyncio.to_thread(
+                        p._refresh_route_lease, lease
+                    )
+                    deferred.append(
+                        _ChatAttempt(target, retry_error=exc, lease=retry_lease)
+                    )
                 emit(p._on_event, "error", target=target.name, reason=str(exc))
                 attempts.append((target.name, str(exc)))
                 continue
             except Exception as exc:  # noqa: BLE001
                 non_ctx_failure = True
-                p.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
-                await asyncio.to_thread(
-                    p._record_route_failure, target, exc, lease
-                )
+                defer_retry = attempt.allow_defer and _client._retryable_transport_exception(exc)
+                local_saturation = _client._is_local_pool_timeout(exc)
+                if local_saturation:
+                    await asyncio.to_thread(
+                        p._release_local_saturation, target, lease
+                    )
+                    retry_lease = None
+                else:
+                    p.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
+                    await asyncio.to_thread(
+                        p._record_route_failure, target, exc, lease
+                    )
+                    retry_lease = await asyncio.to_thread(
+                        p._refresh_route_lease, lease
+                    )
+                if defer_retry:
+                    deferred.append(
+                        _ChatAttempt(target, retry_error=exc, lease=retry_lease)
+                    )
                 emit(p._on_event, "error", target=target.name, reason=f"{type(exc).__name__}")
                 attempts.append((target.name, f"{type(exc).__name__}: {exc}"))
                 continue
@@ -600,7 +712,8 @@ class AsyncPool:
             # stall other in-flight async requests.
             await asyncio.to_thread(p.quota.record, target.provider.id, target.model)
             reply.attempts = len(attempts) + 1
-            p._bump_stats(
+            await asyncio.to_thread(
+                p._bump_stats,
                 requests=1,
                 prompt_tokens=reply.prompt_tokens or 0,
                 completion_tokens=reply.completion_tokens or 0,

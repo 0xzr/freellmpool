@@ -27,7 +27,9 @@ Supported routes:
 
 from __future__ import annotations
 
+import base64
 import collections
+import hashlib
 import hmac
 import json
 import logging
@@ -450,6 +452,8 @@ def make_handler(pool: Pool, api_key: str | None = None):
             try:
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Length", str(len(data)))
                 for key, value in (headers or {}).items():
                     self.send_header(key, str(value))
@@ -488,6 +492,20 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 or user_agent.startswith("claude")
             )
 
+        def _send_browser_shell(self) -> None:
+            """Serve the public shell without interpolating pool or auth state."""
+            html = _browser_shell_html().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Security-Policy", _browser_shell_csp())
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Length", str(len(html)))
+            self.end_headers()
+            self.wfile.write(html)
+
         def do_GET(self) -> None:  # noqa: N802
             self._response_started = False
             try:
@@ -512,6 +530,13 @@ def make_handler(pool: Pool, api_key: str | None = None):
 
         def _do_get(self) -> None:
             path = urlsplit(self.path).path.rstrip("/") or "/"
+            # The browser shell itself contains no inventory, usage, provider, or
+            # credential data. It stays reachable on a key-locked/Tailnet proxy so
+            # a normal browser can prompt locally and authenticate its JSON calls
+            # with the same header contract as every other API client.
+            if path in ("/", "/dashboard", "/playground"):
+                self._send_browser_shell()
+                return
             if path in ("/healthz", "/livez"):
                 self._send(200, {"status": "ok"})
                 return
@@ -551,27 +576,10 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self.end_headers()
                 self.wfile.write(data)
                 return
-            # /dashboard and /v1/models leak inventory/usage, so gate them behind
-            # the proxy key when one is configured.
+            # Inventory, usage, and all API data remain protected when a proxy
+            # key is configured. Only the data-free browser shell above is public.
             if not self._authorized():
                 self._error(401, "invalid or missing API key", "invalid_api_key")
-                return
-            if path in ("/dashboard", "/"):
-                html = _dashboard_html(pool).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(html)))
-                self.end_headers()
-                self.wfile.write(html)
-                return
-            if path == "/playground":
-                html = _playground_html().encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'")
-                self.send_header("Content-Length", str(len(html)))
-                self.end_headers()
-                self.wfile.write(html)
                 return
             if path.endswith("/v1/models") or path == "/models":
                 try:
@@ -788,6 +796,19 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._anthropic_error(400, "no usable message content in request")
                 return
             display_model = req.get("model") or "auto"
+            stream_deadline: float | None = None
+            # Genuine incremental streaming is safe only for text output. Tool
+            # use and rich content retain the completed-reply replay path below,
+            # which preserves their structured Anthropic event framing.
+            if req.get("stream") and _anthropic_text_streamable(req, chat):
+                stream_deadline = pool._clock() + self._text_stream_timeout(req)
+                if self._stream_messages_text(
+                    req,
+                    chat,
+                    str(display_model),
+                    deadline=stream_deadline,
+                ):
+                    return
             routing_override, model_str = _routing_and_model(self.headers, str(chat["model"]))
             resolved = resolve_alias(model_str, pool.env)
             provider_filter, model_filter = _parse_model(resolved, {p.id for p in pool.providers})
@@ -803,6 +824,11 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     temperature=chat["temperature"],
                     tools=chat["tools"],
                     tool_choice=chat["tool_choice"],
+                    timeout=(
+                        max(0.0, stream_deadline - pool._clock())
+                        if stream_deadline is not None
+                        else 90.0
+                    ),
                     protocol="anthropic_messages",
                     routing=routing_override,
                     task=task,
@@ -835,6 +861,149 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._send_sse(reply_to_sse(reply, display_model))
             else:
                 self._send(200, reply_to_message(reply, display_model))
+
+        def _stream_messages_text(
+            self,
+            req: dict,
+            chat: dict,
+            display_model: str,
+            *,
+            deadline: float,
+        ) -> bool:
+            """Stream text as native Anthropic events.
+
+            Returns ``False`` only when streaming could not select an upstream
+            before the HTTP response was committed, allowing the caller to use
+            the existing buffered compatibility path. After commit, failures are
+            terminal Anthropic ``error`` events and never trigger provider retry.
+            """
+            try:
+                gen, meta = self._open_text_stream(
+                    req,
+                    chat["messages"],
+                    max_tokens=chat["max_tokens"],
+                    temperature=chat["temperature"],
+                    timeout=max(0.0, deadline - pool._clock()),
+                )
+            except ContextWindowExceeded as exc:
+                self._anthropic_error(413, str(exc), "context_length_exceeded")
+                return True
+            except ValueError as exc:
+                self._anthropic_error(400, str(exc))
+                return True
+            except (NoProvidersConfigured, AllProvidersExhausted, StopIteration):
+                return False
+            except Exception:  # noqa: BLE001 - pre-commit buffered fallback is safe
+                return False
+
+            provider_id = str(meta.get("provider", "auto")) if isinstance(meta, dict) else "auto"
+            model_name = str(meta.get("model", "auto")) if isinstance(meta, dict) else "auto"
+            attempts = meta.get("attempts", 1) if isinstance(meta, dict) else 1
+            attempts = attempts if isinstance(attempts, int) else 1
+            msg_id = f"msg-freellmpool-{provider_id}"
+            text_parts: list[str] = []
+            input_tokens = estimate_tokens(req)
+            disconnected = False
+            succeeded = False
+            try:
+                try:
+                    self._send_event_stream_headers()
+                    self._write_named_sse(
+                        "message_start",
+                        {
+                            "type": "message_start",
+                            "message": {
+                                "id": msg_id,
+                                "type": "message",
+                                "role": "assistant",
+                                "model": display_model,
+                                "content": [],
+                                "stop_reason": None,
+                                "stop_sequence": None,
+                                "usage": {"input_tokens": input_tokens, "output_tokens": 0},
+                            },
+                        },
+                    )
+                    self._write_named_sse(
+                        "content_block_start",
+                        {
+                            "type": "content_block_start",
+                            "index": 0,
+                            "content_block": {"type": "text", "text": ""},
+                        },
+                    )
+                except (OSError, ValueError):
+                    disconnected = True
+
+                while not disconnected:
+                    try:
+                        delta = next(gen)
+                    except StopIteration:
+                        succeeded = True
+                        break
+                    except Exception:  # noqa: BLE001 - upstream failed after commit
+                        try:
+                            self._write_named_sse(
+                                "error",
+                                {
+                                    "type": "error",
+                                    "error": {
+                                        "type": "api_error",
+                                        "message": (
+                                            "Upstream stream failed; output is incomplete."
+                                        ),
+                                    },
+                                },
+                            )
+                        except (OSError, ValueError):
+                            disconnected = True
+                        break
+                    if not isinstance(delta, str) or not delta:
+                        continue
+                    text_parts.append(delta)
+                    try:
+                        self._write_named_sse(
+                            "content_block_delta",
+                            {
+                                "type": "content_block_delta",
+                                "index": 0,
+                                "delta": {"type": "text_delta", "text": delta},
+                            },
+                        )
+                    except (OSError, ValueError):
+                        disconnected = True
+
+                if succeeded and not disconnected:
+                    output_tokens = max(0, len("".join(text_parts)) // 4)
+                    try:
+                        self._write_named_sse(
+                            "content_block_stop",
+                            {"type": "content_block_stop", "index": 0},
+                        )
+                        self._write_named_sse(
+                            "message_delta",
+                            {
+                                "type": "message_delta",
+                                "delta": {
+                                    "stop_reason": "end_turn",
+                                    "stop_sequence": None,
+                                },
+                                "usage": {"output_tokens": output_tokens},
+                            },
+                        )
+                        self._write_named_sse("message_stop", {"type": "message_stop"})
+                    except (OSError, ValueError):
+                        disconnected = True
+            finally:
+                self._close_upstream_stream(gen)
+                record_recent(
+                    {
+                        "provider": provider_id,
+                        "model": model_name,
+                        "attempts": attempts,
+                    }
+                )
+            return True
 
         def _handle_embeddings(self, req: dict) -> None:
             data = req.get("input")
@@ -1025,6 +1194,105 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._error(500, str(exc), "freellmpool_error")
             return None
 
+        def _open_text_stream(
+            self,
+            req: dict,
+            messages: list[dict],
+            *,
+            max_tokens: int | None = None,
+            temperature: float | None = None,
+            timeout: float | None = None,
+        ):
+            """Select/fail over upstreams before any downstream SSE commit.
+
+            ``Pool.stream_chat`` yields provider metadata only after it has obtained
+            the first upstream text delta. Consequently, once this method returns,
+            the caller can commit headers and must never attempt another provider.
+            """
+            requested = req.get("model") or "auto"
+            if not isinstance(requested, str):
+                raise ValueError("'model' must be a string")
+            routing_override, requested = _routing_and_model(self.headers, requested)
+            requested = resolve_alias(requested, pool.env)
+            provider_filter, model_filter = _parse_model(
+                requested, {provider.id for provider in pool.providers}
+            )
+            max_tokens_value = (
+                int(_max_tokens_value(req, 1024))
+                if max_tokens is None
+                else int(max_tokens)
+            )
+            if temperature is None:
+                temp_raw = req.get("temperature")
+                temperature_value = 0.0 if temp_raw is None else float(temp_raw)
+            else:
+                temperature_value = float(temperature)
+            task = task_resolution(messages, _task_hint(self.headers, req)).task
+            upstream_timeout = (
+                timeout
+                if timeout is not None
+                else (
+                    _AGENT_UPSTREAM_TIMEOUT
+                    if (routing_override or pool.routing) == "agent"
+                    else 90.0
+                )
+            )
+            gen = pool.stream_chat(
+                messages,
+                model=model_filter,
+                providers=provider_filter,
+                max_tokens=max_tokens_value,
+                temperature=temperature_value,
+                timeout=upstream_timeout,
+                routing=routing_override,
+                task=task,
+            )
+            try:
+                meta = next(gen)
+            except BaseException:
+                closer = getattr(gen, "close", None)
+                if callable(closer):
+                    try:
+                        closer()
+                    except Exception:  # noqa: BLE001 - preserve the selection error
+                        pass
+                raise
+            return gen, meta
+
+        def _text_stream_timeout(self, req: dict) -> float:
+            requested = req.get("model") or "auto"
+            requested = requested if isinstance(requested, str) else "auto"
+            routing_override, _requested = _routing_and_model(self.headers, requested)
+            return (
+                _AGENT_UPSTREAM_TIMEOUT
+                if (routing_override or pool.routing) == "agent"
+                else 90.0
+            )
+
+        def _send_event_stream_headers(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+        def _write_named_sse(self, name: str, payload: dict) -> None:
+            block = f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+            self.wfile.write(block.encode("utf-8"))
+            # BaseHTTPRequestHandler currently uses an unbuffered stream, but an
+            # explicit flush preserves incremental behavior if that ever changes.
+            self.wfile.flush()
+
+        @staticmethod
+        def _close_upstream_stream(gen) -> None:
+            closer = getattr(gen, "close", None)
+            if callable(closer):
+                try:
+                    closer()
+                except Exception:  # noqa: BLE001 - connection cleanup is best-effort
+                    pass
+
         def _handle_chat(self, req: dict) -> None:
             messages = req.get("messages")
             if not isinstance(messages, list) or not messages:
@@ -1208,12 +1476,29 @@ def make_handler(pool: Pool, api_key: str | None = None):
             except ValueError as exc:
                 self._error(400, str(exc), "invalid_request_error")
                 return
+            # Tool calls, image/rich input, structured output, and reasoning
+            # retain buffered replay so their complete structured items remain
+            # intact. Plain text uses genuine upstream-to-downstream streaming.
+            stream_deadline: float | None = None
+            if req.get("stream") and _responses_text_streamable(req, messages, tools):
+                stream_deadline = pool._clock() + self._text_stream_timeout(req)
+                if self._stream_responses_text(
+                    req,
+                    messages,
+                    deadline=stream_deadline,
+                ):
+                    return
             reply = self._resolve(
                 req,
                 messages,
                 tools=tools,
                 tool_choice=tool_choice,
                 protocol="responses",
+                timeout=(
+                    max(0.0, stream_deadline - pool._clock())
+                    if stream_deadline is not None
+                    else None
+                ),
             )
             if reply is None:
                 return
@@ -1225,14 +1510,225 @@ def make_handler(pool: Pool, api_key: str | None = None):
             else:
                 self._send(200, _to_responses_object(reply))
 
+        def _stream_responses_text(
+            self,
+            req: dict,
+            messages: list[dict],
+            *,
+            deadline: float,
+        ) -> bool:
+            """Stream text as native Responses events without replay buffering.
+
+            Returns ``False`` only before headers/events are committed, allowing
+            the completed-reply compatibility path to handle providers without
+            streaming support. A post-commit upstream failure emits
+            ``response.failed`` and can never fall through to another provider.
+            """
+            try:
+                gen, meta = self._open_text_stream(
+                    req,
+                    messages,
+                    timeout=max(0.0, deadline - pool._clock()),
+                )
+            except ContextWindowExceeded as exc:
+                self._error(413, str(exc), "context_length_exceeded")
+                return True
+            except ValueError as exc:
+                self._error(400, str(exc), "invalid_request_error")
+                return True
+            except (NoProvidersConfigured, AllProvidersExhausted, StopIteration):
+                return False
+            except Exception:  # noqa: BLE001 - pre-commit buffered fallback is safe
+                return False
+
+            provider_id = str(meta.get("provider", "auto")) if isinstance(meta, dict) else "auto"
+            model_name = str(meta.get("model", "auto")) if isinstance(meta, dict) else "auto"
+            attempts = meta.get("attempts", 1) if isinstance(meta, dict) else 1
+            attempts = attempts if isinstance(attempts, int) else 1
+            created_at = int(time.time())
+            item_id = f"msg-{provider_id}"
+            sequence_number = 0
+            text_parts: list[str] = []
+            disconnected = False
+            succeeded = False
+
+            def emit(name: str, payload: dict) -> None:
+                nonlocal sequence_number
+                event_payload = {**payload, "sequence_number": sequence_number}
+                sequence_number += 1
+                self._write_named_sse(name, event_payload)
+
+            try:
+                try:
+                    self._send_event_stream_headers()
+                    emit(
+                        "response.created",
+                        {
+                            "type": "response.created",
+                            "response": _responses_live_text_object(
+                                provider_id,
+                                model_name,
+                                "",
+                                created_at=created_at,
+                                status="in_progress",
+                            ),
+                        },
+                    )
+                    emit(
+                        "response.in_progress",
+                        {
+                            "type": "response.in_progress",
+                            "response": _responses_live_text_object(
+                                provider_id,
+                                model_name,
+                                "",
+                                created_at=created_at,
+                                status="in_progress",
+                            ),
+                        },
+                    )
+                    emit(
+                        "response.output_item.added",
+                        {
+                            "type": "response.output_item.added",
+                            "output_index": 0,
+                            "item": _responses_text_item(item_id, "", "in_progress", empty=True),
+                        },
+                    )
+                    emit(
+                        "response.content_part.added",
+                        {
+                            "type": "response.content_part.added",
+                            "item_id": item_id,
+                            "output_index": 0,
+                            "content_index": 0,
+                            "part": {
+                                "type": "output_text",
+                                "text": "",
+                                "annotations": [],
+                            },
+                        },
+                    )
+                except (OSError, ValueError):
+                    disconnected = True
+
+                while not disconnected:
+                    try:
+                        delta = next(gen)
+                    except StopIteration:
+                        succeeded = True
+                        break
+                    except Exception:  # noqa: BLE001 - upstream failed after commit
+                        partial = "".join(text_parts)
+                        try:
+                            emit(
+                                "response.failed",
+                                {
+                                    "type": "response.failed",
+                                    "response": _responses_live_text_object(
+                                        provider_id,
+                                        model_name,
+                                        partial,
+                                        created_at=created_at,
+                                        status="failed",
+                                        error={
+                                            "code": "server_error",
+                                            "message": (
+                                                "Upstream stream failed; output is incomplete."
+                                            ),
+                                        },
+                                    ),
+                                },
+                            )
+                        except (OSError, ValueError):
+                            disconnected = True
+                        break
+                    if not isinstance(delta, str) or not delta:
+                        continue
+                    text_parts.append(delta)
+                    try:
+                        emit(
+                            "response.output_text.delta",
+                            {
+                                "type": "response.output_text.delta",
+                                "item_id": item_id,
+                                "output_index": 0,
+                                "content_index": 0,
+                                "delta": delta,
+                                "logprobs": [],
+                            },
+                        )
+                    except (OSError, ValueError):
+                        disconnected = True
+
+                if succeeded and not disconnected:
+                    text = "".join(text_parts)
+                    part = {"type": "output_text", "text": text, "annotations": []}
+                    item = _responses_text_item(item_id, text, "completed")
+                    try:
+                        emit(
+                            "response.output_text.done",
+                            {
+                                "type": "response.output_text.done",
+                                "item_id": item_id,
+                                "output_index": 0,
+                                "content_index": 0,
+                                "text": text,
+                                "logprobs": [],
+                            },
+                        )
+                        emit(
+                            "response.content_part.done",
+                            {
+                                "type": "response.content_part.done",
+                                "item_id": item_id,
+                                "output_index": 0,
+                                "content_index": 0,
+                                "part": part,
+                            },
+                        )
+                        emit(
+                            "response.output_item.done",
+                            {
+                                "type": "response.output_item.done",
+                                "output_index": 0,
+                                "item": item,
+                            },
+                        )
+                        emit(
+                            "response.completed",
+                            {
+                                "type": "response.completed",
+                                "response": _responses_live_text_object(
+                                    provider_id,
+                                    model_name,
+                                    text,
+                                    created_at=created_at,
+                                    status="completed",
+                                ),
+                            },
+                        )
+                    except (OSError, ValueError):
+                        disconnected = True
+            finally:
+                self._close_upstream_stream(gen)
+                record_recent(
+                    {
+                        "provider": provider_id,
+                        "model": model_name,
+                        "attempts": attempts,
+                    }
+                )
+            return True
+
         def _send_sse(self, sse_blocks) -> None:
             """Emit pre-formatted SSE blocks as a stream.
 
-            This is a *buffered* stream: freellmpool resolves the full completion
-            (with failover) first, then frames it as Server-Sent Events so that
-            clients which require ``stream: true`` work unchanged. ``sse_blocks``
-            is an iterable of already-encoded SSE strings (chat and Responses use
-            different framings).
+            This is intentionally the *buffered* compatibility path: tools,
+            rich content, and structured responses resolve fully (with failover)
+            before their protocol events are replayed. Dedicated text-only paths
+            above stream upstream deltas incrementally instead. ``sse_blocks`` is
+            an iterable of already-encoded SSE strings.
             """
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
@@ -1277,6 +1773,81 @@ def _parse_model(requested: object, provider_ids: set[str]):
     if requested in provider_ids:
         return [requested], None
     return None, requested
+
+
+def _messages_are_text_only(messages: list[dict]) -> bool:
+    """Return whether history contains only textual roles/content."""
+    for message in messages:
+        if message.get("role") == "tool" or message.get("tool_calls"):
+            return False
+        content = message.get("content")
+        if isinstance(content, str):
+            continue
+        if not isinstance(content, list) or not content:
+            return False
+        if not all(
+            isinstance(part, dict)
+            and part.get("type") in {"text", "input_text", "output_text"}
+            and isinstance(part.get("text"), str)
+            for part in content
+        ):
+            return False
+    return True
+
+
+def _anthropic_text_streamable(req: dict, chat: dict) -> bool:
+    """Keep tools and rich Anthropic blocks on buffered structured replay."""
+    if chat.get("tools") or chat.get("tool_choice") is not None:
+        return False
+    system = req.get("system")
+    if system is not None and not (
+        isinstance(system, str)
+        or (
+            isinstance(system, list)
+            and all(
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+                for block in system
+            )
+        )
+    ):
+        return False
+    for message in req.get("messages", []):
+        if not isinstance(message, dict):
+            return False
+        content = message.get("content")
+        if isinstance(content, str):
+            continue
+        if not isinstance(content, list) or not content:
+            return False
+        if not all(
+            isinstance(block, dict)
+            and block.get("type") == "text"
+            and isinstance(block.get("text"), str)
+            for block in content
+        ):
+            return False
+    messages = chat.get("messages")
+    return isinstance(messages, list) and bool(messages) and _messages_are_text_only(messages)
+
+
+def _responses_text_streamable(req: dict, messages: list[dict], tools) -> bool:
+    """Gate genuine Responses streaming to plain-text request/response shapes."""
+    if tools or any(req.get(field) is not None for field in ("include", "reasoning", "modalities")):
+        return False
+    text_config = req.get("text")
+    if text_config is not None:
+        if not isinstance(text_config, dict):
+            return False
+        text_format = text_config.get("format")
+        if text_format is not None and (
+            not isinstance(text_format, dict) or text_format.get("type") != "text"
+        ):
+            return False
+    if req.get("response_format") is not None:
+        return False
+    return _messages_are_text_only(messages)
 
 
 def _content(message: dict) -> str:
@@ -1516,40 +2087,375 @@ def _dashboard_html(pool) -> str:
 	</div></body></html>"""
 
 
+_BROWSER_SHELL_STYLE = """
+:root{color-scheme:dark;font-family:ui-sans-serif,system-ui,sans-serif;background:#0b0e14;color:#e8eaf0}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:980px;margin:0 auto;padding:28px 18px 48px}
+h1{font-size:24px;margin:0}.sub,.meta{color:#9aa4b5;font-size:13px}.top{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+nav,.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button,input,textarea{font:inherit}
+button{background:#dce8ff;color:#101522;border:0;border-radius:7px;padding:9px 13px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}button.secondary{background:#20283a;color:#dce8ff;border:1px solid #36415a}.panel{margin-top:20px;background:#141925;border:1px solid #273044;border-radius:10px;padding:18px}
+.auth{max-width:520px;margin:56px auto}.auth form{display:flex;gap:8px;margin-top:14px}.auth input{flex:1;min-width:130px}
+input,textarea{background:#0f1420;color:#f5f7fb;border:1px solid #36415a;border-radius:7px;padding:10px 12px}
+textarea{width:100%;min-height:125px;margin:12px 0;resize:vertical}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:16px 0}
+.card,.answer{background:#101622;border:1px solid #273044;border-radius:8px;padding:13px}.big{font-size:23px;font-weight:750}.label{color:#9aa4b5;font-size:11px;margin-top:3px}
+table{width:100%;border-collapse:collapse}th,td{padding:9px 8px;text-align:left;border-bottom:1px solid #273044;font-size:13px}th{color:#9aa4b5;font-size:11px}.num{text-align:right;font-variant-numeric:tabular-nums}
+.table-wrap{overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px}.answer{white-space:pre-wrap}.fail{color:#ffb4a8}.ok{color:#a8e6b0}.notice{min-height:20px;margin-top:8px}[hidden]{display:none!important}
+""".strip()
+
+_BROWSER_SHELL_SCRIPT = """
+(() => {
+'use strict';
+let token = '';
+let authEpoch = 0;
+let refreshPromise = null;
+let refreshEpoch = -1;
+let battleInFlight = false;
+const byId = id => document.getElementById(id);
+const authPanel = byId('auth-panel');
+const app = byId('app');
+const tokenInput = byId('proxy-token');
+const authMessage = byId('auth-message');
+const out = byId('out');
+const runButton = byId('run');
+const countInput = byId('count');
+
+function clearProtectedView() {
+  for (const [id, value] of [
+    ['requests', '0'], ['tokens', '0'], ['cache-hits', '0'], ['saved', '$0.00'],
+    ['healthy', '0/0'], ['models', '0']
+  ]) text(id, value);
+  byId('provider-rows').replaceChildren();
+  byId('metrics-rows').replaceChildren();
+  out.replaceChildren();
+}
+function showAuth(message) {
+  token = '';
+  authEpoch += 1;
+  refreshPromise = null;
+  refreshEpoch = -1;
+  tokenInput.value = '';
+  app.hidden = true;
+  authPanel.hidden = false;
+  clearProtectedView();
+  authMessage.textContent = message || 'Enter the proxy token to continue.';
+  tokenInput.focus();
+}
+function authorizedOptions(options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', 'Bearer ' + token);
+  return {...options, headers, credentials: 'omit', cache: 'no-store', redirect: 'error'};
+}
+async function protectedFetch(path, options = {}, expectedEpoch = authEpoch) {
+  const response = await fetch(path, authorizedOptions(options));
+  if (response.status === 401 || response.status === 403) {
+    if (expectedEpoch === authEpoch) showAuth('That proxy token was not accepted.');
+    throw new Error('authentication required');
+  }
+  return response;
+}
+async function readJson(response) {
+  if (!response.ok) throw new Error('request failed (' + response.status + ')');
+  return response.json();
+}
+function text(id, value) { byId(id).textContent = String(value); }
+function formatNumber(value) { return Number(value || 0).toLocaleString(); }
+function humanStatus(value) { return String(value || 'unknown').replaceAll('_', ' '); }
+function appendCells(row, values) {
+  for (const value of values) {
+    const cell = document.createElement('td');
+    cell.textContent = String(value ?? '');
+    row.appendChild(cell);
+  }
+}
+function quotaSummary(provider) {
+  const providerModels = Array.isArray(provider.models) ? provider.models : [];
+  let used = 0;
+  let limitedQuota = 0;
+  let hasUnmeteredModel = false;
+  for (const model of providerModels) {
+    used += Number(model.used_today || 0);
+    if (model.daily_limit === null || model.daily_limit === undefined) {
+      hasUnmeteredModel = true;
+    } else {
+      limitedQuota += Number(model.daily_limit || 0);
+    }
+  }
+  let quota = formatNumber(limitedQuota);
+  if (hasUnmeteredModel) quota = limitedQuota ? quota + ' + unmetered' : 'unmetered';
+  return formatNumber(used) + ' / ' + quota;
+}
+function readinessReason(provider) {
+  const ready = Number(provider.ready_models || 0);
+  const enabled = Number(provider.enabled_models || 0);
+  const cooldown = Math.max(0, Number(provider.cooldown_remaining_s || 0));
+  if (provider.status === 'ready') return ready + '/' + enabled + ' enabled models ready';
+  if (provider.status === 'unconfigured') return 'credentials not configured';
+  if (provider.status === 'no_enabled_models') return 'no enabled models';
+  if (provider.status === 'cooldown') {
+    return cooldown ? 'cooldown; retry in ' + Math.ceil(cooldown) + 's' : 'provider cooldown';
+  }
+  if (provider.status === 'quota_exhausted') return 'daily quota exhausted';
+  return humanStatus(provider.status);
+}
+function renderMetrics(status) {
+  const measured = [];
+  for (const provider of Array.isArray(status.providers) ? status.providers : []) {
+    for (const model of Array.isArray(provider.models) ? provider.models : []) {
+      if (model.ewma_ms === null && model.success_rate === null) continue;
+      measured.push({
+        id: provider.id + '/' + model.name,
+        latency: model.ewma_ms,
+        success: model.success_rate,
+        circuit: model.circuit_state
+      });
+    }
+  }
+  measured.sort((a, b) => {
+    const aLatency = a.latency === null ? Number.POSITIVE_INFINITY : Number(a.latency);
+    const bLatency = b.latency === null ? Number.POSITIVE_INFINITY : Number(b.latency);
+    return aLatency - bLatency;
+  });
+  const rows = byId('metrics-rows');
+  rows.replaceChildren();
+  for (const metric of measured.slice(0, 8)) {
+    const latency = metric.latency === null ? 'not measured' : formatNumber(Math.round(Number(metric.latency))) + ' ms';
+    const success = metric.success === null ? 'not measured' : Math.round(Number(metric.success) * 100) + '%';
+    const row = document.createElement('tr');
+    appendCells(row, [metric.id, latency, success, humanStatus(metric.circuit)]);
+    rows.appendChild(row);
+  }
+  if (!measured.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 4;
+    cell.textContent = 'No measured calls yet.';
+    row.appendChild(cell);
+    rows.appendChild(row);
+  }
+}
+function renderDashboard(status, inventory, models) {
+  const usage = status.pool || {};
+  text('requests', formatNumber(usage.requests));
+  text('tokens', formatNumber(Number(usage.prompt_tokens || 0) + Number(usage.completion_tokens || 0)));
+  text('cache-hits', formatNumber(usage.cache_hits));
+  text('saved', '$' + Number(usage.usd_saved || 0).toFixed(2));
+  const providers = Array.isArray(inventory.data) ? inventory.data : [];
+  text('healthy', providers.filter(item => item.ready).length + '/' + providers.length);
+  text('models', Array.isArray(models.data) ? models.data.length : 0);
+  const rows = byId('provider-rows');
+  rows.replaceChildren();
+  for (const provider of providers) {
+    const row = document.createElement('tr');
+    appendCells(row, [
+      provider.id,
+      humanStatus(provider.status),
+      provider.ready_models + '/' + provider.enabled_models,
+      quotaSummary(provider),
+      readinessReason(provider)
+    ]);
+    rows.appendChild(row);
+  }
+  if (!providers.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.textContent = 'No provider inventory is available.';
+    row.appendChild(cell);
+    rows.appendChild(row);
+  }
+  renderMetrics(status);
+}
+function refreshDashboard() {
+  const epoch = authEpoch;
+  if (refreshPromise && refreshEpoch === epoch) return refreshPromise;
+  const active = (async () => {
+    const responses = await Promise.all([
+      protectedFetch('/v1/status', {}, epoch),
+      protectedFetch('/v1/providers', {}, epoch),
+      protectedFetch('/v1/models?ready=true', {}, epoch)
+    ]);
+    const data = await Promise.all(responses.map(readJson));
+    if (epoch !== authEpoch) return;
+    renderDashboard(data[0], data[1], data[2]);
+    authPanel.hidden = true;
+    app.hidden = false;
+    authMessage.textContent = '';
+  })();
+  refreshPromise = active;
+  refreshEpoch = epoch;
+  return active.finally(() => {
+    if (refreshPromise === active) {
+      refreshPromise = null;
+      refreshEpoch = -1;
+    }
+  });
+}
+function card(label, value, failed) {
+  const element = document.createElement('div');
+  element.className = 'answer';
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = label;
+  const body = document.createElement('div');
+  if (failed) body.className = 'fail';
+  body.textContent = value || '';
+  element.append(meta, body);
+  return element;
+}
+async function runBattle() {
+  if (battleInFlight) return;
+  const prompt = byId('prompt').value.trim();
+  if (!prompt) {
+    out.replaceChildren(card('prompt required', 'Enter a question first.', true));
+    return;
+  }
+  const epoch = authEpoch;
+  const n = selectedBattleCount();
+  battleInFlight = true;
+  runButton.disabled = true;
+  runButton.textContent = 'Running...';
+  out.replaceChildren(card('running', 'Comparing ' + n + ' free models...', false));
+  try {
+    const response = await protectedFetch('/freellmpool/battle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt, n})
+    }, epoch);
+    const data = await readJson(response);
+    if (epoch !== authEpoch) return;
+    out.replaceChildren();
+    for (const answer of data.answers || []) {
+      out.appendChild(card(answer.label || answer.model, answer.error || answer.text, Boolean(answer.error)));
+    }
+    if (data.synthesis && data.synthesis.text) {
+      out.appendChild(card('synthesis', data.synthesis.text, false));
+    }
+  } catch (_error) {
+    if (epoch === authEpoch) {
+      out.replaceChildren(card('request failed', 'The battle could not be completed.', true));
+    }
+  } finally {
+    battleInFlight = false;
+    runButton.disabled = false;
+    runButton.textContent = 'Run battle';
+  }
+}
+function selectedBattleCount() {
+  return Math.max(2, Math.min(5, Number(countInput.value) || 3));
+}
+function updateBattleDisclosure() {
+  const count = selectedBattleCount();
+  text(
+    'battle-disclosure',
+    'One run starts ' + count + ' model completions; provider failover may add attempts.'
+  );
+}
+byId('auth-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  token = tokenInput.value;
+  tokenInput.value = '';
+  if (!token) {
+    showAuth('Enter a proxy token.');
+    return;
+  }
+  const epoch = ++authEpoch;
+  authMessage.textContent = 'Checking token...';
+  try {
+    await refreshDashboard();
+  } catch (_error) {
+    if (epoch === authEpoch && authMessage.textContent === 'Checking token...') {
+      showAuth('The proxy could not be reached. Check it and try again.');
+    }
+  }
+});
+runButton.addEventListener('click', runBattle);
+countInput.addEventListener('input', updateBattleDisclosure);
+byId('forget-token').addEventListener('click', () => {
+  showAuth('Token forgotten. Enter it again to reconnect.');
+  // An auth-free loopback proxy reconnects immediately; a keyed proxy returns
+  // 401 and leaves the prompt visible without retaining the old token.
+  refreshDashboard().catch(() => {});
+});
+function selectPanel(name) {
+  byId('dashboard-panel').hidden = name !== 'dashboard';
+  byId('playground-panel').hidden = name !== 'playground';
+}
+for (const button of document.querySelectorAll('[data-panel]')) {
+  button.addEventListener('click', () => selectPanel(button.dataset.panel));
+}
+selectPanel(location.pathname.endsWith('/playground') ? 'playground' : 'dashboard');
+updateBattleDisclosure();
+refreshDashboard().catch(() => showAuth('Enter the proxy token to continue.'));
+setInterval(() => { if (!app.hidden) refreshDashboard().catch(() => {}); }, 5000);
+})();
+""".strip()
+
+
+def _browser_shell_csp() -> str:
+    """Hash-pin the only inline style and script; no external assets can execute."""
+
+    def source_hash(source: str) -> str:
+        digest = hashlib.sha256(source.encode("utf-8")).digest()
+        return base64.b64encode(digest).decode("ascii")
+
+    return "; ".join(
+        (
+            "default-src 'none'",
+            f"style-src 'sha256-{source_hash(_BROWSER_SHELL_STYLE)}'",
+            f"script-src 'sha256-{source_hash(_BROWSER_SHELL_SCRIPT)}'",
+            "connect-src 'self'",
+            "base-uri 'none'",
+            "form-action 'none'",
+            "frame-ancestors 'none'",
+        )
+    )
+
+
+def _browser_shell_html() -> str:
+    """Public, data-free dashboard/playground shell with closure-only auth."""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>freellmpool</title><style>{_BROWSER_SHELL_STYLE}</style></head><body>
+<main class="wrap">
+<div class="top"><div><h1>freellmpool</h1><div class="sub">local free-model pool</div></div></div>
+<section id="auth-panel" class="panel auth" hidden>
+<h2>Connect to this proxy</h2>
+<div class="sub">The token stays only in this page's memory and is forgotten on reload.</div>
+<form id="auth-form" autocomplete="off">
+<input id="proxy-token" type="password" autocomplete="off" autocapitalize="off"
+ spellcheck="false" aria-label="Proxy token" placeholder="Proxy token">
+<button type="submit">Continue</button></form><div id="auth-message" class="notice fail"></div>
+</section>
+<section id="app" hidden>
+<div class="top"><nav aria-label="Views"><button class="secondary" data-panel="dashboard">Dashboard</button>
+<button class="secondary" data-panel="playground">Playground</button>
+<button id="forget-token" class="secondary" type="button">Forget token</button></nav>
+<div class="sub">Usage and inventory refresh every 5 seconds</div></div>
+<section id="dashboard-panel" class="panel"><h2>Dashboard</h2>
+<div class="cards"><div class="card"><div id="requests" class="big">0</div><div class="label">requests served</div></div>
+<div class="card"><div id="tokens" class="big">0</div><div class="label">tokens served</div></div>
+<div class="card"><div id="cache-hits" class="big">0</div><div class="label">cache hits</div></div>
+<div class="card"><div id="saved" class="big">$0.00</div><div class="label">estimated not spent</div></div>
+<div class="card"><div id="healthy" class="big">0/0</div><div class="label">healthy providers</div></div>
+<div class="card"><div id="models" class="big">0</div><div class="label">ready models</div></div></div>
+<h3>Provider capacity</h3><div class="table-wrap"><table><thead><tr><th>provider</th><th>status</th><th>ready</th><th>usage / daily quota</th><th>readiness reason</th></tr></thead>
+<tbody id="provider-rows"></tbody></table></div>
+<h3>Measured latency and success</h3><div class="sub">Observed in this proxy process; fastest measured routes appear first.</div>
+<div class="table-wrap"><table><thead><tr><th>provider/model</th><th>latency</th><th>success</th><th>circuit</th></tr></thead>
+<tbody id="metrics-rows"></tbody></table></div></section>
+<section id="playground-panel" class="panel" hidden><h2>Playground</h2>
+<div class="bar"><label>models <input id="count" type="number" min="2" max="5" value="3" aria-describedby="battle-disclosure"></label>
+<button id="run" type="button">Run battle</button></div>
+<div id="battle-disclosure" class="sub">One run starts 3 model completions; provider failover may add attempts.</div>
+<textarea id="prompt" placeholder="Ask a question to compare across free models"></textarea>
+<section id="out" class="grid" aria-live="polite"></section></section>
+</section></main><script>{_BROWSER_SHELL_SCRIPT}</script></body></html>"""
+
+
 def _playground_html() -> str:
-    """A self-contained local comparison page with no external assets."""
-    return """<!doctype html><html><head><meta charset=utf-8>
-<title>freellmpool playground</title>
-<style>
-body{font-family:ui-sans-serif,system-ui,sans-serif;margin:0;background:#10130f;color:#eeeeea}
-.wrap{max-width:980px;margin:0 auto;padding:28px 18px}
-h1{font-size:24px;margin:0 0 12px}.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-textarea{width:100%;min-height:120px;margin:12px 0;padding:12px;background:#181c17;color:#f5f5f0;border:1px solid #30362e;border-radius:6px}
-button,input{background:#e7f0d8;color:#10130f;border:0;border-radius:6px;padding:9px 12px;font-weight:650}
-input{width:70px;background:#181c17;color:#f5f5f0;border:1px solid #30362e}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px}
-.answer{background:#181c17;border:1px solid #30362e;border-radius:6px;padding:12px;white-space:pre-wrap}
-.meta{color:#aeb8a3;font-size:12px;margin-bottom:8px}.fail{color:#ffb4a8}
-</style></head><body><main class=wrap>
-<h1>freellmpool playground</h1>
-<div class=bar><label>models <input id=count type=number min=2 max=5 value=3></label><button id=run>Run battle</button></div>
-<textarea id=prompt placeholder="Ask a question to compare across free models"></textarea>
-<section id=out class=grid></section>
-</main><script>
-const out=document.getElementById('out');
-function card(label,text,fail){const el=document.createElement('div');el.className='answer';
-const meta=document.createElement('div');meta.className='meta';meta.textContent=label;el.appendChild(meta);
-const body=document.createElement('div');if(fail)body.className='fail';body.textContent=text||'';el.appendChild(body);return el}
-document.getElementById('run').onclick=async()=>{out.replaceChildren(card('running',''));
-const prompt=document.getElementById('prompt').value;
-const n=Number(document.getElementById('count').value)||3;
-const res=await fetch('/freellmpool/battle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,n})});
-const data=await res.json();out.replaceChildren();
-if(!res.ok){out.appendChild(card('error',data.error&&data.error.message||'request failed',true));return}
-for(const a of data.answers){out.appendChild(card(a.label,a.error||a.text,Boolean(a.error)))}
-if(data.synthesis&&data.synthesis.text){out.appendChild(card('synthesis',data.synthesis.text,false))}
-};
-</script></body></html>"""
+    """Compatibility renderer for the unified self-contained browser shell."""
+    return _browser_shell_html()
 
 
 def _chunk_block(
@@ -1805,6 +2711,78 @@ def _responses_function_call_items(reply) -> list[dict]:
     return items
 
 
+def _responses_text_item(
+    item_id: str,
+    text: str,
+    status: str,
+    *,
+    empty: bool = False,
+) -> dict:
+    content = []
+    if not empty:
+        content.append({"type": "output_text", "text": text, "annotations": []})
+    return {
+        "type": "message",
+        "id": item_id,
+        "status": status,
+        "role": "assistant",
+        "content": content,
+    }
+
+
+def _responses_live_text_object(
+    provider_id: str,
+    model_name: str,
+    text: str,
+    *,
+    created_at: int,
+    status: str,
+    error: dict | None = None,
+) -> dict:
+    """Build the response snapshot carried by live Responses SSE terminals."""
+    finished = status == "completed"
+    output = []
+    if status != "in_progress":
+        item_status = "completed" if finished else "incomplete"
+        output.append(_responses_text_item(f"msg-{provider_id}", text, item_status))
+    output_tokens = max(0, len(text) // 4)
+    usage = None
+    if finished:
+        usage = {
+            "input_tokens": 0,
+            "output_tokens": output_tokens,
+            "total_tokens": output_tokens,
+        }
+    return {
+        "id": f"resp-freellmpool-{provider_id}",
+        "object": "response",
+        "created_at": created_at,
+        "status": status,
+        "completed_at": int(time.time()) if finished else None,
+        "error": error,
+        "incomplete_details": None,
+        "instructions": None,
+        "max_output_tokens": None,
+        "model": f"{provider_id}/{model_name}",
+        "output": output,
+        "output_text": text,
+        "parallel_tool_calls": True,
+        "previous_response_id": None,
+        "reasoning": {"effort": None, "summary": None},
+        "store": False,
+        "temperature": 0.0,
+        "text": {"format": {"type": "text"}},
+        "tool_choice": "auto",
+        "tools": [],
+        "top_p": 1.0,
+        "truncation": "disabled",
+        "usage": usage,
+        "user": None,
+        "metadata": {},
+        "x_freellmpool": {"provider": provider_id, "model": model_name},
+    }
+
+
 def _to_responses_object(reply) -> dict:
     rid = f"resp-freellmpool-{reply.provider_id}"
     output = []
@@ -1891,6 +2869,10 @@ def _responses_sse_events(reply):
     yield event(
         "response.created",
         {"type": "response.created", "response": created},
+    )
+    yield event(
+        "response.in_progress",
+        {"type": "response.in_progress", "response": created},
     )
     for output_index, item in enumerate(obj["output"]):
         if item.get("type") == "message":
@@ -2037,10 +3019,12 @@ class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
         self._slots = threading.BoundedSemaphore(_MAX_CONNECTIONS)
 
     def server_close(self) -> None:
-        pool = getattr(self, "pool", None)
-        if pool is not None:
-            pool.quota.flush()
-        super().server_close()
+        try:
+            pool = getattr(self, "pool", None)
+            if pool is not None:
+                pool.flush()
+        finally:
+            super().server_close()
 
     def process_request(self, request, client_address):
         # A client can receive its response just before the worker's ``finally``

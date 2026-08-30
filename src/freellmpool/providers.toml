@@ -183,8 +183,9 @@ models = [
     { name = "groq/compound", rpd = 250 },
     { name = "qwen/qwen3-32b", rpd = 1000, enabled = false },
     { name = "qwen/qwen3.6-27b", rpd = 1000 },
-    # Current free-plan listing, pending a credentialed canary.
-    { name = "qwen/qwen3.8-27b", rpd = 1000, enabled = false, auto = false },
+    # 2026-08-29: exactly three chat canaries plus streaming passed; the tool
+    # canary was unsupported, so this Preview route remains explicit-pin-only.
+    { name = "qwen/qwen3.8-27b", rpd = 1000, context = 131042, auto = false },
     # Absent from both the supported-model and current free-plan listings.
     { name = "allam-2-7b", rpd = 1000, enabled = false, auto = false },
     { name = "groq/compound-mini", rpd = 250 },

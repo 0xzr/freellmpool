@@ -45,7 +45,7 @@
 daily caps fill up. <a href="https://github.com/0xzr/freellmpool">freellmpool</a> ships capacity tools
 that tell you, locally, which of your free providers are usable <em>right now</em>, which are near their
 quota, and which keys to add next.</strong> freellmpool is a free, open-source tool with 22 cataloged
-provider groups and 177 enabled chat routes behind one OpenAI-compatible endpoint. Recurring, keyless,
+provider groups and 178 enabled chat routes behind one OpenAI-compatible endpoint. Recurring, keyless,
 trial, pin-only, and disabled entries stay distinct; these commands report only usable local capacity.</p>
 
 <pre><code>pip install freellmpool
@@ -76,9 +76,9 @@ Action recommended: add 1 provider(s).
 </table>
 
 <p><code>--target N</code> flags when you have fewer than N healthy providers; <code>--all</code> also
-lists missing providers and external-only catalog candidates you could add. By default it refreshes an
-advisory external catalog over the network (a read-only metadata fetch); pass <code>--no-catalog-sync</code>
-to keep it fully local.</p>
+lists missing providers and external-only catalog candidates you could add. The command is offline and
+cache-first by default. Run <code>freellmpool capacity status --refresh</code> only when you explicitly
+want to refresh the advisory external catalog with a read-only metadata fetch.</p>
 
 <h2>2. providers health — does it actually respond?</h2>
 <p><code>capacity status</code> reads local state; <code>providers health</code> goes one step further and
@@ -120,7 +120,9 @@ no junk) before they're written.</div>
 <p>When the proxy is running (<code>freellmpool proxy</code>), open
 <code>http://127.0.0.1:8080/dashboard</code>. Alongside request counts, cache hits, and estimated
 savings, it shows a healthy-provider count and a per-provider capacity table — the same signal as
-<code>capacity status</code>, in the browser.</p>
+<code>capacity status</code>, in the browser. On a keyed proxy, the public shell contains no pool data;
+it prompts for the token, keeps it only in page memory, and authenticates protected data calls by
+header.</p>
 
 <h2>FAQ</h2>
 <h3>Which free LLM provider should I use right now?</h3>
@@ -128,9 +130,9 @@ savings, it shows a healthy-provider count and a per-provider capacity table —
 remaining capacity, so the top <code>healthy</code> rows are the ones to use. The pool also picks
 automatically per request and fails over when one is rate-limited.</p>
 <h3>Does capacity status make network calls?</h3>
-<p>The provider statuses are computed from local state only. By default it also refreshes the advisory
-external catalog over the network; pass <code>--no-catalog-sync</code> to skip that and stay fully
-offline. Live provider probing is a separate command, <code>providers health</code>.</p>
+<p>No, not by default. Provider statuses and the advisory catalog cache are read from local state.
+Pass <code>--refresh</code> for an explicit advisory metadata fetch. Live provider probing is a separate
+command, <code>providers health</code>.</p>
 <h3>Does it store my API keys?</h3>
 <p>The key inventory holds metadata only (provider, env-var name, optional dates and notes), never raw
 secrets. <code>keys add</code> writes the actual key to <code>config.toml</code> (chmod 600); you can

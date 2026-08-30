@@ -4,11 +4,11 @@
 
 ![freellmpool tokenmax terminal demo](assets/demo.svg)
 
-![177 enabled chat routes, 22 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
+![178 enabled chat routes, 22 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
 
 freellmpool catalogs 22 LLM providers as distinct groups spanning recurring
 free tiers, keyless endpoints, finite trials, pin-only routes, and disabled
-candidates. It exposes 177 enabled chat routes and 431 cataloged chat models,
+candidates. It exposes 178 enabled chat routes and 431 cataloged chat models,
 and automatically pools only
 enabled routes you can access behind one OpenAI-compatible endpoint — as a CLI,
 a Python library, or a local proxy. It can start without credentials when an
@@ -23,8 +23,8 @@ enabled keyless route is available.
 
 ## Release and distribution status
 
-- **Latest release: 0.12.3.** The GitHub release and PyPI package are both
-  0.12.3; `pip install freellmpool` and `uvx freellmpool` install the audited
+- **Latest release: 0.13.0.** The GitHub release and PyPI package are both
+  0.13.0; `pip install freellmpool` and `uvx freellmpool` install the audited
   provider catalog, bounded streaming and sentinel hardening, Hermes profile,
   proxy readiness/provider APIs, `spread` routing, and OpenCode
   registry-readiness hardening.
@@ -76,6 +76,25 @@ freellmpool init --yes --agent metaswarm --tailnet
 ```
 
 Add keys for the other providers to unlock more models and higher limits.
+
+### Local runtimes (explicit, pin-only)
+
+LM Studio, Ollama, and llama.cpp can be previewed from a fixed list of literal
+loopback endpoints without scanning your LAN or processes:
+
+```bash
+freellmpool local discover
+freellmpool local discover --name lm_studio
+freellmpool local import --name lm_studio --yes
+freellmpool ask --providers local_lm_studio --model "<model-from-discover>" "hello"
+```
+
+Discovery is read-only. Import is a separate affirmative step, writes no
+credential, and keeps every imported model out of automatic routing
+(`auto = false`). `freellmpool local remove local_lm_studio --yes` reverses only
+the block managed by the importer. Custom endpoints must be canonical literal
+loopback URLs such as `http://127.0.0.1:1234/v1`; hostnames, LAN addresses,
+redirects, and broad network scans are rejected.
 
 ## First-run setup with `freellmpool init`
 
@@ -165,6 +184,13 @@ Existing OpenAI-compatible apps work the same way: set
 Anthropic-compatible tools can use the experimental bridge with
 `ANTHROPIC_BASE_URL=http://localhost:8080`.
 
+Text-only `/v1/responses` and `/v1/messages` requests stream incrementally from
+the selected provider. Tool calls and richer content intentionally stay on the
+buffered compatibility path. The browser dashboard and playground share one
+public, data-free shell; when proxy auth is enabled it prompts for the bearer
+token and keeps it only in page memory while protected status, inventory,
+model, and battle calls continue to require the `Authorization` header.
+
 **OpenCode** gets a deeper integration in 0.12.0: a live in-editor **dashboard** (routing mode,
 estimated savings, tokens served free, provider race, latency), per-request
 **agent routing** via the model picker (`freellmpool/agent|spread|auto|fast|quality|fair`), and `freellmpool_status`
@@ -204,13 +230,13 @@ docker volume create freellmpool-data
 docker run --rm -p 127.0.0.1:8080:8080 \
   --volume freellmpool-data:/home/freellmpool/.config/freellmpool \
   --env GROQ_API_KEY \
-  ghcr.io/0xzr/freellmpool:0.12.3
+  ghcr.io/0xzr/freellmpool:0.13.0
 ```
 
 Omit `--env GROQ_API_KEY` if you want a credential-free start; the proxy can
 answer only while an enabled keyless route is available. Keep the published
 port on loopback. If you deliberately expose it, set
-`FREELLMMPOOL_PROXY_KEY` and require that Bearer token from clients.
+`FREELLMPOOL_PROXY_KEY` and require that Bearer token from clients.
 
 For the bundled Open WebUI stack, place any provider credentials in `.env` and
 run `docker compose up -d`. Compose waits for the proxy health check and keeps
@@ -316,8 +342,10 @@ freellmpool profile doctor opencode --dry-run
 Release 0.12.0 proxy surfaces:
 
 - `/v1/chat/completions` — OpenAI-compatible chat, token streaming, tool calling.
-- `/v1/responses` — minimal Responses API shim for Codex-style agents.
-- `/v1/messages` — experimental Anthropic-compatible Messages path.
+- `/v1/responses` — Responses API shim with incremental text streaming; tools
+  and rich content use the buffered compatibility path.
+- `/v1/messages` — experimental Anthropic-compatible Messages path with the
+  same incremental-text / buffered-tool split.
 - `/v1/embeddings` and `/v1/audio/transcriptions` — OpenAI-compatible embedding
   and Whisper-style multipart transcription.
 - `/v1/models` — routing aliases plus concrete `provider/model` ids.
@@ -329,9 +357,11 @@ Release 0.12.0 proxy surfaces:
   provider is ready, otherwise 503); it never live-probes an upstream.
 - `/dashboard`, `/status`, `/badge.svg`, and `/summary.svg` — local operations surfaces.
 
-`/playground`, `/v1/providers`, and model inventory are auth-protected when
-the proxy key is set. Liveness/readiness stay public for orchestrator probes;
-readiness is a local quota/cooldown snapshot, not an upstream health guarantee.
+`/`, `/dashboard`, and `/playground` serve one public, data-free shell. When a
+proxy key is set, the shell prompts for it and keeps it only in page memory;
+status, provider/model inventory, battle, and model API calls remain header-auth
+protected. Liveness/readiness stay public for orchestrator probes; readiness is
+a local quota/cooldown snapshot, not an upstream health guarantee.
 Setup snippets for specific tools are in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)
 and [docs/AGENTS.md](docs/AGENTS.md). The repo also includes an experimental
 [metaswarm review adapter](integrations/metaswarm) for using `freellmpool` as an
@@ -391,6 +421,7 @@ fill. These commands tell you what's usable right now and what to set up next:
 
 ```bash
 freellmpool capacity status --target 5   # who's healthy / near quota / missing a key
+freellmpool capacity status --refresh    # explicitly refresh advisory provider metadata
 freellmpool quota-wise status            # local headroom + recommended mode
 freellmpool providers health             # send one tiny request to each, time it
 freellmpool keys checklist --target 5    # which keys to add to reach N healthy providers
@@ -405,12 +436,14 @@ Feature-specific auto-routing uses only verified targets; an exact
 provider/model pin is the explicit override. Full operator and privacy contract:
 [docs/PROTOCOL_CONFORMANCE.md](docs/PROTOCOL_CONFORMANCE.md).
 
-`capacity status` is local-first: it reads your catalog, environment, and
+`capacity status` is offline and cache-first: it reads your catalog, environment, and
 per-day quota counters and labels each provider `healthy`, `low_quota`,
-`exhausted`, `invalid_key`, or `missing`. It also syncs an advisory external
-catalog ([mnfst/awesome-free-llm-apis](https://github.com/mnfst/awesome-free-llm-apis))
-to suggest free providers you could add — advisory only; your `providers.toml`
-stays the source of truth for routing. `keys add <name>` can even import a
+`exhausted`, `invalid_key`, or `missing`. Cached metadata from the advisory
+external catalog ([mnfst/awesome-free-llm-apis](https://github.com/mnfst/awesome-free-llm-apis))
+can suggest free providers you could add; only an explicit
+`freellmpool capacity status --refresh` or `freellmpool catalog sync` uses the
+network for that metadata. It remains advisory only; your `providers.toml`
+stays the source of truth for routing. `keys add <name>` can import a
 suggested provider from that catalog or create an OpenAI-compatible stub and
 autodiscover its models. The proxy `/dashboard` shows the same capacity at a
 glance. Full reference: [docs/CAPACITY.md](docs/CAPACITY.md).

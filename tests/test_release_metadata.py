@@ -19,7 +19,7 @@ def test_release_metadata_versions_match_package() -> None:
     demo = (ROOT / "assets" / "demo.svg").read_text()
     readme = (ROOT / "README.md").read_text()
 
-    assert version == "0.12.3"
+    assert version == "0.13.0"
     assert __version__ == version
     assert server["version"] == version
     assert server["packages"][0]["version"] == version
@@ -380,7 +380,7 @@ def test_pypi_metadata_has_launch_surfaces() -> None:
     assert len(project["description"]) <= 120
     assert f"> {project['description']}" in discovery
     assert (
-        "Released catalog: 22 cataloged providers, 177 enabled chat routes, 431"
+        "Released catalog: 22 cataloged providers, 178 enabled chat routes, 431"
         in promotion
     )
 

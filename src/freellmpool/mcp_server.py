@@ -1026,4 +1026,4 @@ def serve_stdio(pool: Pool, version: str = "0.0.0") -> None:
                 continue
             emit(handle_message(pool, msg, version=version, send_notification=send_notification))
     finally:
-        pool.quota.flush()
+        pool.flush()

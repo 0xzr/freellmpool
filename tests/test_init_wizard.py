@@ -123,7 +123,9 @@ def test_init_metaswarm_tailnet_plan_includes_copy_pastable_commands(
     assert main(["init", "--yes", "--agent", "metaswarm", "--tailnet"]) == 0
 
     out = capsys.readouterr().out
-    assert "Copy-paste command block" in out
+    assert "Setup terminal (run once)" in out
+    assert "Foreground server terminal (keep running)" in out
+    assert "Client follow-up terminal (new terminal)" in out
     assert "freellmpool tailnet serve --port 8080" in out
     assert "freellmpool profile install metaswarm" in out
     assert (
@@ -132,14 +134,73 @@ def test_init_metaswarm_tailnet_plan_includes_copy_pastable_commands(
     )
     assert "freellmpool tailnet connect 100.64.0.5 --port 8080" in out
     assert "OPENAI_BASE_URL=http://100.64.0.5:8080/v1" in out
-    block = out.split("```bash", 1)[1].split("```", 1)[0]
-    assert "freellmpool tailnet serve --port 8080" in block
-    assert "freellmpool profile doctor metaswarm" in block
-    assert "OPENAI_BASE_URL=http://100.64.0.5:8080/v1" in block
-    assert "# OpenAI-compatible base URL" in block
-    assert "# On the client machine" in block
-    assert "\nOpenAI-compatible base URL" not in block
-    assert "\nOn the client machine" not in block
+    setup, foreground, client = _terminal_blocks(out)
+    assert "freellmpool profile install metaswarm" in setup
+    assert _commands(foreground) == ["freellmpool tailnet serve --port 8080"]
+    assert "freellmpool profile doctor metaswarm" in client
+    assert "OPENAI_BASE_URL=http://100.64.0.5:8080/v1" in client
+    assert "# OpenAI-compatible base URL" in client
+    assert "# On the client machine" in client
+
+
+def test_setup_plans_isolate_foreground_commands_for_local_profiles_tailnet_and_mcp(
+    monkeypatch, tmp_path
+):
+    from freellmpool.init_wizard import detect_environment, render_setup_plan
+
+    _isolated_env(monkeypatch, tmp_path)
+    _patch_init(monkeypatch, tailnet=True)
+    report = detect_environment()
+
+    cases = (
+        (None, False, "freellmpool proxy --port 8080"),
+        ("opencode", False, "freellmpool proxy --port 8080"),
+        (None, True, "freellmpool tailnet serve --port 8080"),
+        ("mcp", False, "freellmpool mcp"),
+    )
+    for agent, tailnet, expected_foreground in cases:
+        out = render_setup_plan(report, agent=agent, tailnet=tailnet)
+        setup, foreground, client = _terminal_blocks(out)
+        assert _commands(foreground) == [expected_foreground]
+        assert expected_foreground not in setup
+        assert expected_foreground not in _commands(client)
+        if agent == "opencode":
+            assert "freellmpool profile install opencode" in setup
+            assert "freellmpool profile doctor opencode --dry-run" in client
+        if agent == "mcp":
+            assert "freellmpool proxy" not in out
+            assert "freellmpool tailnet serve" not in out
+
+
+def test_init_rejects_tailnet_for_stdio_mcp(monkeypatch, tmp_path, capsys):
+    from freellmpool.cli import main
+
+    _isolated_env(monkeypatch, tmp_path)
+    _patch_init(monkeypatch, tailnet=True)
+
+    assert main(["init", "--yes", "--agent", "mcp", "--tailnet"]) == 3
+    assert "local stdio" in capsys.readouterr().err
+
+
+def _terminal_blocks(output: str) -> tuple[str, str, str]:
+    labels = (
+        "Setup terminal (run once)",
+        "Foreground server terminal (keep running)",
+        "Client follow-up terminal (new terminal)",
+    )
+    blocks = []
+    for label in labels:
+        section = output.split(label, 1)[1]
+        blocks.append(section.split("```bash", 1)[1].split("```", 1)[0])
+    return tuple(blocks)
+
+
+def _commands(block: str) -> list[str]:
+    return [
+        line.strip()
+        for line in block.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
 
 
 def test_init_tailnet_plan_is_actionable_when_tailscale_missing(monkeypatch, tmp_path, capsys):

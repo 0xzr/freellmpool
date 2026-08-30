@@ -55,6 +55,24 @@ def test_no_providers_configured():
         pool.ask("hello")
 
 
+def test_pool_owned_quota_uses_bounded_success_batch_defaults(tmp_path, monkeypatch):
+    monkeypatch.setenv("FREELLMPOOL_QUOTA_PATH", str(tmp_path / "quota.json"))
+
+    default_pool = Pool([], env={})
+    configured_pool = Pool(
+        [],
+        env={
+            "FREELLMPOOL_QUOTA_FLUSH_EVERY": "7",
+            "FREELLMPOOL_QUOTA_FLUSH_INTERVAL": "0.25",
+        },
+    )
+
+    assert default_pool.quota.flush_every == 32
+    assert default_pool.quota.flush_interval == 1.0
+    assert configured_pool.quota.flush_every == 7
+    assert configured_pool.quota.flush_interval == 0.25
+
+
 def test_least_used_first_ordering(providers, env, quota):
     post = make_post({})
     pool = Pool(providers, quota=quota, env=env, post=post)
@@ -431,3 +449,304 @@ def test_freellmpoolerror_rename_and_alias():
 
     assert BuffetError is FreeLLMPoolError
     assert issubclass(AllProvidersExhausted, FreeLLMPoolError)
+
+
+def _diversity_providers():
+    from freellmpool.models import Model, Provider
+
+    return [
+        Provider(
+            id=provider_id,
+            label=provider_id.upper(),
+            adapter="openai",
+            base_url=f"https://{provider_id}.test/v1",
+            auth="none",
+            models=(Model("shared"),),
+        )
+        for provider_id in ("alpha", "beta")
+    ]
+
+
+def test_unpinned_chat_tries_distinct_provider_before_transport_retry(
+    quota, monkeypatch
+):
+    """A pooled request spends its second attempt on diversity, not alpha again."""
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if provider == "alpha":
+            return HTTPResult(503, {"error": "down"}, "down")
+        return HTTPResult(200, openai_body("beta"), "ok")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(_diversity_providers(), quota=quota, env={})
+
+    assert pool.chat([{"role": "user", "content": "hi"}], model="shared").provider_id == "beta"
+    assert calls == ["alpha", "beta"]
+
+
+def test_unpinned_chat_retries_original_only_after_distinct_providers(
+    quota, monkeypatch
+):
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if calls == ["alpha", "beta", "alpha"]:
+            return HTTPResult(200, openai_body("recovered"), "ok")
+        return HTTPResult(503, {"error": "down"}, "down")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(_diversity_providers(), quota=quota, env={})
+
+    reply = pool.chat([{"role": "user", "content": "hi"}], model="shared")
+    assert reply.provider_id == "alpha"
+    assert calls == ["alpha", "beta", "alpha"]
+
+
+def test_exact_pin_retains_same_target_transport_retry(quota, monkeypatch):
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        calls.append(url)
+        if len(calls) == 1:
+            return HTTPResult(503, {"error": "down"}, "down")
+        return HTTPResult(200, openai_body("ok"), "ok")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(_diversity_providers(), quota=quota, env={})
+
+    reply = pool.chat(
+        [{"role": "user", "content": "hi"}],
+        model="shared",
+        providers=["alpha"],
+    )
+    assert reply.provider_id == "alpha"
+    assert len(calls) == 2
+
+
+def test_retry_after_sleep_is_deferred_until_distinct_provider_attempt(
+    quota, monkeypatch
+):
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+
+    events: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        events.append(provider)
+        if events == ["alpha", "beta", "sleep", "alpha"]:
+            return HTTPResult(200, openai_body("ok"), "ok")
+        if provider == "alpha":
+            return HTTPResult(
+                429,
+                {"error": "slow"},
+                "slow",
+                headers={"Retry-After": "0.001"},
+            )
+        return HTTPResult(503, {"error": "down"}, "down")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    monkeypatch.setattr("freellmpool.router.time.sleep", lambda delay: events.append("sleep"))
+    pool = Pool(_diversity_providers(), quota=quota, env={})
+
+    assert pool.chat([{"role": "user", "content": "hi"}], model="shared").text == "ok"
+    assert events == ["alpha", "beta", "sleep", "alpha"]
+
+
+def test_local_pool_timeout_fails_over_without_poisoning_provider(
+    quota, tmp_path, monkeypatch
+):
+    import httpx
+
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+    from freellmpool.route_health import RouteHealthStore
+
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if provider == "alpha":
+            raise httpx.PoolTimeout("local connection pool saturated")
+        return HTTPResult(200, openai_body("beta"), "ok")
+
+    health = RouteHealthStore(path=tmp_path / "health.json")
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(
+        _diversity_providers(), quota=quota, env={}, route_health=health
+    )
+
+    assert pool.chat([{"role": "user", "content": "hi"}], model="shared").provider_id == "beta"
+    alpha = health.state("alpha/shared")
+    assert calls == ["alpha", "beta"]
+    assert alpha is not None and alpha.failures == 0 and alpha.state == "closed"
+
+
+def test_local_pool_timeout_releases_expired_open_probe_before_failover_wins(
+    quota, tmp_path, monkeypatch
+):
+    import httpx
+
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+    from freellmpool.route_health import RouteHealthStore
+
+    now = [100.0]
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        clock=lambda: now[0],
+        failure_threshold=1,
+        base_cooldown=1,
+    )
+    for key in ("alpha/shared", "beta/shared"):
+        health.record_failure(key, "availability")
+    now[0] = 102.0
+
+    def post_once(url, headers, body, timeout, deadline):
+        if "alpha.test" in url:
+            raise httpx.PoolTimeout("local connection pool saturated")
+        return HTTPResult(200, openai_body("beta"), "ok")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(
+        _diversity_providers(),
+        quota=quota,
+        env={},
+        route_health=health,
+        clock=lambda: now[0],
+    )
+
+    assert pool.chat([{"role": "user", "content": "hi"}], model="shared").provider_id == "beta"
+    alpha = health.state("alpha/shared")
+    assert alpha is not None
+    assert alpha.failures == 1
+    assert alpha.state == "open"
+    assert alpha.half_open_until == 0
+    assert health.acquire_many(("alpha/shared",)) is not None
+
+
+def test_deferred_local_pool_timeout_reacquires_fresh_probe_before_retry(
+    quota, tmp_path, monkeypatch
+):
+    import httpx
+
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+    from freellmpool.route_health import RouteHealthStore
+
+    now = [100.0]
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        clock=lambda: now[0],
+        failure_threshold=1,
+        base_cooldown=1,
+    )
+    for key in ("alpha/shared", "beta/shared"):
+        health.record_failure(key, "availability")
+    now[0] = 102.0
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if calls == ["alpha"]:
+            raise httpx.PoolTimeout("local connection pool saturated")
+        if provider == "beta":
+            return HTTPResult(503, {"error": "down"}, "down")
+        return HTTPResult(200, openai_body("recovered"), "ok")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(
+        _diversity_providers(),
+        quota=quota,
+        env={},
+        route_health=health,
+        clock=lambda: now[0],
+    )
+
+    reply = pool.chat([{"role": "user", "content": "hi"}], model="shared")
+    alpha = health.state("alpha/shared")
+    assert reply.provider_id == "alpha"
+    assert calls == ["alpha", "beta", "alpha"]
+    assert alpha is not None and alpha.state == "closed"
+    assert alpha.failures == 1 and alpha.successes == 1
+
+
+def test_deferred_failure_is_persisted_immediately_even_if_alternative_wins(
+    quota, tmp_path, monkeypatch
+):
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+    from freellmpool.route_health import RouteHealthStore
+
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if provider == "alpha":
+            return HTTPResult(503, {"error": "down"}, "down")
+        return HTTPResult(200, openai_body("beta"), "ok")
+
+    health = RouteHealthStore(path=tmp_path / "health.json")
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(
+        _diversity_providers(), quota=quota, env={}, route_health=health
+    )
+
+    assert pool.chat([{"role": "user", "content": "hi"}], model="shared").provider_id == "beta"
+    assert calls == ["alpha", "beta"]
+    assert RouteHealthStore(path=tmp_path / "health.json").state("alpha/shared").failures == 1
+
+
+def test_authorized_retry_can_recover_newly_opened_route(quota, tmp_path, monkeypatch):
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+    from freellmpool.route_health import RouteHealthStore
+
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if calls == ["alpha", "beta", "alpha"]:
+            return HTTPResult(200, openai_body("recovered"), "ok")
+        return HTTPResult(503, {"error": "down"}, "down")
+
+    health = RouteHealthStore(
+        path=tmp_path / "health.json", failure_threshold=1, base_cooldown=60
+    )
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(
+        _diversity_providers(), quota=quota, env={}, route_health=health
+    )
+
+    assert pool.chat([{"role": "user", "content": "hi"}], model="shared").text == "recovered"
+    row = RouteHealthStore(path=tmp_path / "health.json").state("alpha/shared")
+    assert calls == ["alpha", "beta", "alpha"]
+    assert row.state == "closed"
+    assert row.failures == 1 and row.successes == 1

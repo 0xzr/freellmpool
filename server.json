@@ -8,13 +8,13 @@
     "url": "https://github.com/0xzr/freellmpool",
     "source": "github"
   },
-  "version": "0.12.3",
+  "version": "0.13.0",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "freellmpool",
-      "version": "0.12.3",
+      "version": "0.13.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections import deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -89,6 +90,24 @@ _QUALITY_TASK_WEIGHT = 1.0
 _SPREAD_BUCKET = 8
 _AGENT_CAPABILITY_TIER = 0.05
 _ACCOUNT_BACKOFF_SECONDS = 15 * 60
+_SUCCESS_BATCH_SIZE = 32
+_SUCCESS_FLUSH_INTERVAL = 1.0
+
+
+def _positive_int_setting(env: dict[str, str], name: str, default: int) -> int:
+    try:
+        return max(1, int(env.get(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+def _positive_float_setting(
+    env: dict[str, str], name: str, default: float
+) -> float:
+    try:
+        return max(0.001, float(env.get(name, str(default))))
+    except (TypeError, ValueError):
+        return default
 
 
 def _is_health_failure(exc: Exception) -> bool:
@@ -166,6 +185,26 @@ class Target:
         return f"{self.provider.id}/{self.model}"
 
 
+@dataclass(frozen=True)
+class _ChatAttempt:
+    target: Target
+    allow_defer: bool = False
+    retry_error: Exception | None = None
+    lease: HealthLease | None = None
+
+
+def _provider_first_wave(targets: list[Target]) -> tuple[list[Target], list[Target]]:
+    """Split an ordered route list into one target per provider, then the rest."""
+    seen: set[str] = set()
+    first: list[Target] = []
+    remaining: list[Target] = []
+    for target in targets:
+        bucket = first if target.provider.id not in seen else remaining
+        bucket.append(target)
+        seen.add(target.provider.id)
+    return first, remaining
+
+
 @dataclass
 class _ProviderOrderStats:
     """Precomputed routing stats for one provider in a candidate set."""
@@ -224,9 +263,18 @@ class Pool:
         self._enabled_targets_by_model = {k: tuple(v) for k, v in enabled_by_model.items()}
         self.embedders = embedders or []
         self.transcribers = transcribers or []
-        self._transcribe_post = transcribe_post
-        self.quota = quota or QuotaStore()
         self.env = env if env is not None else dict(os.environ)
+        self._transcribe_post = transcribe_post
+        self.quota = quota or QuotaStore(
+            flush_every=_positive_int_setting(
+                self.env, "FREELLMPOOL_QUOTA_FLUSH_EVERY", _SUCCESS_BATCH_SIZE
+            ),
+            flush_interval=_positive_float_setting(
+                self.env,
+                "FREELLMPOOL_QUOTA_FLUSH_INTERVAL",
+                _SUCCESS_FLUSH_INTERVAL,
+            ),
+        )
         self._post = post
         self._stream_post = stream_post
         self._cache = cache
@@ -276,6 +324,19 @@ class Pool:
         readers (/status, MCP, CLI) never see a torn requests/tokens pair."""
         with self._stats_lock:
             return dict(self.stats)
+
+    def flush(self) -> None:
+        """Persist any batched quota, aggregate-stat, and route-health updates."""
+        for store in (self.quota, self._stats_store, self.route_health):
+            flush = getattr(store, "flush", None)
+            if callable(flush):
+                flush()
+
+    def _chat_post_once(self, url: str, headers: dict, body: dict, timeout: float):
+        """Use one built-in transport attempt while preserving injected post APIs."""
+        if self._post is default_post:
+            return default_post(url, headers, body, timeout, max_attempts=1)
+        return self._post(url, headers, body, timeout)
 
     def cooldown_snapshot(self, now: float) -> dict[str, float]:
         """Provider -> seconds remaining for transient or account-quota backoff."""
@@ -387,6 +448,21 @@ class Pool:
     def _record_route_empty(self, target: Target, lease: HealthLease) -> None:
         if self.route_health is not None:
             self.route_health.record_failure(target.name, "empty", lease=lease)
+
+    def _refresh_route_lease(self, lease: HealthLease) -> HealthLease:
+        """Keep one deferred retry authorized after its failure is persisted."""
+        if self.route_health is None:
+            return lease
+        return self.route_health.refresh_lease(lease)
+
+    def _release_local_saturation(
+        self, target: Target, lease: HealthLease
+    ) -> None:
+        """Release a half-open probe that never reached the provider."""
+        if self.route_health is not None:
+            self.route_health.release_many(
+                (f"{target.provider.id}/*", target.name), lease=lease
+            )
 
     def rank_targets(
         self,
@@ -511,10 +587,29 @@ class Pool:
             cache=cache,
             routing=routing,
             on_event=on_event,
-            stats_store=StatsStore(),
+            stats_store=StatsStore(
+                flush_every=_positive_int_setting(
+                    env, "FREELLMPOOL_STATS_FLUSH_EVERY", _SUCCESS_BATCH_SIZE
+                ),
+                flush_interval=_positive_float_setting(
+                    env,
+                    "FREELLMPOOL_STATS_FLUSH_INTERVAL",
+                    _SUCCESS_FLUSH_INTERVAL,
+                ),
+            ),
             route_health=RouteHealthStore(
                 path=default_route_health_path(env),
                 base_cooldown=cooldown,
+                success_flush_every=_positive_int_setting(
+                    env,
+                    "FREELLMPOOL_ROUTE_HEALTH_FLUSH_EVERY",
+                    _SUCCESS_BATCH_SIZE,
+                ),
+                success_flush_interval=_positive_float_setting(
+                    env,
+                    "FREELLMPOOL_ROUTE_HEALTH_FLUSH_INTERVAL",
+                    _SUCCESS_FLUSH_INTERVAL,
+                ),
             ),
             conformance=ConformanceStore(default_conformance_path(env)),
         )
@@ -1082,6 +1177,21 @@ class Pool:
         ]
         sequence = [t for t, c in states if not c] + [t for t, c in states if c]
 
+        usable_provider_ids = {
+            target.provider.id
+            for target in sequence
+            if target.provider.keyless or target.provider.api_key(self.env) is not None
+        }
+        diversity_retry = not exact_pin and len(usable_provider_ids) > 1
+        if diversity_retry:
+            first_wave, later_targets = _provider_first_wave(sequence)
+            pending = deque(_ChatAttempt(target, allow_defer=True) for target in first_wave)
+            fallback = deque(_ChatAttempt(target) for target in later_targets)
+        else:
+            pending = deque(_ChatAttempt(target) for target in sequence)
+            fallback = deque()
+        deferred: deque[_ChatAttempt] = deque()
+
         attempts: list[tuple[str, str]] = []
         unavailable_providers: set[str] = set()  # provider-wide quota failures this request
         client_error: ProviderHTTPError | None = None  # first non-retryable 4xx seen
@@ -1091,8 +1201,32 @@ class Pool:
         needed = est_tokens + max_tokens
         ctx_overflow = False
         non_ctx_failure = False
-        for target in sequence:
-            if target.provider.id in unavailable_providers:
+        while pending or deferred or fallback:
+            if pending:
+                attempt = pending.popleft()
+            elif deferred:
+                attempt = deferred.popleft()
+            else:
+                attempt = fallback.popleft()
+            target = attempt.target
+            is_deferred = attempt.retry_error is not None
+            if is_deferred:
+                retry_after = (
+                    attempt.retry_error.retry_after
+                    if isinstance(attempt.retry_error, ProviderHTTPError)
+                    else None
+                )
+                delay = _client._retry_delay_seconds(
+                    retry_after,
+                    0,
+                    deadline,
+                    self._clock,
+                )
+                if delay is None:
+                    attempts.append((target.name, "skipped (retry delay exceeds timeout)"))
+                    continue
+                time.sleep(delay)
+            if target.provider.id in unavailable_providers and not is_deferred:
                 # A provider-wide quota failure already occurred this request; do
                 # not waste calls on another model backed by the same account.
                 attempts.append((target.name, "skipped (provider quota unavailable this request)"))
@@ -1115,7 +1249,9 @@ class Pool:
             if remaining <= 0:
                 attempts.append((target.name, "skipped (overall request timeout exhausted)"))
                 break
-            lease = self._acquire_route(target)
+            lease = attempt.lease
+            if lease is None:
+                lease = self._acquire_route(target)
             if lease is None:
                 non_ctx_failure = True
                 attempts.append((target.name, "skipped (persistent circuit open)"))
@@ -1135,7 +1271,11 @@ class Pool:
                     tools=tools,
                     tool_choice=tool_choice,
                     response_format=response_format,
-                    post=self._post,
+                    post=(
+                        self._chat_post_once
+                        if attempt.allow_defer or is_deferred
+                        else self._post
+                    ),
                 )
             except ProviderHTTPError as exc:
                 is_ctx, limit = context_limit_from_error(exc.status, str(exc))
@@ -1149,11 +1289,16 @@ class Pool:
                         (target.name, f"context window exceeded (limit ~{limit or '?'})")
                     )
                     continue
+                account_exhausted = _is_account_quota_exhaustion(exc, target.provider.id)
+                defer_retry = (
+                    attempt.allow_defer
+                    and _client._retryable(exc.status)
+                    and not account_exhausted
+                )
                 if exc.status == 429:
                     self._mark_cooldown(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)
                     emit(self._on_event, "cooldown", target=target.name, status=429)
-                account_exhausted = _is_account_quota_exhaustion(exc, target.provider.id)
                 if account_exhausted:
                     self._mark_account_backoff(target.provider.id, self._clock())
                     unavailable_providers.add(target.provider.id)
@@ -1168,14 +1313,42 @@ class Pool:
                     client_error = exc
                 if _is_health_failure(exc):
                     self.metrics.record_failure(target.name, str(exc))
+                # Failure and circuit transitions are durable before another
+                # provider is tried. The refreshed lease authorizes only this
+                # request's deferred retry and cannot override a newer generation.
                 self._record_route_failure(target, exc, lease)
+                if defer_retry:
+                    deferred.append(
+                        _ChatAttempt(
+                            target,
+                            retry_error=exc,
+                            lease=self._refresh_route_lease(lease),
+                        )
+                    )
                 emit(self._on_event, "error", target=target.name, reason=str(exc))
                 attempts.append((target.name, str(exc)))
                 continue
             except Exception as exc:  # network error, etc. — try the next one
                 non_ctx_failure = True
-                self.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
-                self._record_route_failure(target, exc, lease)
+                defer_retry = attempt.allow_defer and _client._retryable_transport_exception(exc)
+                local_saturation = _client._is_local_pool_timeout(exc)
+                if local_saturation:
+                    self._release_local_saturation(target, lease)
+                else:
+                    self.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
+                    self._record_route_failure(target, exc, lease)
+                if defer_retry:
+                    deferred.append(
+                        _ChatAttempt(
+                            target,
+                            retry_error=exc,
+                            lease=(
+                                None
+                                if local_saturation
+                                else self._refresh_route_lease(lease)
+                            ),
+                        )
+                    )
                 emit(self._on_event, "error", target=target.name, reason=f"{type(exc).__name__}")
                 attempts.append((target.name, f"{type(exc).__name__}: {exc}"))
                 continue

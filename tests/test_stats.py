@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+import gc
+import os
+import signal
+import threading
+import weakref
 from datetime import UTC, datetime
+from pathlib import Path
 
+import pytest
 from helpers import make_post
 
 from freellmpool.router import Pool
 from freellmpool.stats import StatsStore
+
+
+def _stats_process_add(path: str, amount: int, gate) -> None:
+    store = StatsStore(
+        Path(path),
+        flush_every=100,
+        flush_interval=60,
+    )
+    gate.wait(10)
+    store.add(requests=amount)
+    store.flush()
 
 
 def test_stats_persists_and_accumulates_across_instances(tmp_path):
@@ -132,3 +150,159 @@ def test_default_path_is_install_independent(monkeypatch):
     assert "site-packages" not in str(p)
     monkeypatch.setenv("FREELLMPOOL_STATS_PATH", "/tmp/x/custom.json")
     assert str(default_stats_path()) == "/tmp/x/custom.json"
+
+
+def test_batched_stats_snapshot_visible_without_write(tmp_path):
+    path = tmp_path / "stats.json"
+    store = StatsStore(path, flush_every=10)
+    store.add(requests=1, prompt_tokens=4)
+
+    snap = store.snapshot()
+    assert snap["requests"] == 1
+    assert snap["prompt_tokens"] == 4
+    assert not path.exists()
+
+    store.flush()
+    assert StatsStore(path, flush_every=1).snapshot()["requests"] == 1
+
+
+def test_batched_stats_threshold_and_external_merge(tmp_path):
+    path = tmp_path / "stats.json"
+    batched = StatsStore(path, flush_every=2)
+    immediate = StatsStore(path, flush_every=1)
+
+    batched.add(requests=1)
+    immediate.add(prompt_tokens=7)
+    batched.add(completion_tokens=3)
+
+    snap = StatsStore(path, flush_every=1).snapshot()
+    assert snap["requests"] == 1
+    assert snap["prompt_tokens"] == 7
+    assert snap["completion_tokens"] == 3
+
+
+def test_batched_stats_flushes_at_max_age(tmp_path):
+    import time
+
+    path = tmp_path / "stats.json"
+    store = StatsStore(path, flush_every=100, flush_interval=0.02)
+    store.add(requests=1)
+    deadline = time.monotonic() + 1.0
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert path.exists()
+    assert StatsStore(path, flush_every=1).snapshot()["requests"] == 1
+
+
+def test_batched_stats_threshold_bounds_physical_writes(tmp_path, monkeypatch):
+    store = StatsStore(
+        tmp_path / "stats.json", flush_every=4, flush_interval=60
+    )
+    writes = 0
+    original = store._save
+
+    def counted_save() -> None:
+        nonlocal writes
+        writes += 1
+        original()
+
+    monkeypatch.setattr(store, "_save", counted_save)
+    for _ in range(3):
+        store.add(requests=1)
+    assert store.snapshot()["requests"] == 3
+    assert writes == 0
+
+    store.add(requests=1)
+    assert writes == 1
+
+
+def test_batched_stats_flush_merges_real_processes(tmp_path):
+    import multiprocessing
+
+    import freellmpool.stats as stats_module
+
+    if stats_module.fcntl is None:
+        import pytest
+
+        pytest.skip("cross-process file locking is unavailable")
+    context = multiprocessing.get_context("spawn")
+    gate = context.Event()
+    path = tmp_path / "stats.json"
+    processes = [
+        context.Process(target=_stats_process_add, args=(str(path), amount, gate))
+        for amount in (1, 2, 3, 4)
+    ]
+    for process in processes:
+        process.start()
+    gate.set()
+    for process in processes:
+        process.join(15)
+        assert process.exitcode == 0
+    assert StatsStore(path).snapshot()["requests"] == 10
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires POSIX fork")
+@pytest.mark.filterwarnings("ignore:This process .* is multi-threaded.*:DeprecationWarning")
+def test_batched_stats_rebases_pending_deltas_after_fork(tmp_path):
+    path = tmp_path / "stats.json"
+    store = StatsStore(path, flush_every=100, flush_interval=3600)
+    store._schedule_flush_locked = lambda: None
+    store.add(requests=1)
+
+    child = os.fork()
+    if child == 0:
+        try:
+            store.add(requests=10)
+            store.flush()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+
+    _pid, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
+    store.flush()
+    assert StatsStore(path).snapshot()["requests"] == 11
+
+
+@pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires POSIX at-fork hooks")
+@pytest.mark.filterwarnings("ignore:This process .* is multi-threaded.*:DeprecationWarning")
+def test_immediate_stats_replaces_inherited_lock_after_fork(tmp_path):
+    store = StatsStore(tmp_path / "stats.json", flush_every=1)
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold_store_lock():
+        with store._lock:
+            held.set()
+            release.wait(5)
+
+    thread = threading.Thread(target=hold_store_lock)
+    thread.start()
+    assert held.wait(2)
+
+    child = os.fork()
+    if child == 0:
+        signal.alarm(2)
+        try:
+            store.snapshot()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+
+    try:
+        _pid, status = os.waitpid(child, 0)
+    finally:
+        release.set()
+        thread.join(2)
+    assert os.waitstatus_to_exitcode(status) == 0
+
+
+@pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires at-fork hooks")
+def test_immediate_stats_at_fork_registry_does_not_retain_store(tmp_path):
+    store = StatsStore(tmp_path / "stats.json", flush_every=1)
+    reference = weakref.ref(store)
+
+    del store
+    gc.collect()
+
+    assert reference() is None

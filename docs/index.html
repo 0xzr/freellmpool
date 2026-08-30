@@ -67,7 +67,7 @@ freellmpool ask "Explain the CAP theorem in one sentence."   # keyless when rout
 MIT license
 </p>
 
-<div class="note"><strong>Release status.</strong> Latest release: 0.12.3, available from both
+<div class="note"><strong>Release status.</strong> Latest release: 0.13.0, available from both
 GitHub and PyPI. It includes the audited provider catalog, bounded streaming and sentinel hardening,
 the Hermes profile, readiness/provider operations APIs, <code>spread</code> routing, and registry-readiness hardening for
 the existing repository-local OpenCode plugins.
@@ -89,7 +89,9 @@ tiers — not a server you deploy and not a paid aggregator.</p>
 <h2>What you can do with it</h2>
 <ul>
 <li><strong>Use free LLMs from the command line:</strong> <code>freellmpool ask "..."</code>, pipe stdin, pin a provider/model.</li>
-<li><strong>OpenAI-compatible proxy:</strong> point <code>OPENAI_BASE_URL</code> at <code>freellmpool proxy</code> for most text, embedding, and transcription calls.</li>
+<li><strong>OpenAI-compatible proxy:</strong> point <code>OPENAI_BASE_URL</code> at <code>freellmpool proxy</code> for most text, embedding, and transcription calls. Text-only Responses and Anthropic Messages stream incrementally; rich content and tools retain their buffered compatibility path.</li>
+<li><strong>Use the unified browser UI:</strong> open <code>/dashboard</code> or <code>/playground</code>. The public shell contains no pool data; on a keyed proxy it keeps the entered token only in page memory and authenticates each protected data call by header.</li>
+<li><strong>Use an existing local model:</strong> <code>freellmpool local discover</code> previews a fixed list of literal-loopback LM Studio, Ollama, and llama.cpp endpoints. A separate <code>local import --name &lt;runtime&gt; --yes</code> adds pin-only models without credentials or LAN scanning.</li>
 <li><strong>Run coding agents for free:</strong> <code>freellmpool code claude</code> (also codex, aider, cline, continue, cursor, Hermes, and OpenCode) routes them to pooled free models — see the <a href="run-coding-agents-on-free-models.html">step-by-step guide</a>. The Hermes profile is included in 0.12.0.</li>
 <li><strong>Automate proxy operations:</strong> release 0.12.0 includes public <code>/livez</code> and <code>/readyz</code> probes, authenticated <code>/v1/providers</code>, and <code>/v1/models?ready=true</code> for locally ready targets.</li>
 <li><strong>Use OpenCode deeply:</strong> choose <code>freellmpool/agent</code> for strongest-tier, quota-aware agent loops and add the repository-local dashboard/tools plugins while npm publication is pending.</li>
@@ -146,10 +148,16 @@ text and tool use, no vision yet.)</p>
 and LLM7 is key-optional, so a fresh install can answer without signup when a keyless provider is up. Add free keys for the other providers to
 unlock more models and higher limits.</p>
 
+<h3>Can it use LM Studio, Ollama, or llama.cpp?</h3>
+<p>Yes, explicitly. Run <code>freellmpool local discover</code> to preview the small fixed list of
+literal-loopback endpoints, then <code>freellmpool local import --name ollama --yes</code> (or another
+reported runtime) to add its models as exact pins. Discovery sends no credential, follows no redirect,
+does not scan your LAN or processes, and import does not add the models to automatic routing.</p>
+
 <h3>Which free LLM providers does it support?</h3>
 <p>22 cataloged providers: Pollinations, OVHcloud, LLM7, Kilo Gateway, OpenCode Zen (disabled by default), Groq, Cerebras, NVIDIA NIM,
 OpenRouter, Google Gemini, Cloudflare Workers AI, Mistral, Cohere, SambaNova, Z.ai/Zhipu,
-Ollama Cloud, Hugging Face (router), Aion Labs, ModelScope API Inference, Morph, Vercel AI Gateway, and SiliconFlow — 177 enabled chat routes, 431 cataloged chat models,
+Ollama Cloud, Hugging Face (router), Aion Labs, ModelScope API Inference, Morph, Vercel AI Gateway, and SiliconFlow — 178 enabled chat routes, 431 cataloged chat models,
 plus free embeddings and audio transcription (Whisper).</p>
 
 <h3>How do I know which free providers are usable right now?</h3>
@@ -184,7 +192,7 @@ for provider routing, ToS, and privacy notes.</p>
 
 </div>
 
-<p class="meta">Free and open source (MIT). Latest release: 0.12.3. Page updated 2026-08-29.
+<p class="meta">Free and open source (MIT). Latest release: 0.13.0. Page updated 2026-08-29.
 Project: <a href="https://github.com/0xzr/freellmpool">github.com/0xzr/freellmpool</a></p>
 
 </div>
@@ -199,7 +207,7 @@ Project: <a href="https://github.com/0xzr/freellmpool">github.com/0xzr/freellmpo
   "description": "Free, open-source OpenAI-compatible gateway with cataloged free-tier routes across 22 LLM providers behind one endpoint, automatic failover, CLI, Python library, local proxy, and MCP server. Keyless start when routes are available.",
   "url": "https://0xzr.github.io/freellmpool/",
   "downloadUrl": "https://pypi.org/project/freellmpool/",
-  "softwareVersion": "0.12.3",
+  "softwareVersion": "0.13.0",
   "license": "https://opensource.org/licenses/MIT",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
   "author": {"@type": "Person", "name": "0xzr"}

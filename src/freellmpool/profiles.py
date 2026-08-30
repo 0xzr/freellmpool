@@ -8,6 +8,7 @@ independent of provider SDKs.
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import urllib.error
@@ -15,12 +16,14 @@ import urllib.request
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
+from urllib.parse import urlsplit
 
 _CLIENT_KINDS = ("openai", "anthropic", "mcp", "shell")
 _COST_CLASSES = ("free", "metered", "paid")
 
 ClientKind = Literal["openai", "anthropic", "mcp", "shell"]
 CostClass = Literal["free", "metered", "paid"]
+DoctorStatus = Literal["ok", "warn", "fail"]
 
 _DEFAULT_PROXY = "http://localhost:8080"
 
@@ -316,11 +319,9 @@ _PROFILES: tuple[Profile, ...] = (
             DoctorCheck("binary", "freellmpool CLI", "freellmpool"),
             DoctorCheck(
                 "url",
-                "proxy /v1/messages",
+                "proxy /v1/models",
                 _DEFAULT_PROXY,
-                path="/v1/messages",
-                method="POST",
-                body={},
+                path="/v1/models",
             ),
         ],
         notes="Pin a model with ANTHROPIC_MODEL=provider/model, e.g. alibaba_cloud_model_studio/qwen3-plus.",
@@ -505,17 +506,24 @@ def render_profile(profile: Profile) -> str:
 def render_profile_quickstart(profile: Profile) -> str:
     """Render the concise copy-paste block used by ``freellmpool code <agent>``."""
     lines = [f"Wire {profile.label} to free models via freellmpool:\n"]
-    lines.append("  1. freellmpool proxy --port 8080")
+    lines.extend(
+        (
+            "  Terminal 1 — keep the proxy running:",
+            "    freellmpool proxy --port 8080",
+            "",
+            "  Terminal 2 — configure and launch the client:",
+        )
+    )
     if "shell" in profile.config_snippets:
-        lines.append("  2. Shell setup:")
+        lines.append("    Shell setup:")
         for ln in profile.config_snippets["shell"].splitlines():
-            lines.append(f"    {ln}")
+            lines.append(f"      {ln}")
     else:
         # Fall back to the first snippet if no shell block exists.
         first_key = next(iter(profile.config_snippets))
-        lines.append(f"  2. {first_key}:")
+        lines.append(f"    {first_key}:")
         for ln in profile.config_snippets[first_key].splitlines():
-            lines.append(f"    {ln}")
+            lines.append(f"      {ln}")
         lines.append("")
     if profile.notes:
         lines.append(f"\n  ℹ {profile.notes}")
@@ -534,11 +542,31 @@ def render_profile_list() -> str:
 
 
 def _root_base_url(base_url: str) -> str:
-    """Return the proxy root URL even if an OpenAI `/v1` URL was supplied."""
-    normalized = base_url.rstrip("/")
-    if normalized.endswith("/v1"):
-        return normalized[:-3]
-    return normalized
+    """Validate and return a proxy origin from a root or OpenAI ``/v1`` URL."""
+    if (
+        not isinstance(base_url, str)
+        or not base_url
+        or len(base_url) > 2_048
+        or any(character.isspace() or ord(character) < 32 for character in base_url)
+    ):
+        raise ValueError("invalid proxy base URL")
+    try:
+        parts = urlsplit(base_url)
+        hostname = parts.hostname
+        _port = parts.port
+    except ValueError:
+        raise ValueError("invalid proxy base URL") from None
+    if (
+        parts.scheme not in {"http", "https"}
+        or not hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+        or parts.path.rstrip("/") not in {"", "/v1"}
+    ):
+        raise ValueError("invalid proxy base URL")
+    return f"{parts.scheme}://{parts.netloc}"
 
 
 def profile_with_base_url(profile: Profile, base_url: str) -> Profile:
@@ -566,62 +594,100 @@ def render_doctor_plan(profile: Profile) -> str:
     return "\n".join(lines)
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Keep a configured proxy token on the exact endpoint the user selected."""
+
+    def redirect_request(self, *args, **kwargs):  # noqa: D102
+        return None
+
+
+def _build_doctor_opener() -> urllib.request.OpenerDirector:
+    """Build a direct opener so environment proxies cannot receive proxy credentials."""
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+
+
+_DOCTOR_OPENER = _build_doctor_opener()
+
+
 def run_doctor_check(
     check: DoctorCheck,
     *,
     timeout: float = 2.0,
-    opener=urllib.request.urlopen,
-) -> tuple[bool, str]:
-    """Execute a single doctor check and return ``(ok, message)``.
+    opener=None,
+    env: Mapping[str, str] | None = None,
+    proxy_key: str | None = None,
+) -> tuple[DoctorStatus, str]:
+    """Execute a single doctor check and return ``(status, message)``.
 
-    Stdlib network calls are used with a short timeout. No provider secrets are
-    read or printed.
+    URL checks distinguish an authenticated success from a reachable endpoint
+    whose authentication could not be verified. Secrets are sent only to the
+    exact requested URL (redirects are disabled) and are never returned.
     """
     if check.kind == "binary":
         path = shutil.which(check.target)
         ok = path is not None
         msg = f"found at {path}" if ok else "not on PATH"
-        return ok, msg
+        return ("ok" if ok else "fail"), msg
 
     if check.kind == "env":
-        value = os.environ.get(check.target)
+        value = (env if env is not None else os.environ).get(check.target)
         ok = value is not None and value != ""
         # Never echo the real value.
         msg = "set" if ok else "not set"
-        return ok, msg
+        return ("ok" if ok else "fail"), msg
 
     if check.kind == "url":
         url = check.url()
-        data = None
-        headers = {"User-Agent": "freellmpool-doctor/1.0"}
-        if check.method == "POST":
-            data = json.dumps(check.body or {}).encode("utf-8")
-            headers["Content-Type"] = "application/json"
-        req = urllib.request.Request(
-            url,
-            data=data,
-            method=check.method,
-            headers=headers,
-        )
+        if not math.isfinite(timeout) or timeout <= 0:
+            return "fail", "invalid timeout"
         try:
-            with opener(req, timeout=timeout) as resp:
-                _ = resp.read()
-            return True, f"reachable ({resp.status})"
+            data = None
+            headers = {"User-Agent": "freellmpool-doctor/1.0"}
+            if proxy_key:
+                headers["Authorization"] = f"Bearer {proxy_key}"
+            if check.method == "POST":
+                data = json.dumps(check.body or {}).encode("utf-8")
+                headers["Content-Type"] = "application/json"
+            req = urllib.request.Request(
+                url,
+                data=data,
+                method=check.method,
+                headers=headers,
+            )
+            open_request = opener or _DOCTOR_OPENER.open
+            with open_request(req, timeout=timeout) as resp:
+                status = int(resp.status)
+            if 200 <= status < 300:
+                suffix = "; authentication verified" if proxy_key else ""
+                return "ok", f"reachable ({status}{suffix})"
+            return "fail", f"unexpected HTTP {status}"
         except urllib.error.HTTPError as exc:
-            # 400 proves a POST-only proxy route exists and rejected our minimal
-            # probe before any provider call; 401/403 proves the proxy is gated.
-            return exc.code in {400, 401, 403}, f"responded HTTP {exc.code}"
+            if proxy_key:
+                if exc.code in {401, 403}:
+                    return "fail", f"configured authentication rejected (HTTP {exc.code})"
+                return "fail", f"responded HTTP {exc.code}"
+            if exc.code in {401, 403}:
+                return "warn", f"reachable; authentication unverified (HTTP {exc.code})"
+            # A minimal POST may be rejected before a provider call while still
+            # proving that the expected proxy route is present.
+            if check.method == "POST" and exc.code == 400:
+                return "ok", "reachable (HTTP 400 rejected minimal probe)"
+            return "fail", f"responded HTTP {exc.code}"
+        except (ValueError, TypeError):
+            return "fail", "invalid endpoint"
         except OSError as exc:
-            return False, f"unreachable ({type(exc).__name__}: {exc})"
+            return "fail", f"unreachable ({type(exc).__name__})"
 
-    return False, f"unknown check kind: {check.kind}"
+    return "fail", f"unknown check kind: {check.kind}"
 
 
 def run_doctor(
     profile: Profile,
     *,
     timeout: float = 2.0,
-    opener=urllib.request.urlopen,
+    opener=None,
+    env: Mapping[str, str] | None = None,
+    proxy_key: str | None = None,
 ) -> tuple[int, list[str]]:
     """Run every doctor check for a profile and return ``(exit_code, lines)``.
 
@@ -629,16 +695,28 @@ def run_doctor(
     """
     lines = [f"doctor results for '{profile.name}':"]
     failed = 0
+    warned = 0
     for check in profile.doctor_checks:
-        ok, msg = run_doctor_check(check, timeout=timeout, opener=opener)
-        status = "ok" if ok else "FAIL"
+        outcome, msg = run_doctor_check(
+            check,
+            timeout=timeout,
+            opener=opener,
+            env=env,
+            proxy_key=proxy_key,
+        )
+        status = {"ok": "ok", "warn": "WARN", "fail": "FAIL"}[outcome]
         target = check.url() if check.kind == "url" else check.target
         line = f"  [{status}] {check.name} ({target}): {msg}"
         lines.append(line)
-        if not ok and not check.optional:
+        if outcome == "fail" and not check.optional:
             failed += 1
+        elif outcome == "warn" and not check.optional:
+            warned += 1
     if failed:
         lines.append(f"\n{failed} required check(s) failed.")
+        return 3, lines
+    if warned:
+        lines.append(f"\n{warned} required check(s) need attention; authentication is unverified.")
         return 1, lines
     lines.append("\nAll required checks passed.")
     return 0, lines
@@ -648,6 +726,7 @@ __all__ = [
     "ClientKind",
     "CostClass",
     "DoctorCheck",
+    "DoctorStatus",
     "Profile",
     "PROFILES",
     "compatible_profiles",

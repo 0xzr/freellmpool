@@ -6,11 +6,11 @@
 
 ![demostración de freellmpool tokenmax en terminal](assets/demo.svg)
 
-![177 rutas de chat habilitadas, 22 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
+![178 rutas de chat habilitadas, 22 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
 
 freellmpool cataloga 22 proveedores de LLM como grupos distintos que abarcan
 niveles gratuitos recurrentes, endpoints sin clave, pruebas finitas, rutas solo
-por pin y candidatos deshabilitados. Expone 177 rutas de chat habilitadas y
+por pin y candidatos deshabilitados. Expone 178 rutas de chat habilitadas y
 431 modelos de chat catalogados detrás de un endpoint compatible con OpenAI, y
 agrupa automáticamente solo las rutas habilitadas a las que tienes acceso. Puede
 empezar sin credenciales cuando hay una ruta sin clave habilitada y disponible.
@@ -25,8 +25,8 @@ comparaciones.
 
 ## Estado de versión y distribución
 
-- **Última versión: 0.12.3.** La versión de GitHub y el paquete de PyPI son
-  0.12.3; incluyen el catálogo auditado, el endurecimiento de streaming y del
+- **Última versión: 0.13.0.** La versión de GitHub y el paquete de PyPI son
+  0.13.0; incluyen el catálogo auditado, el endurecimiento de streaming y del
   sentinel, el perfil de Hermes, las APIs operativas `/livez`, `/readyz`,
   `/v1/providers` y `/v1/models?ready=true`, y el enrutamiento `spread`.
 
@@ -188,6 +188,9 @@ curl -s http://localhost:8080/v1/audio/transcriptions \
 El proxy también implementa la API Responses de OpenAI (para Codex CLI) y una
 ruta experimental compatible con Messages de Anthropic (para Claude Code), así
 que los agentes de código también pueden correr sobre modelos gratuitos.
+Las solicitudes de solo texto transmiten deltas de forma incremental; las
+solicitudes con herramientas o contenido enriquecido conservan la ruta
+bufferizada de compatibilidad.
 `freellmpool code <agent>` imprime la configuración exacta:
 
 ```bash
@@ -197,6 +200,9 @@ freellmpool code aider       # also: claude, codex, cline, continue, cursor, her
 Endpoints: `/v1/chat/completions` (streaming de tokens, tool calling),
 `/v1/embeddings`, `/v1/audio/transcriptions` (Whisper, multipart),
 `/v1/responses`, `/v1/messages`, `/v1/models` y una página `/dashboard` con uso.
+`/`, `/dashboard` y `/playground` comparten un shell público sin datos. Si el
+proxy usa autenticación, el shell guarda la clave solo en memoria de la página
+y envía el encabezado `Authorization` en cada llamada protegida.
 Los snippets para herramientas específicas están en
 [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) y [docs/AGENTS.md](docs/AGENTS.md).
 
@@ -254,22 +260,41 @@ y qué configurar después:
 
 ```bash
 freellmpool capacity status --target 5   # who's healthy / near quota / missing a key
+freellmpool capacity status --refresh    # refresh explícito del catálogo consultivo
 freellmpool providers health             # send one tiny request to each, time it
 freellmpool keys checklist --target 5    # which keys to add to reach N healthy providers
 freellmpool keys add groq                # configure a key (and record metadata)
 ```
 
-`capacity status` es local-first: lee tu catálogo, entorno y contadores diarios,
+`capacity status` es offline y cache-first: lee tu catálogo, entorno y contadores diarios,
 y etiqueta cada proveedor como `healthy`, `low_quota`, `exhausted`, `invalid_key`,
 `missing` o `disabled`; este último significa que no tiene modelos habilitados y
-no cuenta como capacidad. También sincroniza un catálogo externo consultivo
+no cuenta como capacidad. El cache del catálogo externo consultivo
 ([mnfst/awesome-free-llm-apis](https://github.com/mnfst/awesome-free-llm-apis))
-para sugerir proveedores gratuitos que podrías agregar; es solo consultivo, tu
+puede sugerir proveedores gratuitos que podrías agregar. Solo
+`freellmpool capacity status --refresh` o `freellmpool catalog sync` usa la red
+para actualizarlo; es solo consultivo y tu
 `providers.toml` sigue siendo la fuente de verdad para el enrutamiento.
 `keys add <name>` incluso puede importar un proveedor sugerido de ese catálogo o
 crear un stub compatible con OpenAI y autodetectar sus modelos. El `/dashboard`
 del proxy muestra la misma capacidad de un vistazo. Referencia completa:
 [docs/CAPACITY.md](docs/CAPACITY.md).
+
+## Modelos locales (explícitos y pin-only)
+
+LM Studio, Ollama y llama.cpp se pueden previsualizar sin escanear la LAN ni los
+procesos:
+
+```bash
+freellmpool local discover
+freellmpool local import --name ollama --yes
+freellmpool ask --providers local_ollama --model "<modelo-descubierto>" "hola"
+```
+
+El descubrimiento consulta solo una lista pequeña de URLs loopback literales y
+no envía credenciales ni sigue redirecciones. La importación es un paso afirmativo
+separado y deja todos los modelos fuera del enrutamiento automático. Se revierte
+con `freellmpool local remove local_ollama --yes`.
 
 ## Como servidor MCP
 

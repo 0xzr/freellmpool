@@ -31,9 +31,30 @@ def test_release_ready_metadata_is_clean():
     # The exact provider count is a release-copy tripwire: adding/removing a provider
     # should force a deliberate README/docs/server metadata update.
     assert counts.providers == 22
-    assert counts.enabled_chat_models == 177
+    assert counts.enabled_chat_models == 178
     assert counts.cataloged_chat_models == 431
     assert release_ready.metadata_errors(ROOT) == []
+
+
+def test_release_gate_covers_local_runtime_and_conformance_commands():
+    release_ready = _load_script("check_release_ready")
+
+    assert {"local", "conformance"} <= release_ready._EXPECTED_PUBLIC_COMMANDS
+
+
+def test_release_docs_cover_current_offline_local_and_streaming_contracts():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    capacity = (ROOT / "docs" / "CAPACITY.md").read_text(encoding="utf-8")
+    integrations = (ROOT / "docs" / "INTEGRATIONS.md").read_text(encoding="utf-8")
+    pages = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+
+    assert "freellmpool local discover" in readme
+    assert "freellmpool local discover" in pages
+    assert "freellmpool capacity status --refresh" in readme
+    assert "freellmpool capacity status --refresh" in capacity
+    assert "by default it does refresh" not in capacity
+    assert "incremental text streaming" in integrations
+    assert "tool requests stay on the buffered path" in integrations
 
 
 def test_release_output_dir_rejects_existing_content_without_deleting_it(tmp_path):

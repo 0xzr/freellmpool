@@ -290,6 +290,11 @@ Adopted plan additions:
 - `/playground` is self-contained, framework-free HTML/JS with no external
   network resources, no CDN scripts, no external stylesheets, and no remote
   images.
+- `/dashboard` and `/playground` share a public, data-free shell; protected
+  usage, inventory, ready-model, and battle data is fetched only with a bearer
+  header. After submission the input is cleared and the token stays only in a
+  JavaScript closure until reload, never in a URL, cookie, Web Storage,
+  rendered DOM, global, log, or HTML response.
 - `POST /freellmpool/battle` enforces the same proxy auth as `/v1`.
 - `POST /freellmpool/battle` accepts JSON fields `prompt`, `n` or `models`,
   `max_tokens`, `routing`, and `synthesize`; it returns `answers`,
@@ -713,14 +718,20 @@ Implementation:
   - first slice can reuse the running proxy and serve a self-contained
     `/playground` page from `proxy.py`
 - Add proxy endpoints:
-  - `GET /playground`: static HTML/JS page
+  - `GET /playground`: public, data-free static HTML/JS shell shared with
+    `/dashboard`
   - `POST /freellmpool/battle`: local JSON endpoint that runs a bounded panel
 - Keep the page framework-free and visually focused on comparing answers.
+- Keep browser authentication closure-only: clear the form input after
+  submission, use only bearer headers for protected requests, and re-prompt
+  after reload. Do not persist or render the token.
 
 Definition of Done:
 
 - `battle` works with fake providers in tests.
 - `/playground` renders without external assets.
+- Public shell bytes contain no usage, inventory, model, battle, or bearer data;
+  protected browser requests remain header-authenticated.
 - `/freellmpool/battle` enforces the same proxy auth as `/v1`.
 - Failures are shown per model without failing the whole battle.
 

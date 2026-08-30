@@ -3,7 +3,7 @@
 freellmpool is a local gateway built around a packaged catalog,
 credential-aware configuration, an eligibility-aware router, bounded provider
 clients, and thin CLI/proxy/MCP interfaces. The current catalog contains 22
-provider groups, 431 chat models, and 177 enabled chat routes. Catalog presence
+provider groups, 431 chat models, and 178 enabled chat routes. Catalog presence
 is not routing eligibility: recurring free tiers, keyless endpoints, finite
 trials, pin-only routes, and disabled candidates remain distinct.
 
@@ -37,11 +37,22 @@ CLI / Python / MCP / OpenAI, Responses, or experimental Anthropic clients
    `auto = false` route, but never a disabled one.
 4. Chat, embedding, and transcription catalogs are separate. Their route
    counts must not be treated as interchangeable.
+5. `freellmpool local discover` performs an explicit, bounded preview of a
+   fixed list of local runtimes, or one user-supplied canonical literal-loopback
+   URL. `local import --yes` writes only pin-only routes to the user catalog;
+   `local remove --yes` reverses only blocks managed by that import.
 
 Provider base URLs, IDs, model names, and environment-variable names are
 validated before use. Public provider credentials are never sent through
 redirects, and private/loopback provider URLs require an explicit
 local-provider opt-in.
+
+The local-runtime path is intentionally narrower: it sends no credentials,
+follows no redirects, performs no DNS, LAN, or process scan, and accepts only
+canonical literal loopback addresses. Imported routes are never added to
+automatic routing. `freellmpool doctor` also performs a strict, secret-safe
+validation pass over the otherwise tolerant config loader; syntax and table
+type errors include location/type metadata without echoing config values.
 
 ## Main modules
 
@@ -56,6 +67,7 @@ local-provider opt-in.
 | `mcp_server.py`, `panel.py`, `battle.py`, `recipes.py`, `roles.py`, `jobs.py`, `tokenmax.py` | MCP tools, multi-model orchestration, durable jobs, and bounded fan-out. |
 | `cache.py`, `stats.py`, `observe.py`, `artifacts.py`, `reports.py` | Optional response cache, persistent aggregate stats, secret-safe events, and local artifacts/reports. |
 | `capacity.py`, `healthcheck.py`, `key_inventory.py`, `catalog.py`, `catalog_validation.py` | Local capacity views, bounded canaries, key metadata, external-catalog assistance, and catalog invariants. |
+| `local_runtime.py` | Explicit, bounded loopback runtime discovery and reversible pin-only user-catalog imports. |
 | `plugins.py` | Custom providers and request adapters without changing the built-in client. |
 
 ## Routing and failure handling
@@ -83,8 +95,16 @@ Each non-streaming candidate gets at most two bounded attempts for retryable
 transport errors or HTTP 408/429/5xx responses inside the caller's deadline,
 honoring `Retry-After` only when feasible. If the candidate still fails, the
 router records a normalized failure, updates cooldown/circuit state, and
-advances to the next target. A stream can fail over only before response bytes
-reach the downstream client.
+advances to the next target. A stream can fail over only before the downstream
+event stream is committed. Once headers or events are sent, freellmpool never
+replays the request on another provider; a later failure uses protocol-specific
+error framing when possible and never emits a successful terminal event.
+
+Text-only OpenAI Responses and Anthropic Messages streams use the same
+incremental upstream path as streaming chat. Their first usable delta is
+obtained before downstream commit, then subsequent deltas are relayed in
+protocol order. Tool calls and richer content remain on a buffered
+compatibility path so partially translated structures are never exposed.
 
 On success, the pool records local quota, latency, health, and aggregate token
 statistics. It stores only normalized operational evidence; prompts, responses,
@@ -98,6 +118,18 @@ experimental `/v1/messages`, `/v1/embeddings`,
 `/readyz`, `/dashboard`, and `/playground`. Inventory and usage endpoints are
 authenticated when a proxy key is configured; liveness/readiness remain safe
 for orchestration.
+
+`/dashboard` and `/playground` serve one public, self-contained, data-free
+browser shell. It fetches usage, inventory, ready models, and battle results
+only through bearer-header requests to the protected APIs. After submission,
+the input is cleared and the bearer remains only in a JavaScript closure: it is
+not placed in URLs, cookies, Web Storage, rendered DOM, globals, logs, or the
+HTML response. Reloading the page forgets it and requires authentication again.
+
+`freellmpool capacity status` is an offline/cache-first view and never refreshes
+the advisory external catalog unless the user supplies `--refresh`. A refresh
+failure falls back to the existing cache, so local readiness and quota views
+remain available without network access.
 
 Persistent local state lives under `~/.config/freellmpool` by default.
 Container deployments should mount that directory; the repository's
@@ -113,4 +145,4 @@ for the proxy health check before starting Open WebUI.
 - freellmpool reacts to provider limits; it does not bypass quotas, rotate
   accounts, or promise that a cataloged route is free or currently available.
 - The proxy is intended for local or single-operator use. Bind to loopback by
-  default and require `FREELLMMPOOL_PROXY_KEY` before intentional exposure.
+  default and require `FREELLMPOOL_PROXY_KEY` before intentional exposure.

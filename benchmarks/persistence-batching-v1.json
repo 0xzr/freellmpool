@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "contract": "success-persistence-write-count-v1",
+  "operations": 320,
+  "batch_size": 32,
+  "default_max_age_seconds": 1.0,
+  "stores": {
+    "quota": {
+      "immediate_writes": 320,
+      "batched_writes": 10
+    },
+    "stats": {
+      "immediate_writes": 320,
+      "batched_writes": 10
+    },
+    "route_health_success": {
+      "immediate_writes": 320,
+      "batched_writes": 10
+    }
+  }
+}

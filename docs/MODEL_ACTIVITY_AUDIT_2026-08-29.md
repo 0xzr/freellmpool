@@ -258,15 +258,22 @@ None.
 
 - `CohereLabs/command-a-vision-07-2025`
 
-### Groq (`groq`): 11 / 5 / 5
+### Groq (`groq`): 11 / 6 / 5
 
-**Current first-party lifecycle/limit evidence; newly listed route uncredentialed.** Groq's
+**Current first-party lifecycle/limit evidence plus bounded credentialed admission.** Groq's
 [deprecation history](https://console.groq.com/docs/deprecations) shuts down
 `llama-3.3-70b-versatile` and `llama-3.1-8b-instant` for Free and Developer users on
 2026-08-16. The [current model list](https://console.groq.com/docs/models) and [free-plan
 rate limits](https://console.groq.com/docs/rate-limits) omit `allam-2-7b` and give the
-Compound limits used here. `qwen/qwen3.8-27b` is listing-only and disabled pending a
-credentialed completion canary. The five automatic routes retain earlier completion
+Compound limits used here. Immediately before admission, those first-party pages listed
+`qwen/qwen3.8-27b` as a Preview model on the recurring Free plan (1,000 RPD and 2M TPD).
+The packaged adapter then produced exactly three sequential, non-empty sanitized chat
+canaries and a separate streaming pass. The forced tool canary returned `unsupported`
+despite Groq's advertised tool capability. The model is therefore enabled pin-only for
+explicit text/stream use, remains excluded from automatic routing, and carries no local
+claim of verified tool support. The bounded, secret-free results are retained as
+[machine-readable admission evidence](evidence/groq-qwen3.8-27b-admission-2026-08-29.json).
+The five automatic routes retain earlier completion
 evidence; no fresh success is invented for them here.
 
 **Automatic (5)**
@@ -277,17 +284,16 @@ evidence; no fresh success is invented for them here.
 - `qwen/qwen3.6-27b`
 - `groq/compound-mini`
 
-**Enabled exact-pin-only (0)**
+**Enabled exact-pin-only (1)**
 
-None.
+- `qwen/qwen3.8-27b`
 
-**Disabled exact-pin-only (6)**
+**Disabled exact-pin-only (5)**
 
 - `llama-3.3-70b-versatile`
 - `llama-3.1-8b-instant`
 - `meta-llama/llama-4-scout-17b-16e-instruct`
 - `qwen/qwen3-32b`
-- `qwen/qwen3.8-27b`
 - `allam-2-7b`
 
 ### Aion Labs (`aion`): 5 / 4 / 4
@@ -1100,5 +1106,5 @@ The exhaustive inventory can be reproduced from the packaged TOML by treating
 omitted `enabled` and `auto` values as true, then partitioning each model into
 the three mutually exclusive states defined above. The assertions used to
 generate this record fail unless the frozen totals are exactly
-**22 / 431 / 177 / 149** for chat, **25 / 14** for embeddings, and
+**22 / 431 / 178 / 149** for chat, **25 / 14** for embeddings, and
 **5 / 5** for transcription.

@@ -11,10 +11,12 @@ tests with an explicit path and a fixed clock.
 
 from __future__ import annotations
 
+import atexit
 import contextlib
 import json
 import os
 import threading
+import weakref
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +25,17 @@ try:
     import fcntl  # POSIX advisory file locks
 except ImportError:  # pragma: no cover - non-POSIX (Windows)
     fcntl = None
+
+_LIVE_STORES: weakref.WeakSet[QuotaStore] = weakref.WeakSet()
+
+
+def _reset_live_stores_after_fork() -> None:
+    for store in tuple(_LIVE_STORES):
+        store._after_fork_child()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_live_stores_after_fork)
 
 
 def _utc_day(now: datetime | None = None) -> str:
@@ -45,6 +58,7 @@ class QuotaStore:
         path: Path | None = None,
         clock: Callable[[], datetime] | None = None,
         flush_every: int | None = None,
+        flush_interval: float | None = None,
     ):
         self.path = path or default_quota_path()
         self._clock = clock or (lambda: datetime.now(UTC))
@@ -55,13 +69,35 @@ class QuotaStore:
             except ValueError:
                 flush_every = 1
         self.flush_every = max(1, flush_every)
+        if flush_interval is None:
+            try:
+                flush_interval = float(
+                    os.environ.get("FREELLMPOOL_QUOTA_FLUSH_INTERVAL", "1.0")
+                )
+            except ValueError:
+                flush_interval = 1.0
+        self.flush_interval = max(0.001, float(flush_interval))
         self._pending_counts: dict[str, dict[str, int]] = {}
         self._pending_ops = 0
+        self._flush_timer: threading.Timer | None = None
+        self._reload_after_fork = False
         self._data: dict = self._load()
+        _LIVE_STORES.add(self)
         if self.flush_every > 1:
-            import atexit
-
             atexit.register(self.flush)
+
+    def _after_fork_child(self) -> None:
+        """Drop parent-owned batches and locks in a freshly forked child."""
+        self._lock = threading.Lock()
+        self._pending_counts = {}
+        self._pending_ops = 0
+        self._flush_timer = None
+        self._reload_after_fork = True
+
+    def _prepare_after_fork_locked(self) -> None:
+        if self._reload_after_fork:
+            self._data = self._load()
+            self._reload_after_fork = False
 
     def _load(self) -> dict:
         try:
@@ -69,6 +105,22 @@ class QuotaStore:
                 return json.load(fh)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return {}
+
+    def _load_for_write(self) -> dict:
+        """Load a writable object, quarantining a present corrupt file first."""
+        try:
+            with self.path.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, dict):
+                return data
+        except FileNotFoundError:
+            return {}
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
+        with contextlib.suppress(OSError):
+            if self.path.exists():
+                self.path.replace(self.path.with_suffix(self.path.suffix + ".corrupt"))
+        return {}
 
     @contextlib.contextmanager
     def _file_lock(self):
@@ -119,10 +171,12 @@ class QuotaStore:
 
     def used(self, provider_id: str, model: str) -> int:
         with self._lock:
+            self._prepare_after_fork_locked()
             return int(self._today().get(self._key(provider_id, model), 0))
 
     def record(self, provider_id: str, model: str, n: int = 1) -> int:
         with self._lock:
+            self._prepare_after_fork_locked()
             if self.flush_every <= 1:
                 return self._record_and_save_locked(provider_id, model, n)
 
@@ -136,13 +190,15 @@ class QuotaStore:
             count = bucket[key]
             if self._pending_ops >= self.flush_every:
                 self._flush_locked()
+            if self._pending_counts:
+                self._schedule_flush_locked()
             return count
 
     def _record_and_save_locked(self, provider_id: str, model: str, n: int) -> int:
         with self._file_lock():
             # Reload under the lock so concurrent processes' increments survive
             # (we'd otherwise write a stale whole-file snapshot over theirs).
-            self._data = self._load()
+            self._data = self._load_for_write()
             bucket = self._today()
             key = self._key(provider_id, model)
             bucket[key] = int(bucket.get(key, 0)) + n
@@ -158,13 +214,31 @@ class QuotaStore:
     def flush(self) -> None:
         """Persist any locally batched quota increments."""
         with self._lock:
+            self._prepare_after_fork_locked()
+            self._cancel_flush_timer_locked()
             self._flush_locked()
+            if self._pending_counts:
+                self._schedule_flush_locked()
+
+    def _schedule_flush_locked(self) -> None:
+        if not self._pending_counts or self._flush_timer is not None:
+            return
+        timer = threading.Timer(self.flush_interval, self.flush)
+        timer.daemon = True
+        self._flush_timer = timer
+        timer.start()
+
+    def _cancel_flush_timer_locked(self) -> None:
+        timer = self._flush_timer
+        self._flush_timer = None
+        if timer is not None:
+            timer.cancel()
 
     def _flush_locked(self) -> None:
         if not self._pending_counts:
             return
         with self._file_lock():
-            merged = self._load()
+            merged = self._load_for_write()
             for day, changes in self._pending_counts.items():
                 bucket = merged.setdefault(day, {})
                 for key, amount in changes.items():
@@ -178,6 +252,7 @@ class QuotaStore:
                 return
             self._pending_counts.clear()
             self._pending_ops = 0
+            self._cancel_flush_timer_locked()
 
     def over_budget(self, provider_id: str, model: str, rpd: int) -> bool:
         """True if a positive rpd hint exists and today's use meets/exceeds it."""
@@ -188,10 +263,10 @@ class QuotaStore:
     def snapshot(self) -> dict[str, int]:
         """Today's counters as a flat {provider::model: count} dict.
 
-        Reloads from disk (a cheap, atomic os.replace target) so a long-running
-        proxy reflects increments other processes have made."""
+        Reloads from disk so a long-running proxy reflects other processes, then
+        overlays local pending increments in memory. Reading never forces a write."""
         with self._lock:
-            self._flush_locked()
+            self._prepare_after_fork_locked()
             current_day = _utc_day(self._clock())
             loaded = self._load()
             bucket = dict(loaded.get(current_day, {}))

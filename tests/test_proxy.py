@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
+import shutil
 import socket
+import subprocess
 import threading
 import time
 import urllib.error
@@ -200,6 +204,50 @@ def test_agent_stream_fallback_shares_one_overall_budget(providers, env, quota):
     assert seen == [("stream", 540.0), ("buffered", 240.0)]
 
 
+@pytest.mark.parametrize("path", ["/v1/responses", "/v1/messages"])
+def test_text_protocol_stream_fallback_shares_one_overall_budget(
+    providers, env, quota, path
+):
+    clock = {"now": 0.0}
+    seen: list[tuple[str, float]] = []
+
+    def stream_chat(*args, timeout, **kwargs):
+        seen.append(("stream", timeout))
+        clock["now"] += 300.0
+        if False:
+            yield None
+        raise AllProvidersExhausted([("alpha/alpha-small", "down")])
+
+    def post(url, headers, body, timeout):
+        seen.append(("buffered", timeout))
+        return HTTPResult(200, openai_body("ok"), "ok")
+
+    pool = Pool(
+        providers[:1],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+        routing="agent",
+    )
+    pool.stream_chat = stream_chat
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + path,
+            data=json.dumps(_stream_request_body(path)).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:  # noqa: S310
+            assert response.status == 200
+            response.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert seen == [("stream", 540.0), ("buffered", 240.0)]
+
+
 def test_proxy_server_header_uses_package_version(server):
     with urllib.request.urlopen(server + "/v1/models") as resp:  # noqa: S310
         assert f"freellmpool/{__version__}" in resp.headers["Server"]
@@ -293,16 +341,37 @@ def test_concurrent_chat_requests_share_pool_safely(providers, env, quota):
         httpd.server_close()
 
 
-def test_server_close_flushes_batched_quota(providers, env, tmp_path):
+def test_server_close_flushes_all_batched_telemetry(providers, env, tmp_path):
     from freellmpool.quota import QuotaStore
+    from freellmpool.route_health import RouteHealthStore
+    from freellmpool.stats import StatsStore
 
     quota = QuotaStore(path=tmp_path / "quota.json", flush_every=100)
-    pool = Pool(providers, quota=quota, env=env, post=make_post({}))
+    stats = StatsStore(tmp_path / "stats.json", flush_every=100)
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        success_flush_every=100,
+        success_flush_interval=60,
+    )
+    pool = Pool(
+        providers,
+        quota=quota,
+        env=env,
+        post=make_post({}),
+        stats_store=stats,
+        route_health=health,
+    )
     httpd = serve(pool, host="127.0.0.1", port=0)
     pool.ask("hi", providers=["alpha"])
     assert not (tmp_path / "quota.json").exists()
+    assert not (tmp_path / "stats.json").exists()
+    before_close = RouteHealthStore(path=tmp_path / "health.json").snapshot()
+    assert before_close and all(row.successes == 0 for row in before_close.values())
+    httpd.server_close()
     httpd.server_close()
     assert QuotaStore(path=tmp_path / "quota.json").snapshot()
+    assert StatsStore(tmp_path / "stats.json").snapshot()["requests"] == 1
+    assert RouteHealthStore(path=tmp_path / "health.json").snapshot()
 
 
 def test_models_route(server):
@@ -367,8 +436,259 @@ def test_dashboard(server):
         assert "text/html" in resp.headers["Content-Type"]
         body = resp.read().decode()
     assert "freellmpool" in body
-    assert "providers configured" in body
-    assert "not spent (Claude Opus 4.8)" in body
+    assert "Dashboard" in body
+    assert "Playground" in body
+
+
+def test_authenticated_proxy_serves_public_secret_free_unified_shell_with_security_headers(
+    providers, env, quota
+):
+    secret = "never-render-this-proxy-token"
+    pool = Pool(providers, quota=quota, env=env, post=make_post({}))
+    httpd, base = _serve(pool, api_key=secret)
+    try:
+        bodies = []
+        for path in ("/", "/dashboard", "/playground"):
+            with urllib.request.urlopen(base + path) as resp:  # noqa: S310
+                assert resp.status == 200
+                assert resp.headers["Cache-Control"] == "no-store"
+                assert resp.headers["X-Frame-Options"] == "DENY"
+                assert resp.headers["Referrer-Policy"] == "no-referrer"
+                assert resp.headers["X-Content-Type-Options"] == "nosniff"
+                assert resp.headers.get("Set-Cookie") is None
+                csp = resp.headers["Content-Security-Policy"]
+                assert "default-src 'none'" in csp
+                assert "connect-src 'self'" in csp
+                assert "frame-ancestors 'none'" in csp
+                assert "'unsafe-inline'" not in csp
+                bodies.append(resp.read().decode())
+
+        assert bodies[0] == bodies[1] == bodies[2]
+        shell = bodies[0]
+        style = shell.split("<style>", 1)[1].split("</style>", 1)[0]
+        script = shell.split("<script>", 1)[1].split("</script>", 1)[0]
+        for source in (style, script):
+            digest = base64.b64encode(hashlib.sha256(source.encode()).digest()).decode()
+            assert f"'sha256-{digest}'" in csp
+        assert secret not in shell
+        assert "alpha-small" not in shell
+        assert 'id="proxy-token"' in shell
+        assert 'type="password"' in shell
+        assert 'autocomplete="off"' in shell
+        assert "Authorization" in shell
+        assert "/v1/status" in shell
+        assert "/v1/providers" in shell
+        assert "/v1/models?ready=true" in shell
+        assert "/freellmpool/battle" in shell
+        assert "usage / daily quota" in shell
+        assert "readiness reason" in shell
+        assert "Measured latency and success" in shell
+        assert 'id="metrics-rows"' in shell
+        for protected_field in ("used_today", "daily_limit", "ewma_ms", "success_rate"):
+            assert protected_field in shell
+        assert 'id="forget-token"' in shell
+        assert "Forget token" in shell
+        assert 'id="battle-disclosure"' in shell
+        assert "3 model completions" in shell
+        assert "provider failover may add attempts" in shell
+        assert "let battleInFlight = false;" in shell
+        assert "runButton.disabled = true;" in shell
+        assert "let refreshPromise = null;" in shell
+        assert "let refreshEpoch = -1;" in shell
+        assert "refreshPromise && refreshEpoch === epoch" in shell
+        assert "tokenInput.value = '';" in shell
+        assert "innerHTML" not in shell
+        assert "insertAdjacentHTML" not in shell
+        assert "localStorage" not in shell
+        assert "sessionStorage" not in shell
+        assert "document.cookie" not in shell
+        assert "URLSearchParams" not in shell
+        assert "window." not in shell
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is needed for browser JS test")
+def test_unified_shell_browser_state_machine_renders_details_and_prevents_duplicate_work():
+    script = json.dumps(proxy_module._BROWSER_SHELL_SCRIPT)
+    program = f"""
+const vm = require('node:vm');
+function check(condition, message) {{ if (!condition) throw new Error(message); }}
+class Element {{
+  constructor(id = '') {{
+    this.id = id; this.hidden = false; this.value = ''; this.textContent = '';
+    this.disabled = false; this.children = []; this.listeners = {{}}; this.dataset = {{}};
+  }}
+  addEventListener(name, callback) {{ this.listeners[name] = callback; }}
+  appendChild(child) {{ this.children.push(child); return child; }}
+  append(...children) {{ this.children.push(...children); }}
+  replaceChildren(...children) {{ this.children = children; }}
+  focus() {{}}
+}}
+const ids = [
+  'auth-panel', 'app', 'proxy-token', 'auth-message', 'out', 'run', 'count',
+  'requests', 'tokens', 'cache-hits', 'saved', 'healthy', 'models',
+  'provider-rows', 'metrics-rows', 'prompt', 'battle-disclosure', 'forget-token',
+  'auth-form', 'dashboard-panel', 'playground-panel'
+];
+const elements = Object.fromEntries(ids.map(id => [id, new Element(id)]));
+elements.app.hidden = true; elements['auth-panel'].hidden = true;
+elements['playground-panel'].hidden = true; elements.count.value = '3';
+const panelButtons = [new Element(), new Element()];
+panelButtons[0].dataset.panel = 'dashboard'; panelButtons[1].dataset.panel = 'playground';
+const document = {{
+  getElementById: id => elements[id] || (elements[id] = new Element(id)),
+  createElement: tag => new Element(tag),
+  querySelectorAll: selector => selector === '[data-panel]' ? panelButtons : []
+}};
+const status = {{
+  pool: {{requests: 4, prompt_tokens: 8, completion_tokens: 12, cache_hits: 2, usd_saved: 1.25}},
+  providers: [{{id: 'alpha', models: [{{name: 'small', ewma_ms: 125,
+    success_rate: 0.75, circuit_state: 'closed'}}]}}]
+}};
+const inventory = {{data: [{{id: 'alpha', status: 'ready', ready: true,
+  ready_models: 1, enabled_models: 1, cooldown_remaining_s: 0,
+  models: [{{used_today: 7, daily_limit: 100}}]}}]}};
+const models = {{data: [{{id: 'alpha/small'}}]}};
+const response = payload => ({{status: 200, ok: true, json: async () => payload}});
+const payloadFor = path => path.startsWith('/v1/status') ? status
+  : path.startsWith('/v1/providers') ? inventory : models;
+let mode = 'unauthorized';
+let blockedRefreshes = [];
+let battleResolve;
+const calls = [];
+async function fetchMock(path, options) {{
+  calls.push({{path, authorization: options.headers.get('Authorization')}});
+  if (mode === 'unauthorized') return {{status: 401, ok: false, json: async () => ({{}})}};
+  if (mode === 'blocked-refresh') {{
+    return new Promise(resolve => blockedRefreshes.push({{path, resolve}}));
+  }}
+  if (mode === 'battle' && path === '/freellmpool/battle') {{
+    return new Promise(resolve => {{ battleResolve = resolve; }});
+  }}
+  return response(payloadFor(path));
+}}
+let intervalCallback;
+const context = {{
+  document, location: {{pathname: '/dashboard'}}, Headers, fetch: fetchMock,
+  setInterval: callback => {{ intervalCallback = callback; return 1; }}, console
+}};
+vm.runInNewContext({script}, context);
+const settle = () => new Promise(resolve => setImmediate(resolve));
+(async () => {{
+  await settle(); await settle();
+  check(!elements['auth-panel'].hidden && elements.app.hidden, 'initial 401 must prompt');
+
+  mode = 'ready';
+  elements['proxy-token'].value = 'secret';
+  await elements['auth-form'].listeners.submit({{preventDefault() {{}}}});
+  check(elements['proxy-token'].value === '', 'accepted input must be cleared');
+  check(elements['auth-panel'].hidden && !elements.app.hidden, 'successful auth must show app');
+  const authenticated = calls.slice(-3);
+  check(authenticated.every(call => call.authorization === 'Bearer secret'),
+    'all dashboard requests must use bearer auth');
+  check(elements['provider-rows'].children[0].children.map(cell => cell.textContent).join('|')
+    === 'alpha|ready|1/1|7 / 100|1/1 enabled models ready', 'capacity row missing');
+  check(elements['metrics-rows'].children[0].children.map(cell => cell.textContent).join('|')
+    === 'alpha/small|125 ms|75%|closed', 'measured-health row missing');
+
+  mode = 'blocked-refresh';
+  const beforeRefresh = calls.length;
+  intervalCallback(); intervalCallback();
+  check(calls.length - beforeRefresh === 3, 'overlapping refresh triples were started');
+  for (const pending of blockedRefreshes) pending.resolve(response(payloadFor(pending.path)));
+  await settle(); await settle();
+
+  blockedRefreshes = [];
+  elements['proxy-token'].value = 'stale';
+  const staleSubmit = elements['auth-form'].listeners.submit({{preventDefault() {{}}}});
+  await settle();
+  check(blockedRefreshes.length === 3, 'first auth epoch did not start one refresh triple');
+  elements['proxy-token'].value = 'fresh';
+  const freshSubmit = elements['auth-form'].listeners.submit({{preventDefault() {{}}}});
+  await settle();
+  check(blockedRefreshes.length === 6, 'new auth epoch reused the stale refresh');
+  const staleRequests = blockedRefreshes.slice(0, 3);
+  const freshRequests = blockedRefreshes.slice(3);
+  for (const pending of staleRequests) pending.resolve({{status: 401, ok: false, json: async () => ({{}})}});
+  await staleSubmit;
+  check(elements['auth-message'].textContent === 'Checking token...',
+    'stale auth rejection displaced the pending replacement token');
+  check(calls.slice(-3).every(call => call.authorization === 'Bearer fresh'),
+    'pending replacement auth epoch did not retain the fresh bearer token');
+  for (const pending of freshRequests) pending.resolve(response(payloadFor(pending.path)));
+  await freshSubmit;
+  check(elements['auth-panel'].hidden && !elements.app.hidden,
+    'stale auth result displaced the accepted replacement token');
+  check(elements['auth-message'].textContent !== 'Checking token...',
+    'replacement token remained stuck in checking state');
+  check(calls.slice(-3).every(call => call.authorization === 'Bearer fresh'),
+    'replacement auth epoch did not use the fresh bearer token');
+
+  mode = 'battle';
+  elements.prompt.value = 'compare';
+  const beforeBattle = calls.length;
+  const firstBattle = elements.run.listeners.click();
+  const duplicateBattle = elements.run.listeners.click();
+  check(calls.length - beforeBattle === 1, 'double click started duplicate battle');
+  check(elements.run.disabled, 'Run must be disabled while battle is active');
+  battleResolve(response({{answers: [{{label: 'alpha', text: 'ok'}}]}}));
+  await Promise.all([firstBattle, duplicateBattle]);
+  check(!elements.run.disabled, 'Run must re-enable after battle');
+
+  elements.count.value = '5';
+  elements.count.listeners.input();
+  check(elements['battle-disclosure'].textContent.includes('5 model completions'),
+    'battle disclosure did not update');
+  mode = 'unauthorized';
+  elements['forget-token'].listeners.click();
+  await settle(); await settle();
+  check(elements.app.hidden && !elements['auth-panel'].hidden, 'forget must return to auth');
+  check(elements['provider-rows'].children.length === 0, 'forget must clear protected data');
+  console.log('ok');
+}})().catch(error => {{ console.error(error.stack); process.exitCode = 1; }});
+"""
+    result = subprocess.run(  # noqa: S603
+        [shutil.which("node"), "-e", program],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+def test_unified_shell_contract_keeps_data_and_battle_behind_header_auth(
+    providers, env, quota
+):
+    pool = Pool(providers, quota=quota, env=env, post=make_post({}))
+    httpd, base = _serve(pool, api_key="secret")
+    wrong = {"Authorization": "Bearer wrong"}
+    correct = {"Authorization": "Bearer secret"}
+    try:
+        for path in ("/v1/status", "/v1/providers", "/v1/models?ready=true"):
+            with pytest.raises(urllib.error.HTTPError) as exc_info:
+                urllib.request.urlopen(  # noqa: S310
+                    urllib.request.Request(base + path, headers=wrong)
+                )
+            assert exc_info.value.code == 401
+            assert "wrong" not in exc_info.value.read().decode()
+
+            with urllib.request.urlopen(  # noqa: S310
+                urllib.request.Request(base + path, headers=correct)
+            ) as resp:
+                assert resp.status == 200
+                assert resp.headers["Cache-Control"] == "no-store"
+                assert json.load(resp)
+
+        battle = {"prompt": "compare", "n": 2}
+        assert _expect_status(base + "/freellmpool/battle", battle, wrong) == 401
+        assert _expect_status(base + "/freellmpool/battle", battle, correct) == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
 
 def test_healthz(server):
@@ -971,6 +1291,425 @@ def _responses_stream_events(raw):
     ]
 
 
+def _sse_event_pairs(raw: str) -> list[tuple[str, dict]]:
+    pairs = []
+    for block in raw.split("\n\n"):
+        name = None
+        data = None
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                name = line.removeprefix("event: ")
+            elif line.startswith("data: "):
+                data = json.loads(line.removeprefix("data: "))
+        if name is not None and isinstance(data, dict):
+            pairs.append((name, data))
+    return pairs
+
+
+def _next_sse_event(response) -> tuple[str, dict] | None:
+    name = None
+    data_lines = []
+    while True:
+        raw_line = response.readline()
+        if not raw_line:
+            return None
+        line = raw_line.decode().rstrip("\r\n")
+        if not line:
+            if name is not None and data_lines:
+                return name, json.loads("\n".join(data_lines))
+            continue
+        if line.startswith("event: "):
+            name = line.removeprefix("event: ")
+        elif line.startswith("data: "):
+            data_lines.append(line.removeprefix("data: "))
+
+
+def _stream_request_body(path: str) -> dict:
+    if path == "/v1/responses":
+        return {"model": "auto", "stream": True, "input": "hi"}
+    return {
+        "model": "claude-test",
+        "stream": True,
+        "max_tokens": 32,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+
+
+def _delta_text(name: str, data: dict) -> str | None:
+    if name == "response.output_text.delta":
+        return data["delta"]
+    if name == "content_block_delta":
+        return data["delta"]["text"]
+    return None
+
+
+@pytest.mark.parametrize(
+    ("path", "delta_event", "expected_order"),
+    [
+        (
+            "/v1/responses",
+            "response.output_text.delta",
+            [
+                "response.created",
+                "response.in_progress",
+                "response.output_item.added",
+                "response.content_part.added",
+                "response.output_text.delta",
+                "response.output_text.delta",
+                "response.output_text.done",
+                "response.content_part.done",
+                "response.output_item.done",
+                "response.completed",
+            ],
+        ),
+        (
+            "/v1/messages",
+            "content_block_delta",
+            [
+                "message_start",
+                "content_block_start",
+                "content_block_delta",
+                "content_block_delta",
+                "content_block_stop",
+                "message_delta",
+                "message_stop",
+            ],
+        ),
+    ],
+)
+def test_text_protocol_stream_emits_first_delta_before_upstream_finishes(
+    providers, env, quota, path, delta_event, expected_order
+):
+    waiting_for_second = threading.Event()
+    release_second = threading.Event()
+
+    def stream_chat(*args, **kwargs):
+        def chunks():
+            yield {"provider": "alpha", "model": "alpha-small", "attempts": 1}
+            yield "first"
+            waiting_for_second.set()
+            if not release_second.wait(5.0):
+                raise TimeoutError("test did not release second chunk")
+            yield "second"
+
+        return chunks()
+
+    pool = Pool(providers[:1], quota=quota, env=env, post=make_post({}))
+    pool.stream_chat = stream_chat
+    httpd, base = _serve(pool)
+    try:
+        payload = json.dumps(_stream_request_body(path)).encode()
+        req = urllib.request.Request(
+            base + path,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=2.0) as response:  # noqa: S310
+            events = []
+            while True:
+                event = _next_sse_event(response)
+                assert event is not None
+                events.append(event)
+                if event[0] == delta_event:
+                    break
+            assert _delta_text(*events[-1]) == "first"
+            assert waiting_for_second.wait(1.0), "upstream should be blocked before its second chunk"
+            release_second.set()
+            while (event := _next_sse_event(response)) is not None:
+                events.append(event)
+    finally:
+        release_second.set()
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert [name for name, _data in events] == expected_order
+    assert [_delta_text(name, data) for name, data in events if name == delta_event] == [
+        "first",
+        "second",
+    ]
+
+
+@pytest.mark.parametrize("path", ["/v1/responses", "/v1/messages"])
+def test_text_protocol_stream_client_disconnect_closes_upstream_generator(
+    providers, env, quota, path
+):
+    upstream_closed = threading.Event()
+
+    def stream_chat(*args, **kwargs):
+        def chunks():
+            try:
+                yield {"provider": "alpha", "model": "alpha-small", "attempts": 1}
+                while True:
+                    yield "x" * 65_536
+            finally:
+                upstream_closed.set()
+
+        return chunks()
+
+    pool = Pool(providers[:1], quota=quota, env=env, post=make_post({}))
+    pool.stream_chat = stream_chat
+    httpd, base = _serve(pool)
+    try:
+        payload = json.dumps(_stream_request_body(path)).encode()
+        parts = urllib.parse.urlsplit(base)
+        assert parts.hostname is not None
+        assert parts.port is not None
+        sock = socket.create_connection((parts.hostname, parts.port), timeout=2.0)
+        try:
+            sock.sendall(
+                f"POST {path} HTTP/1.1\r\n".encode()
+                + b"Host: 127.0.0.1\r\n"
+                + b"Content-Type: application/json\r\n"
+                + f"Content-Length: {len(payload)}\r\n".encode()
+                + b"Connection: close\r\n\r\n"
+                + payload
+            )
+            raw = b""
+            deadline = time.monotonic() + 2.0
+            while b"data:" not in raw and time.monotonic() < deadline:
+                raw += sock.recv(4096)
+            assert b"data:" in raw
+        finally:
+            sock.close()
+        assert upstream_closed.wait(5.0)
+        assert _get_json(base + "/status")[0] == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+@pytest.mark.parametrize("path", ["/v1/responses", "/v1/messages"])
+def test_text_protocol_stream_can_fail_over_before_downstream_commit(
+    providers, env, quota, path
+):
+    calls = []
+
+    def stream_post(url, headers, body, timeout):
+        calls.append(url)
+        if "alpha.test" in url:
+            return 429, iter(['data: {"error":{"message":"rate limited"}}'])
+        lines = [
+            'data: {"choices":[{"delta":{"content":"from beta"}}]}',
+            "data: [DONE]",
+        ]
+        return 200, iter(lines)
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=make_post({}),
+        stream_post=stream_post,
+    )
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + path,
+            data=json.dumps(_stream_request_body(path)).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:  # noqa: S310
+            pairs = _sse_event_pairs(response.read().decode())
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert "alpha.test" in calls[0]
+    assert any("beta.test" in url for url in calls)
+    assert any(_delta_text(name, data) == "from beta" for name, data in pairs)
+    assert pairs[-1][0] in {"response.completed", "message_stop"}
+
+
+@pytest.mark.parametrize(
+    ("path", "error_event", "forbidden_terminal"),
+    [
+        ("/v1/responses", "response.failed", "response.completed"),
+        ("/v1/messages", "error", "message_stop"),
+    ],
+)
+def test_text_protocol_stream_failure_after_commit_emits_error_without_success_terminal(
+    providers, env, quota, path, error_event, forbidden_terminal
+):
+    calls = []
+
+    class FailingLines:
+        def __iter__(self):
+            yield 'data: {"choices":[{"delta":{"content":"partial"}}]}'
+            raise RuntimeError("upstream exploded")
+
+        def close(self):
+            return None
+
+    def stream_post(url, headers, body, timeout):
+        calls.append(url)
+        if "alpha.test" in url:
+            return 200, FailingLines()
+        return 200, iter(
+            [
+                'data: {"choices":[{"delta":{"content":"should not happen"}}]}',
+                "data: [DONE]",
+            ]
+        )
+
+    pool = Pool(
+        providers[:2],
+        quota=quota,
+        env=env,
+        post=make_post({}),
+        stream_post=stream_post,
+    )
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + path,
+            data=json.dumps(_stream_request_body(path)).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:  # noqa: S310
+            pairs = _sse_event_pairs(response.read().decode())
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    names = [name for name, _data in pairs]
+    assert any(_delta_text(name, data) == "partial" for name, data in pairs)
+    assert names[-1] == error_event
+    assert forbidden_terminal not in names
+    assert len(calls) == 1
+    assert "alpha.test" in calls[0]
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        (
+            "/v1/responses",
+            {
+                "model": "auto",
+                "stream": True,
+                "input": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "describe"},
+                            {"type": "input_image", "image_url": "data:image/png;base64,eA=="},
+                        ],
+                    }
+                ],
+            },
+        ),
+        (
+            "/v1/messages",
+            {
+                "model": "claude-test",
+                "stream": True,
+                "max_tokens": 32,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "describe"},
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/png",
+                                    "data": "eA==",
+                                },
+                            },
+                        ],
+                    }
+                ],
+            },
+        ),
+    ],
+)
+def test_rich_protocol_streams_retain_buffered_compatibility_path(
+    providers, env, quota, path, body
+):
+    stream_calls = []
+
+    def stream_chat(*args, **kwargs):
+        stream_calls.append((args, kwargs))
+        raise AssertionError("rich requests must not enter live text streaming")
+
+    pool = Pool(providers[:1], quota=quota, env=env, post=make_post({}))
+    pool.stream_chat = stream_chat
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + path,
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:  # noqa: S310
+            pairs = _sse_event_pairs(response.read().decode())
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert stream_calls == []
+    if path == "/v1/responses":
+        assert [name for name, _data in pairs[:2]] == [
+            "response.created",
+            "response.in_progress",
+        ]
+    assert pairs[-1][0] in {"response.completed", "message_stop"}
+
+
+def test_anthropic_tool_stream_retains_buffered_structured_events(providers, env, quota):
+    tool_calls = [
+        {
+            "id": "toolu_1",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": '{"q":"answer"}'},
+        }
+    ]
+    post = make_post(
+        {
+            "alpha.test": (
+                200,
+                {"choices": [{"message": {"content": None, "tool_calls": tool_calls}}]},
+            )
+        }
+    )
+    stream_calls = []
+    pool = Pool(providers[:1], quota=quota, env=env, post=post)
+    pool.stream_chat = lambda *args, **kwargs: stream_calls.append((args, kwargs))
+    httpd, base = _serve(pool)
+    try:
+        body = {
+            "model": "claude-test",
+            "stream": True,
+            "max_tokens": 32,
+            "messages": [{"role": "user", "content": "look it up"}],
+            "tools": [
+                {
+                    "name": "lookup",
+                    "description": "Look up a value",
+                    "input_schema": {"type": "object"},
+                }
+            ],
+        }
+        req = urllib.request.Request(
+            base + "/v1/messages",
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:  # noqa: S310
+            pairs = _sse_event_pairs(response.read().decode())
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert stream_calls == []
+    tool_start = next(
+        data for name, data in pairs if name == "content_block_start"
+    )
+    assert tool_start["content_block"]["type"] == "tool_use"
+    assert pairs[-1][0] == "message_stop"
+
+
 def _assert_responses_stream_accumulates(raw):
     """Replay the SDK's output accumulation invariants over a Responses stream."""
 
@@ -1340,7 +2079,7 @@ def test_parse_model():
     assert _parse_model("qwen/qwen3-coder:free", ids) == (None, "qwen/qwen3-coder:free")
 
 
-def test_get_routes_gated_by_key(providers, env, quota):
+def test_data_routes_stay_gated_while_secret_free_shell_is_public(providers, env, quota):
     from freellmpool.proxy import serve
 
     pool = Pool(providers, quota=quota, env=env, post=make_post({}))
@@ -1349,13 +2088,14 @@ def test_get_routes_gated_by_key(providers, env, quota):
     t.start()
     base = f"http://127.0.0.1:{httpd.server_address[1]}"
     try:
-        for path in ("/dashboard", "/v1/models"):
-            req = urllib.request.Request(base + path)
-            try:
-                urllib.request.urlopen(req)  # noqa: S310
-                raise AssertionError(f"{path} should require auth")
-            except urllib.error.HTTPError as e:
-                assert e.code == 401
+        with urllib.request.urlopen(base + "/dashboard") as response:  # noqa: S310
+            assert response.status == 200
+            assert "secret" not in response.read().decode()
+
+        req = urllib.request.Request(base + "/v1/models")
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req)  # noqa: S310
+        assert exc_info.value.code == 401
         # healthz stays open
         with urllib.request.urlopen(base + "/healthz") as r:  # noqa: S310
             assert r.status == 200

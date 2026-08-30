@@ -29,7 +29,8 @@
 
 <p class="lead"><strong>Groq's free API is the one developers reach for when latency matters. It runs
 models on custom LPU hardware that streams tokens noticeably faster than typical GPU inference. The current
-freellmpool routes include OpenAI's GPT-OSS 20B/120B, Qwen 3.6 27B, and Groq Compound. You get a key
+freellmpool routes include OpenAI's GPT-OSS 20B/120B, Qwen 3.6 27B, Groq Compound, and a pin-only
+Qwen 3.8 27B Preview route. You get a key
 free at <a href="https://console.groq.com/keys">console.groq.com/keys</a> and call an OpenAI-compatible
 endpoint at <code>https://api.groq.com/openai/v1</code>. The main constraint is the free daily/minute rate
 limit, which is where pooling Groq with other tiers via
@@ -47,6 +48,7 @@ as your low-latency workhorse and keep a higher-context provider in reserve.</p>
 <tr><td><code>openai/gpt-oss-120b</code></td><td>Strong reasoning when you can spare the budget</td></tr>
 <tr><td><code>openai/gpt-oss-20b</code></td><td>Fast drafts, classification, and routing</td></tr>
 <tr><td><code>qwen/qwen3.6-27b</code></td><td>General chat and multilingual work</td></tr>
+<tr><td><code>qwen/qwen3.8-27b</code></td><td>Explicit pin for newer text/streaming work; Preview, not automatic</td></tr>
 <tr><td><code>groq/compound</code></td><td>Groq's compound system; lower free-plan daily limit</td></tr>
 </table>
 
@@ -65,8 +67,12 @@ the per-minute token cap is often what you hit first on long outputs. Check Groq
 <li><code>llama-3.1-8b-instant</code> and <code>llama-3.3-70b-versatile</code>
 were shut down for Free and Developer plans on August 16, 2026. Groq's
 <a href="https://console.groq.com/docs/deprecations">deprecation history</a> is authoritative.</li>
-<li><code>qwen/qwen3.8-27b</code> is cataloged as a disabled exact pin pending a credentialed canary;
-listing presence alone does not make it an automatic route.</li>
+<li><code>qwen/qwen3.8-27b</code> is a Groq Preview model on the Free plan (1,000 RPD and 2M TPD
+in the official table checked 2026-08-29). It passed exactly three sanitized chat completions and a
+separate streaming canary through freellmpool. The forced tool canary returned unsupported, so the route
+is enabled pin-only for explicit text use and is not advertised for automatic agent/tool routing.
+The <a href="evidence/groq-qwen3.8-27b-admission-2026-08-29.json">sanitized admission evidence</a>
+is retained in machine-readable form.</li>
 <li>Some models are reasoning/“thinking” models and burn extra output tokens — set a generous
 <code>max_tokens</code> or you'll get truncated answers.</li>
 </ul>
@@ -94,8 +100,11 @@ console.</p>
 higher tokens-per-second than typical GPU serving — useful for interactive and streaming workloads.</p>
 <h3>What's the best free Groq model?</h3>
 <p>Use <code>openai/gpt-oss-120b</code> for harder reasoning,
-<code>openai/gpt-oss-20b</code> for speed, or <code>qwen/qwen3.6-27b</code>
-for a general Qwen route. Verify Groq's current model and rate-limit pages because availability changes.</p>
+<code>openai/gpt-oss-20b</code> for speed, <code>qwen/qwen3.6-27b</code>
+for a general automatic Qwen route, or explicitly pin the Preview
+<code>qwen/qwen3.8-27b</code> for its newer text/streaming capability. Its observed tool canary is
+unsupported, so keep tool loops on a verified route. Verify Groq's current model and rate-limit pages
+because availability changes.</p>
 
 <p class="meta">Part of <a href="https://github.com/0xzr/freellmpool">freellmpool</a> (MIT, open source). Limits and model IDs change — check Groq's docs. Updated 2026-08-29.</p>
 </div><script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "freellmpool", "item": "https://0xzr.github.io/freellmpool/"}, {"@type": "ListItem", "position": 2, "name": "Free Groq API guide", "item": "https://0xzr.github.io/freellmpool/free-groq-api.html"}]}</script>

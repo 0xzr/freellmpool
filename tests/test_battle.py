@@ -123,10 +123,19 @@ def test_cli_battle_prints_markdown_and_warnings(providers, env, quota, monkeypa
     assert "after requesting 99" in captured.err
 
 
-def test_playground_html_has_no_external_assets():
+def test_playground_html_is_unified_data_free_shell_with_protected_fetches():
     html = _playground_html()
 
-    assert "fetch('/freellmpool/battle'" in html
+    assert "<title>freellmpool</title>" in html
+    assert 'id="dashboard-panel"' in html
+    assert 'id="playground-panel"' in html
+    assert "protectedFetch('/v1/status'" in html
+    assert "protectedFetch('/v1/providers'" in html
+    assert "protectedFetch('/v1/models?ready=true'" in html
+    assert "protectedFetch('/freellmpool/battle'" in html
+    assert "headers.set('Authorization', 'Bearer ' + token);" in html
+    assert 'id="provider-rows"></tbody>' in html
+    assert 'id="metrics-rows"></tbody>' in html
     assert "http://" not in html
     assert "https://" not in html
     assert "cdn" not in html.lower()
@@ -145,7 +154,10 @@ def test_cli_playground_prints_existing_proxy_url(providers, env, quota, monkeyp
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     port = httpd.server_address[1]
-    monkeypatch.setattr("freellmpool.cli.Pool.from_default_config", lambda: (_ for _ in ()).throw(AssertionError("must not start proxy")))
+    monkeypatch.setattr(
+        "freellmpool.cli.Pool.from_default_config",
+        lambda: (_ for _ in ()).throw(AssertionError("must not start proxy")),
+    )
     try:
         assert main(["playground", "--port", str(port)]) == 0
     finally:
@@ -240,17 +252,41 @@ def test_proxy_battle_endpoint_requires_auth_and_returns_answers(providers, env,
         httpd.server_close()
 
 
-def test_proxy_playground_route_serves_self_contained_html(providers, env, quota):
+def test_proxy_playground_route_serves_public_unified_shell_but_protects_data(
+    providers, env, quota
+):
     pool = Pool(providers, quota=quota, env=env, post=make_post({}))
-    httpd = serve(pool, host="127.0.0.1", port=0)
+    httpd = serve(pool, host="127.0.0.1", port=0, api_key="secret")
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     base = f"http://127.0.0.1:{httpd.server_address[1]}"
     try:
-        with urllib.request.urlopen(base + "/playground") as resp:  # noqa: S310
-            html = resp.read().decode()
-        assert "freellmpool playground" in html
-        assert "fetch('/freellmpool/battle'" in html
+        shells = []
+        for path in ("/", "/dashboard", "/playground"):
+            with urllib.request.urlopen(base + path) as resp:  # noqa: S310
+                assert resp.headers["Cache-Control"] == "no-store"
+                shells.append(resp.read().decode())
+        assert shells[0] == shells[1] == shells[2]
+        html = shells[0]
+        assert "<title>freellmpool</title>" in html
+        assert 'id="dashboard-panel"' in html
+        assert 'id="playground-panel"' in html
+        assert "secret" not in html
+        assert "protectedFetch('/freellmpool/battle'" in html
+
+        try:
+            urllib.request.urlopen(base + "/v1/status")  # noqa: S310
+            raise AssertionError("expected protected data endpoint to require auth")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 401
+
+        status_request = urllib.request.Request(
+            base + "/v1/status",
+            headers={"Authorization": "Bearer secret"},
+        )
+        with urllib.request.urlopen(status_request) as response:  # noqa: S310
+            assert response.status == 200
+            assert json.load(response)["pool"]
     finally:
         httpd.shutdown()
         httpd.server_close()

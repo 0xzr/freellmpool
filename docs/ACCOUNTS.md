@@ -14,7 +14,10 @@ Gemini or another provider for failover.
 > and failover; their eligibility and terms differ by provider.
 
 Each key takes about a minute. Once you have one, either `export` it in your
-shell or put it in a `.env` file (copy [`.env.example`](../.env.example)).
+shell or store it with `freellmpool keys add <provider>` in the user
+`config.toml`. A plain CLI invocation does not parse `.env` by itself; copy
+[`.env.example`](../.env.example) only when your shell, `direnv`, or Docker
+Compose will explicitly load it.
 
 > Tip: run `freellmpool providers` at any time to see which keys are detected.
 

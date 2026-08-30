@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from freellmpool.config import (
+    config_diagnostics,
     configured_providers,
     effective_env,
     known_aliases,
@@ -67,3 +68,46 @@ def test_settings(tmp_path):
 def test_malformed_config_is_ignored(tmp_path):
     env = _write(tmp_path, "this is not valid toml = = =")
     assert load_config_file(env) == {}
+
+
+def test_config_file_parse_is_cached_but_return_value_is_isolated(tmp_path, monkeypatch):
+    import freellmpool.config as config_module
+
+    env = _write(tmp_path, '[keys]\nGROQ_API_KEY = "secret"\n')
+    original = config_module.tomllib.load
+    calls = 0
+
+    def counted(handle):
+        nonlocal calls
+        calls += 1
+        return original(handle)
+
+    monkeypatch.setattr(config_module.tomllib, "load", counted)
+    first = load_config_file(env)
+    first["keys"]["GROQ_API_KEY"] = "mutated"
+
+    assert load_config_file(env)["keys"]["GROQ_API_KEY"] == "secret"
+    assert calls == 1
+
+
+def test_config_diagnostics_are_strict_and_secret_safe(tmp_path):
+    env = _write(tmp_path, '[keys]\nGROQ_API_KEY = "super-secret"\nbroken =\n')
+    diagnostics = config_diagnostics(env)
+
+    assert diagnostics[0]["code"] == "toml_syntax"
+    assert diagnostics[0]["line"] == 3
+    assert diagnostics[0]["column"] is not None
+    assert "super-secret" not in repr(diagnostics)
+
+
+def test_config_diagnostics_report_wrong_table_types_without_values(tmp_path):
+    env = _write(
+        tmp_path,
+        'keys = "super-secret"\nsettings = 42\naliases = ["private-model"]\n',
+    )
+    diagnostics = config_diagnostics(env)
+
+    assert {item["table"] for item in diagnostics} == {"keys", "settings", "aliases"}
+    assert {item["code"] for item in diagnostics} == {"table_type"}
+    assert "super-secret" not in repr(diagnostics)
+    assert "private-model" not in repr(diagnostics)
