@@ -48,6 +48,17 @@ _PATH_LOCKS: dict[str, threading.RLock] = {}
 _PATH_LOCKS_GUARD = threading.Lock()
 
 
+def _reset_path_locks_after_fork() -> None:
+    """Replace process-local locks whose owners may not exist in the child."""
+    global _PATH_LOCKS, _PATH_LOCKS_GUARD
+    _PATH_LOCKS = {}
+    _PATH_LOCKS_GUARD = threading.Lock()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_path_locks_after_fork)
+
+
 def default_route_health_path(env: dict[str, str] | None = None) -> Path:
     env = env if env is not None else dict(os.environ)
     override = env.get("FREELLMPOOL_HEALTH_FILE")
@@ -151,6 +162,15 @@ class RouteHealthStore:
         self._quarantine_on_write = False
         if self.success_flush_every > 1:
             atexit.register(self.flush)
+            register_at_fork = getattr(os, "register_at_fork", None)
+            if callable(register_at_fork):
+                register_at_fork(after_in_child=self._after_fork_child)
+
+    def _after_fork_child(self) -> None:
+        """Drop parent-owned success samples and reset child-local locks."""
+        self._thread_lock = threading.RLock()
+        self._pending_successes = []
+        self._success_flush_timer = None
 
     def snapshot(self) -> dict[str, HealthRecord]:
         """Return fresh non-stale records; unreadable/corrupt state behaves empty."""

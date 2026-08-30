@@ -323,41 +323,109 @@ def _unlock_file(fd: int) -> None:
 
 @contextmanager
 def _catalog_lock(path: Path) -> Iterator[None]:
-    """Serialize catalog read/modify/write cycles with a private sibling lock."""
+    """Serialize catalog read/modify/write cycles with a private sibling lock.
+
+    On POSIX, also lock the containing directory.  A directory entry can be
+    renamed while its old inode remains locked, otherwise allowing a second
+    caller to create and lock a replacement sibling.  The stable directory lock
+    keeps those callers in one lock domain; the inode check then fails closed if
+    the sibling is substituted while this caller is acquiring it.
+    """
 
     _assert_safe_catalog_path(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     _assert_safe_catalog_path(path)
     lock_path = path.with_name(f".{path.name}.lock")
+    directory_fd = -1
+    directory_locked = False
     try:
-        lock_mode = lock_path.lstat().st_mode
-    except FileNotFoundError:
-        pass
-    else:
-        if stat.S_ISLNK(lock_mode):
-            raise ValueError("local runtime catalog lock symlink is not allowed")
-        if not stat.S_ISREG(lock_mode):
-            raise ValueError("local runtime catalog lock must be a regular file")
-    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
-    try:
-        fd = os.open(lock_path, flags, 0o600)
-    except OSError as exc:
-        if exc.errno == errno.ELOOP:
-            raise ValueError("local runtime catalog lock symlink is not allowed") from None
-        raise
-    try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise ValueError("local runtime catalog lock must be a regular file")
-        os.fchmod(fd, 0o600)
-        _lock_file(fd)
+        if os.name != "nt":
+            directory_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+            directory_flags |= getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                directory_fd = os.open(path.parent, directory_flags)
+            except OSError as exc:
+                if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+                    raise ValueError(
+                        "local runtime catalog parent directory changed during lock acquisition"
+                    ) from None
+                raise
+            opened_parent = os.fstat(directory_fd)
+            try:
+                named_parent = os.stat(path.parent, follow_symlinks=False)
+            except FileNotFoundError:
+                raise ValueError(
+                    "local runtime catalog parent directory changed during lock acquisition"
+                ) from None
+            if not stat.S_ISDIR(opened_parent.st_mode) or not os.path.samestat(
+                opened_parent, named_parent
+            ):
+                raise ValueError(
+                    "local runtime catalog parent directory changed during lock acquisition"
+                )
+            _lock_file(directory_fd)
+            directory_locked = True
+            _assert_safe_catalog_path(path)
+            try:
+                named_parent = os.stat(path.parent, follow_symlinks=False)
+            except FileNotFoundError:
+                raise ValueError(
+                    "local runtime catalog parent directory changed during lock acquisition"
+                ) from None
+            if not os.path.samestat(os.fstat(directory_fd), named_parent):
+                raise ValueError(
+                    "local runtime catalog parent directory changed during lock acquisition"
+                )
+
         try:
+            lock_mode = lock_path.lstat().st_mode
+        except FileNotFoundError:
+            pass
+        else:
+            if stat.S_ISLNK(lock_mode):
+                raise ValueError("local runtime catalog lock symlink is not allowed")
+            if not stat.S_ISREG(lock_mode):
+                raise ValueError("local runtime catalog lock must be a regular file")
+        flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(lock_path, flags, 0o600)
+        except OSError as exc:
+            if exc.errno == errno.ELOOP:
+                raise ValueError("local runtime catalog lock symlink is not allowed") from None
+            raise
+        lock_locked = False
+        try:
+            opened_lock = os.fstat(fd)
+            if not stat.S_ISREG(opened_lock.st_mode) or opened_lock.st_nlink != 1:
+                raise ValueError("local runtime catalog lock must be a private regular file")
+            os.fchmod(fd, 0o600)
+            _lock_file(fd)
+            lock_locked = True
+            try:
+                named_lock = lock_path.lstat()
+            except FileNotFoundError:
+                raise ValueError(
+                    "local runtime catalog lock changed during lock acquisition"
+                ) from None
+            opened_lock = os.fstat(fd)
+            if (
+                not stat.S_ISREG(named_lock.st_mode)
+                or opened_lock.st_nlink != 1
+                or not os.path.samestat(opened_lock, named_lock)
+            ):
+                raise ValueError("local runtime catalog lock changed during lock acquisition")
             _assert_safe_catalog_path(path)
             yield
         finally:
-            _unlock_file(fd)
+            if lock_locked:
+                _unlock_file(fd)
+            os.close(fd)
     finally:
-        os.close(fd)
+        if directory_locked:
+            _unlock_file(directory_fd)
+        if directory_fd >= 0:
+            os.close(directory_fd)
 
 
 def _read_catalog(path: Path) -> str:

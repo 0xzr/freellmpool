@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from freellmpool.quota import QuotaStore
 
@@ -222,3 +225,32 @@ def test_batched_quota_flush_merges_real_processes(tmp_path):
         process.join(15)
         assert process.exitcode == 0
     assert _store(tmp_path, 2).snapshot()["groq::m"] == 10
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires POSIX fork")
+@pytest.mark.filterwarnings("ignore:This process .* is multi-threaded.*:DeprecationWarning")
+def test_batched_quota_rebases_pending_deltas_after_fork(tmp_path):
+    path = tmp_path / "q.json"
+    clock = lambda: datetime(2026, 6, 2, 12, 0, tzinfo=UTC)  # noqa: E731
+    store = QuotaStore(
+        path=path,
+        clock=clock,
+        flush_every=100,
+        flush_interval=3600,
+    )
+    store._schedule_flush_locked = lambda: None
+    store.record("groq", "m")
+
+    child = os.fork()
+    if child == 0:
+        try:
+            store.record("groq", "m", 10)
+            store.flush()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+
+    _pid, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
+    store.flush()
+    assert QuotaStore(path=path, clock=clock).snapshot()["groq::m"] == 11

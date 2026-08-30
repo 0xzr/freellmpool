@@ -349,10 +349,15 @@ def import_external_provider_to_user_catalog(query: str) -> str:
     match = _find_external_provider_row(raw, query)
     if match is None:
         rows = raw.get("providers", []) if isinstance(raw, dict) else []
-        available = ", ".join(str(row.get("name")) for row in rows[:8] if isinstance(row, dict))
-        raise ValueError(
-            f"provider not found in external catalog: {query}. Try one of: {available}"
+        names = (
+            _external_text(row.get("name"), max_chars=_MAX_EXTERNAL_NAME_CHARS)
+            for row in rows[:8]
+            if isinstance(row, dict)
         )
+        available = ", ".join(name for name in names if name)
+        safe_query = _external_text(query, max_chars=_MAX_EXTERNAL_NAME_CHARS)
+        suggestion = f". Try one of: {available}" if available else ""
+        raise ValueError(f"provider not found in external catalog: {safe_query}{suggestion}")
     # Third-party catalog data; the imported provider becomes an executable
     # routing target once its key is set, so validate the RAW value strictly.
     base_url = _validated_base_url(

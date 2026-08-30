@@ -204,6 +204,50 @@ def test_agent_stream_fallback_shares_one_overall_budget(providers, env, quota):
     assert seen == [("stream", 540.0), ("buffered", 240.0)]
 
 
+@pytest.mark.parametrize("path", ["/v1/responses", "/v1/messages"])
+def test_text_protocol_stream_fallback_shares_one_overall_budget(
+    providers, env, quota, path
+):
+    clock = {"now": 0.0}
+    seen: list[tuple[str, float]] = []
+
+    def stream_chat(*args, timeout, **kwargs):
+        seen.append(("stream", timeout))
+        clock["now"] += 300.0
+        if False:
+            yield None
+        raise AllProvidersExhausted([("alpha/alpha-small", "down")])
+
+    def post(url, headers, body, timeout):
+        seen.append(("buffered", timeout))
+        return HTTPResult(200, openai_body("ok"), "ok")
+
+    pool = Pool(
+        providers[:1],
+        quota=quota,
+        env=env,
+        post=post,
+        clock=lambda: clock["now"],
+        routing="agent",
+    )
+    pool.stream_chat = stream_chat
+    httpd, base = _serve(pool)
+    try:
+        req = urllib.request.Request(
+            base + path,
+            data=json.dumps(_stream_request_body(path)).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as response:  # noqa: S310
+            assert response.status == 200
+            response.read()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert seen == [("stream", 540.0), ("buffered", 240.0)]
+
+
 def test_proxy_server_header_uses_package_version(server):
     with urllib.request.urlopen(server + "/v1/models") as resp:  # noqa: S310
         assert f"freellmpool/{__version__}" in resp.headers["Server"]
@@ -297,16 +341,37 @@ def test_concurrent_chat_requests_share_pool_safely(providers, env, quota):
         httpd.server_close()
 
 
-def test_server_close_flushes_batched_quota(providers, env, tmp_path):
+def test_server_close_flushes_all_batched_telemetry(providers, env, tmp_path):
     from freellmpool.quota import QuotaStore
+    from freellmpool.route_health import RouteHealthStore
+    from freellmpool.stats import StatsStore
 
     quota = QuotaStore(path=tmp_path / "quota.json", flush_every=100)
-    pool = Pool(providers, quota=quota, env=env, post=make_post({}))
+    stats = StatsStore(tmp_path / "stats.json", flush_every=100)
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        success_flush_every=100,
+        success_flush_interval=60,
+    )
+    pool = Pool(
+        providers,
+        quota=quota,
+        env=env,
+        post=make_post({}),
+        stats_store=stats,
+        route_health=health,
+    )
     httpd = serve(pool, host="127.0.0.1", port=0)
     pool.ask("hi", providers=["alpha"])
     assert not (tmp_path / "quota.json").exists()
+    assert not (tmp_path / "stats.json").exists()
+    before_close = RouteHealthStore(path=tmp_path / "health.json").snapshot()
+    assert before_close and all(row.successes == 0 for row in before_close.values())
+    httpd.server_close()
     httpd.server_close()
     assert QuotaStore(path=tmp_path / "quota.json").snapshot()
+    assert StatsStore(tmp_path / "stats.json").snapshot()["requests"] == 1
+    assert RouteHealthStore(path=tmp_path / "health.json").snapshot()
 
 
 def test_models_route(server):
@@ -429,7 +494,8 @@ def test_authenticated_proxy_serves_public_secret_free_unified_shell_with_securi
         assert "let battleInFlight = false;" in shell
         assert "runButton.disabled = true;" in shell
         assert "let refreshPromise = null;" in shell
-        assert "if (refreshPromise) return refreshPromise;" in shell
+        assert "let refreshEpoch = -1;" in shell
+        assert "refreshPromise && refreshEpoch === epoch" in shell
         assert "tokenInput.value = '';" in shell
         assert "innerHTML" not in shell
         assert "insertAdjacentHTML" not in shell
@@ -533,6 +599,28 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
   check(calls.length - beforeRefresh === 3, 'overlapping refresh triples were started');
   for (const pending of blockedRefreshes) pending.resolve(response(payloadFor(pending.path)));
   await settle(); await settle();
+
+  blockedRefreshes = [];
+  elements['proxy-token'].value = 'stale';
+  const staleSubmit = elements['auth-form'].listeners.submit({{preventDefault() {{}}}});
+  await settle();
+  check(blockedRefreshes.length === 3, 'first auth epoch did not start one refresh triple');
+  elements['proxy-token'].value = 'fresh';
+  const freshSubmit = elements['auth-form'].listeners.submit({{preventDefault() {{}}}});
+  await settle();
+  check(blockedRefreshes.length === 6, 'new auth epoch reused the stale refresh');
+  const staleRequests = blockedRefreshes.slice(0, 3);
+  const freshRequests = blockedRefreshes.slice(3);
+  for (const pending of freshRequests) pending.resolve(response(payloadFor(pending.path)));
+  await freshSubmit;
+  for (const pending of staleRequests) pending.resolve({{status: 401, ok: false, json: async () => ({{}})}});
+  await staleSubmit;
+  check(elements['auth-panel'].hidden && !elements.app.hidden,
+    'stale auth result displaced the accepted replacement token');
+  check(elements['auth-message'].textContent !== 'Checking token...',
+    'replacement token remained stuck in checking state');
+  check(calls.slice(-3).every(call => call.authorization === 'Bearer fresh'),
+    'replacement auth epoch did not use the fresh bearer token');
 
   mode = 'battle';
   elements.prompt.value = 'compare';

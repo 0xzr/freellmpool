@@ -99,6 +99,34 @@ def test_import_external_provider_missing_cache_points_to_catalog_sync(tmp_path,
         import_external_provider_to_user_catalog("ModelScope")
 
 
+def test_import_external_provider_not_found_sanitizes_and_bounds_suggestions(
+    tmp_path, monkeypatch
+):
+    cache = tmp_path / "provider_catalog.json"
+    malicious_name = "Trusted\x1b[31m\nFORGED\r\x07" + ("N" * 4_000)
+    cache.write_text(
+        json.dumps(
+            {
+                "providers": [
+                    {"name": malicious_name},
+                    *({"name": "P" + ("X" * 4_000)} for _ in range(10)),
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FREELLMPOOL_EXTERNAL_CATALOG_PATH", str(cache))
+
+    with pytest.raises(ValueError) as exc_info:
+        import_external_provider_to_user_catalog("missing\nquery")
+
+    message = str(exc_info.value)
+    assert "\\u001b" in message
+    assert "\\u000a" in message
+    assert not any(control in message for control in ("\x1b", "\n", "\r", "\x07"))
+    assert len(message) <= 1_200
+
+
 def test_match_local_provider_handles_missing_local_base_url():
     external = ExternalProvider(
         name="Demo",

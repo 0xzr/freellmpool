@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "canary_contract": "freellmpool-conformance-v1",
+  "verified_on": "2026-08-29",
+  "target": {
+    "provider_id": "groq",
+    "adapter": "openai",
+    "base_url": "https://api.groq.com/openai/v1",
+    "model": "qwen/qwen3.8-27b",
+    "fingerprint_sha256": "e843db1f69f7e61a930abe9aad78185df77db08a3d3c66644eb2124e1bef4339"
+  },
+  "runs": [
+    {
+      "sequence": 1,
+      "feature": "chat",
+      "status": "pass",
+      "classification": "verified",
+      "verified_on": "2026-08-29"
+    },
+    {
+      "sequence": 2,
+      "feature": "chat",
+      "status": "pass",
+      "classification": "verified",
+      "verified_on": "2026-08-29"
+    },
+    {
+      "sequence": 3,
+      "feature": "chat",
+      "status": "pass",
+      "classification": "verified",
+      "verified_on": "2026-08-29"
+    },
+    {
+      "sequence": 4,
+      "feature": "streaming",
+      "status": "pass",
+      "classification": "verified",
+      "verified_on": "2026-08-29"
+    },
+    {
+      "sequence": 5,
+      "feature": "tools",
+      "status": "unsupported",
+      "classification": "unsupported",
+      "verified_on": "2026-08-29"
+    }
+  ]
+}

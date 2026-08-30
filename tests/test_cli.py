@@ -1184,7 +1184,7 @@ class _FakePool:
     """Minimal stand-in for freellmpool.cli.Pool used by the proxy/serve tests.
 
     The real Pool has many surface methods; these tests only exercise
-    the start/stop path (and `quota.flush` + `stats_snapshot` on Ctrl-C).
+    the start/stop path (and `flush` + `stats_snapshot` on Ctrl-C).
     Anything that would reach the network is intercepted at the
     `freellmpool.proxy.serve` seam, so this fake can be empty.
     """
@@ -1197,6 +1197,7 @@ class _FakePool:
             providers = [SimpleNamespace(id="fake", label="Fake", models=[SimpleNamespace()])]
         self.providers = list(providers)
         self.quota = SimpleNamespace(flush=lambda: None)
+        self.flush_calls = 0
         self.stats_snapshot = lambda: {
             "requests": 0,
             "prompt_tokens": 0,
@@ -1207,12 +1208,17 @@ class _FakePool:
     def from_default_config(cls):
         return cls()
 
+    def flush(self):
+        self.flush_calls += 1
+
 
 def _patch_pool(monkeypatch, providers=None):
     """Replace Pool.from_default_config with a controllable fake."""
+    pool = _FakePool(providers)
     monkeypatch.setattr(
-        "freellmpool.cli.Pool", SimpleNamespace(from_default_config=lambda: _FakePool(providers))
+        "freellmpool.cli.Pool", SimpleNamespace(from_default_config=lambda: pool)
     )
+    return pool
 
 
 def _patch_serve(monkeypatch, captured=None):
@@ -1623,7 +1629,7 @@ def test_cli_proxy_loopback_no_key_unchanged(monkeypatch, capsys):
     assert tailnet.is_loopback_host("127.0.0.1") is True
 
     captured = {}
-    _patch_pool(monkeypatch)
+    pool = _patch_pool(monkeypatch)
     _patch_serve(monkeypatch, captured=captured)
 
     assert main(["proxy"]) == 0  # default host 127.0.0.1, no api key
@@ -1633,6 +1639,7 @@ def test_cli_proxy_loopback_no_key_unchanged(monkeypatch, capsys):
     assert "WARNING" not in out
     assert captured["host"] == "127.0.0.1"
     assert captured["api_key"] is None
+    assert pool.flush_calls == 1
 
 
 def test_cli_playground_probe_is_data_free_and_does_not_follow_redirects(

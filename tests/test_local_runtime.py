@@ -421,6 +421,78 @@ def test_concurrent_imports_preserve_both_catalog_updates(tmp_path, monkeypatch)
     assert 'id = "local_ollama"' in catalog
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX directory locking regression")
+def test_catalog_lock_replacement_does_not_create_parallel_lock_domain(tmp_path, monkeypatch):
+    import fcntl
+
+    from freellmpool import local_runtime
+
+    path = tmp_path / "providers.toml"
+    lock_path = tmp_path / ".providers.toml.lock"
+    second_attempted = threading.Event()
+    second_contended = threading.Event()
+    second_acquired = threading.Event()
+    second_thread_id = None
+    original_lock_file = local_runtime._lock_file
+
+    def observe_second_lock(fd):
+        if threading.get_ident() != second_thread_id:
+            original_lock_file(fd)
+            return
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            second_contended.set()
+            second_attempted.set()
+            original_lock_file(fd)
+        else:
+            second_attempted.set()
+
+    def acquire_replacement_lock():
+        nonlocal second_thread_id
+        second_thread_id = threading.get_ident()
+        with local_runtime._catalog_lock(path):
+            second_acquired.set()
+
+    monkeypatch.setattr(local_runtime, "_lock_file", observe_second_lock)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with local_runtime._catalog_lock(path):
+            lock_path.rename(tmp_path / ".providers.toml.lock.replaced")
+            future = executor.submit(acquire_replacement_lock)
+            assert second_attempted.wait(timeout=5)
+            assert second_contended.is_set()
+            assert not second_acquired.is_set()
+
+        assert second_acquired.wait(timeout=5)
+        future.result(timeout=5)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX inode substitution regression")
+def test_catalog_lock_fails_closed_on_inode_substitution(tmp_path, monkeypatch):
+    from freellmpool import local_runtime
+
+    path = tmp_path / "providers.toml"
+    lock_path = tmp_path / ".providers.toml.lock"
+    replaced_path = tmp_path / ".providers.toml.lock.replaced"
+    original_lock_file = local_runtime._lock_file
+    substituted = False
+
+    def substitute_after_lock(fd):
+        nonlocal substituted
+        original_lock_file(fd)
+        if stat.S_ISREG(os.fstat(fd).st_mode):
+            lock_path.rename(replaced_path)
+            lock_path.write_text("replacement", encoding="utf-8")
+            substituted = True
+
+    monkeypatch.setattr(local_runtime, "_lock_file", substitute_after_lock)
+
+    with pytest.raises(ValueError, match="changed during lock acquisition"):
+        with local_runtime._catalog_lock(path):
+            pytest.fail("substituted catalog lock must not be admitted")
+    assert substituted
+
+
 def test_import_refuses_existing_final_path_symlink(tmp_path):
     target = tmp_path / "actual.toml"
     target.write_text("sentinel\n", encoding="utf-8")

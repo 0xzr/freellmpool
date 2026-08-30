@@ -602,6 +602,98 @@ def test_local_pool_timeout_fails_over_without_poisoning_provider(
     assert alpha is not None and alpha.failures == 0 and alpha.state == "closed"
 
 
+def test_local_pool_timeout_releases_expired_open_probe_before_failover_wins(
+    quota, tmp_path, monkeypatch
+):
+    import httpx
+
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+    from freellmpool.route_health import RouteHealthStore
+
+    now = [100.0]
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        clock=lambda: now[0],
+        failure_threshold=1,
+        base_cooldown=1,
+    )
+    for key in ("alpha/shared", "beta/shared"):
+        health.record_failure(key, "availability")
+    now[0] = 102.0
+
+    def post_once(url, headers, body, timeout, deadline):
+        if "alpha.test" in url:
+            raise httpx.PoolTimeout("local connection pool saturated")
+        return HTTPResult(200, openai_body("beta"), "ok")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(
+        _diversity_providers(),
+        quota=quota,
+        env={},
+        route_health=health,
+        clock=lambda: now[0],
+    )
+
+    assert pool.chat([{"role": "user", "content": "hi"}], model="shared").provider_id == "beta"
+    alpha = health.state("alpha/shared")
+    assert alpha is not None
+    assert alpha.failures == 1
+    assert alpha.state == "open"
+    assert alpha.half_open_until == 0
+    assert health.acquire_many(("alpha/shared",)) is not None
+
+
+def test_deferred_local_pool_timeout_reacquires_fresh_probe_before_retry(
+    quota, tmp_path, monkeypatch
+):
+    import httpx
+
+    from freellmpool import client as client_module
+    from freellmpool.client import HTTPResult
+    from freellmpool.route_health import RouteHealthStore
+
+    now = [100.0]
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        clock=lambda: now[0],
+        failure_threshold=1,
+        base_cooldown=1,
+    )
+    for key in ("alpha/shared", "beta/shared"):
+        health.record_failure(key, "availability")
+    now[0] = 102.0
+    calls: list[str] = []
+
+    def post_once(url, headers, body, timeout, deadline):
+        provider = "alpha" if "alpha.test" in url else "beta"
+        calls.append(provider)
+        if calls == ["alpha"]:
+            raise httpx.PoolTimeout("local connection pool saturated")
+        if provider == "beta":
+            return HTTPResult(503, {"error": "down"}, "down")
+        return HTTPResult(200, openai_body("recovered"), "ok")
+
+    monkeypatch.setattr(client_module, "_post_once", post_once)
+    monkeypatch.setattr(client_module, "_RETRY_BACKOFF_S", 0.0)
+    pool = Pool(
+        _diversity_providers(),
+        quota=quota,
+        env={},
+        route_health=health,
+        clock=lambda: now[0],
+    )
+
+    reply = pool.chat([{"role": "user", "content": "hi"}], model="shared")
+    alpha = health.state("alpha/shared")
+    assert reply.provider_id == "alpha"
+    assert calls == ["alpha", "beta", "alpha"]
+    assert alpha is not None and alpha.state == "closed"
+    assert alpha.failures == 1 and alpha.successes == 1
+
+
 def test_deferred_failure_is_persisted_immediately_even_if_alternative_wins(
     quota, tmp_path, monkeypatch
 ):

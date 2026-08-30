@@ -271,7 +271,9 @@ The packaged adapter then produced exactly three sequential, non-empty sanitized
 canaries and a separate streaming pass. The forced tool canary returned `unsupported`
 despite Groq's advertised tool capability. The model is therefore enabled pin-only for
 explicit text/stream use, remains excluded from automatic routing, and carries no local
-claim of verified tool support. The five automatic routes retain earlier completion
+claim of verified tool support. The bounded, secret-free results are retained as
+[machine-readable admission evidence](evidence/groq-qwen3.8-27b-admission-2026-08-29.json).
+The five automatic routes retain earlier completion
 evidence; no fresh success is invented for them here.
 
 **Automatic (5)**

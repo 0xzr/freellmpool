@@ -491,7 +491,7 @@ class AsyncPool:
             )
             if hit is not None and feature_cache_eligible:
                 emit(p._on_event, "cache_hit", key=cache_key)
-                p._bump_stats(cache_hits=1)
+                await asyncio.to_thread(p._bump_stats, cache_hits=1)
                 return Reply(
                     text=hit.get("text", ""),
                     provider_id=hit.get("provider_id", "cache"),
@@ -666,13 +666,11 @@ class AsyncPool:
                 non_ctx_failure = True
                 defer_retry = attempt.allow_defer and _client._retryable_transport_exception(exc)
                 local_saturation = _client._is_local_pool_timeout(exc)
-                if local_saturation and not defer_retry:
+                if local_saturation:
                     await asyncio.to_thread(
                         p._release_local_saturation, target, lease
                     )
-                    retry_lease = lease
-                elif local_saturation:
-                    retry_lease = lease
+                    retry_lease = None
                 else:
                     p.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
                     await asyncio.to_thread(
@@ -714,7 +712,8 @@ class AsyncPool:
             # stall other in-flight async requests.
             await asyncio.to_thread(p.quota.record, target.provider.id, target.model)
             reply.attempts = len(attempts) + 1
-            p._bump_stats(
+            await asyncio.to_thread(
+                p._bump_stats,
                 requests=1,
                 prompt_tokens=reply.prompt_tokens or 0,
                 completion_tokens=reply.completion_tokens or 0,

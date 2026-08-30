@@ -796,11 +796,18 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 self._anthropic_error(400, "no usable message content in request")
                 return
             display_model = req.get("model") or "auto"
+            stream_deadline: float | None = None
             # Genuine incremental streaming is safe only for text output. Tool
             # use and rich content retain the completed-reply replay path below,
             # which preserves their structured Anthropic event framing.
             if req.get("stream") and _anthropic_text_streamable(req, chat):
-                if self._stream_messages_text(req, chat, str(display_model)):
+                stream_deadline = pool._clock() + self._text_stream_timeout(req)
+                if self._stream_messages_text(
+                    req,
+                    chat,
+                    str(display_model),
+                    deadline=stream_deadline,
+                ):
                     return
             routing_override, model_str = _routing_and_model(self.headers, str(chat["model"]))
             resolved = resolve_alias(model_str, pool.env)
@@ -817,6 +824,11 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     temperature=chat["temperature"],
                     tools=chat["tools"],
                     tool_choice=chat["tool_choice"],
+                    timeout=(
+                        max(0.0, stream_deadline - pool._clock())
+                        if stream_deadline is not None
+                        else 90.0
+                    ),
                     protocol="anthropic_messages",
                     routing=routing_override,
                     task=task,
@@ -850,7 +862,14 @@ def make_handler(pool: Pool, api_key: str | None = None):
             else:
                 self._send(200, reply_to_message(reply, display_model))
 
-        def _stream_messages_text(self, req: dict, chat: dict, display_model: str) -> bool:
+        def _stream_messages_text(
+            self,
+            req: dict,
+            chat: dict,
+            display_model: str,
+            *,
+            deadline: float,
+        ) -> bool:
             """Stream text as native Anthropic events.
 
             Returns ``False`` only when streaming could not select an upstream
@@ -864,6 +883,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
                     chat["messages"],
                     max_tokens=chat["max_tokens"],
                     temperature=chat["temperature"],
+                    timeout=max(0.0, deadline - pool._clock()),
                 )
             except ContextWindowExceeded as exc:
                 self._anthropic_error(413, str(exc), "context_length_exceeded")
@@ -1181,6 +1201,7 @@ def make_handler(pool: Pool, api_key: str | None = None):
             *,
             max_tokens: int | None = None,
             temperature: float | None = None,
+            timeout: float | None = None,
         ):
             """Select/fail over upstreams before any downstream SSE commit.
 
@@ -1208,9 +1229,13 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 temperature_value = float(temperature)
             task = task_resolution(messages, _task_hint(self.headers, req)).task
             upstream_timeout = (
-                _AGENT_UPSTREAM_TIMEOUT
-                if (routing_override or pool.routing) == "agent"
-                else 90.0
+                timeout
+                if timeout is not None
+                else (
+                    _AGENT_UPSTREAM_TIMEOUT
+                    if (routing_override or pool.routing) == "agent"
+                    else 90.0
+                )
             )
             gen = pool.stream_chat(
                 messages,
@@ -1233,6 +1258,16 @@ def make_handler(pool: Pool, api_key: str | None = None):
                         pass
                 raise
             return gen, meta
+
+        def _text_stream_timeout(self, req: dict) -> float:
+            requested = req.get("model") or "auto"
+            requested = requested if isinstance(requested, str) else "auto"
+            routing_override, _requested = _routing_and_model(self.headers, requested)
+            return (
+                _AGENT_UPSTREAM_TIMEOUT
+                if (routing_override or pool.routing) == "agent"
+                else 90.0
+            )
 
         def _send_event_stream_headers(self) -> None:
             self.send_response(200)
@@ -1444,8 +1479,14 @@ def make_handler(pool: Pool, api_key: str | None = None):
             # Tool calls, image/rich input, structured output, and reasoning
             # retain buffered replay so their complete structured items remain
             # intact. Plain text uses genuine upstream-to-downstream streaming.
+            stream_deadline: float | None = None
             if req.get("stream") and _responses_text_streamable(req, messages, tools):
-                if self._stream_responses_text(req, messages):
+                stream_deadline = pool._clock() + self._text_stream_timeout(req)
+                if self._stream_responses_text(
+                    req,
+                    messages,
+                    deadline=stream_deadline,
+                ):
                     return
             reply = self._resolve(
                 req,
@@ -1453,6 +1494,11 @@ def make_handler(pool: Pool, api_key: str | None = None):
                 tools=tools,
                 tool_choice=tool_choice,
                 protocol="responses",
+                timeout=(
+                    max(0.0, stream_deadline - pool._clock())
+                    if stream_deadline is not None
+                    else None
+                ),
             )
             if reply is None:
                 return
@@ -1464,7 +1510,13 @@ def make_handler(pool: Pool, api_key: str | None = None):
             else:
                 self._send(200, _to_responses_object(reply))
 
-        def _stream_responses_text(self, req: dict, messages: list[dict]) -> bool:
+        def _stream_responses_text(
+            self,
+            req: dict,
+            messages: list[dict],
+            *,
+            deadline: float,
+        ) -> bool:
             """Stream text as native Responses events without replay buffering.
 
             Returns ``False`` only before headers/events are committed, allowing
@@ -1473,7 +1525,11 @@ def make_handler(pool: Pool, api_key: str | None = None):
             ``response.failed`` and can never fall through to another provider.
             """
             try:
-                gen, meta = self._open_text_stream(req, messages)
+                gen, meta = self._open_text_stream(
+                    req,
+                    messages,
+                    timeout=max(0.0, deadline - pool._clock()),
+                )
             except ContextWindowExceeded as exc:
                 self._error(413, str(exc), "context_length_exceeded")
                 return True
@@ -2053,6 +2109,7 @@ _BROWSER_SHELL_SCRIPT = """
 let token = '';
 let authEpoch = 0;
 let refreshPromise = null;
+let refreshEpoch = -1;
 let battleInFlight = false;
 const byId = id => document.getElementById(id);
 const authPanel = byId('auth-panel');
@@ -2076,6 +2133,7 @@ function showAuth(message) {
   token = '';
   authEpoch += 1;
   refreshPromise = null;
+  refreshEpoch = -1;
   tokenInput.value = '';
   app.hidden = true;
   authPanel.hidden = false;
@@ -2209,8 +2267,8 @@ function renderDashboard(status, inventory, models) {
   renderMetrics(status);
 }
 function refreshDashboard() {
-  if (refreshPromise) return refreshPromise;
   const epoch = authEpoch;
+  if (refreshPromise && refreshEpoch === epoch) return refreshPromise;
   const active = (async () => {
     const responses = await Promise.all([
       protectedFetch('/v1/status', {}, epoch),
@@ -2225,8 +2283,12 @@ function refreshDashboard() {
     authMessage.textContent = '';
   })();
   refreshPromise = active;
+  refreshEpoch = epoch;
   return active.finally(() => {
-    if (refreshPromise === active) refreshPromise = null;
+    if (refreshPromise === active) {
+      refreshPromise = null;
+      refreshEpoch = -1;
+    }
   });
 }
 function card(label, value, failed) {
@@ -2957,10 +3019,12 @@ class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
         self._slots = threading.BoundedSemaphore(_MAX_CONNECTIONS)
 
     def server_close(self) -> None:
-        pool = getattr(self, "pool", None)
-        if pool is not None:
-            pool.quota.flush()
-        super().server_close()
+        try:
+            pool = getattr(self, "pool", None)
+            if pool is not None:
+                pool.flush()
+        finally:
+            super().server_close()
 
     def process_request(self, request, client_address):
         # A client can receive its response just before the worker's ``finally``

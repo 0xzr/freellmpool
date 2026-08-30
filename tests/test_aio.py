@@ -6,6 +6,7 @@ Driven with asyncio.run so no pytest-asyncio dependency is needed.
 from __future__ import annotations
 
 import asyncio
+import threading
 
 import pytest
 from helpers import gemini_body, make_post
@@ -489,6 +490,98 @@ def test_async_local_pool_timeout_fails_over_without_poisoning(
     assert reply.provider_id == "beta"
     assert calls == ["alpha", "beta"]
     assert alpha is not None and alpha.failures == 0 and alpha.state == "closed"
+
+
+def test_async_local_pool_timeout_releases_expired_open_probe_before_failover_wins(
+    quota, tmp_path, monkeypatch
+):
+    import httpx
+
+    from freellmpool.route_health import RouteHealthStore
+
+    now = [100.0]
+    health = RouteHealthStore(
+        path=tmp_path / "health.json",
+        clock=lambda: now[0],
+        failure_threshold=1,
+        base_cooldown=1,
+    )
+    for key in ("alpha/shared", "beta/shared"):
+        health.record_failure(key, "availability")
+    now[0] = 102.0
+
+    async def apost(url, headers, body, timeout):
+        if "alpha.test" in url:
+            raise httpx.PoolTimeout("local connection pool saturated")
+        return sync_client.HTTPResult(
+            200,
+            {"choices": [{"message": {"content": "ok"}}]},
+            "ok",
+        )
+
+    pool = AsyncPool(
+        Pool(
+            _async_diversity_providers(),
+            quota=quota,
+            env={},
+            route_health=health,
+            clock=lambda: now[0],
+        ),
+        apost=apost,
+    )
+    monkeypatch.setattr(sync_client, "_RETRY_BACKOFF_S", 0.0)
+
+    reply = asyncio.run(
+        pool.achat([{"role": "user", "content": "hi"}], model="shared")
+    )
+    alpha = health.state("alpha/shared")
+    assert reply.provider_id == "beta"
+    assert alpha is not None
+    assert alpha.failures == 1
+    assert alpha.state == "open"
+    assert alpha.half_open_until == 0
+    assert health.acquire_many(("alpha/shared",)) is not None
+
+
+def test_async_persistent_stats_writes_run_off_event_loop_for_success_and_cache_hit(
+    providers, env, quota, tmp_path, monkeypatch
+):
+    from freellmpool.cache import Cache
+    from freellmpool.stats import StatsStore
+
+    stats = StatsStore(tmp_path / "stats.json", flush_every=1)
+    save_threads: list[int] = []
+    original_save = stats._save
+
+    def observed_save() -> None:
+        save_threads.append(threading.get_ident())
+        original_save()
+
+    monkeypatch.setattr(stats, "_save", observed_save)
+    cache = Cache(ttl=60, path=tmp_path / "cache.sqlite")
+    pool = AsyncPool(
+        Pool(
+            providers,
+            quota=quota,
+            env=env,
+            cache=cache,
+            stats_store=stats,
+        ),
+        apost=_async_post({}),
+    )
+
+    async def run() -> tuple[int, bool]:
+        loop_thread = threading.get_ident()
+        await pool.aask("same question")
+        cached = await pool.aask("same question")
+        return loop_thread, cached.cached
+
+    loop_thread, cached = asyncio.run(run())
+    assert cached is True
+    assert len(save_threads) == 2
+    assert all(thread_id != loop_thread for thread_id in save_threads)
+    assert stats.snapshot()["requests"] == 1
+    assert stats.snapshot()["cache_hits"] == 1
 
 
 def test_async_close_flushes_underlying_pool_telemetry(tmp_path):

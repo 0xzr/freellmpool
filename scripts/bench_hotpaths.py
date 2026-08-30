@@ -9,6 +9,7 @@ machine variance.
 from __future__ import annotations
 
 import json
+import math
 import statistics
 import sys
 import tempfile
@@ -53,6 +54,13 @@ def _post(url, headers, body, timeout):
     )
 
 
+def _nearest_rank(samples: list[float], percentile: float) -> float:
+    """Return the nearest-rank percentile for a non-empty sample."""
+    ordered = sorted(samples)
+    index = max(0, math.ceil(len(ordered) * percentile) - 1)
+    return ordered[min(index, len(ordered) - 1)]
+
+
 def _time(fn, iterations: int) -> dict:
     samples = []
     for _ in range(iterations):
@@ -63,7 +71,111 @@ def _time(fn, iterations: int) -> dict:
         "iterations": iterations,
         "mean_ms": round(statistics.mean(samples), 4),
         "median_ms": round(statistics.median(samples), 4),
-        "p95_ms": round(sorted(samples)[int(iterations * 0.95) - 1], 4),
+        "p95_ms": round(_nearest_rank(samples, 0.95), 4),
+    }
+
+
+def _persistence_write_contract(
+    root: Path,
+    *,
+    operations: int,
+    batch_size: int,
+) -> dict:
+    """Measure deterministic physical-write counts for success batching.
+
+    Timers are given a long interval so only the operation threshold and the
+    final explicit flush affect this contract. Wall-clock timings remain
+    advisory because filesystems and hosts differ.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+
+    def quota_writes(label: str, flush_every: int) -> int:
+        store = QuotaStore(
+            path=root / f"quota-{label}.json",
+            flush_every=flush_every,
+            flush_interval=3600,
+        )
+        writes = 0
+        original = store._save
+
+        def counted_save() -> None:
+            nonlocal writes
+            writes += 1
+            original()
+
+        store._save = counted_save
+        for _ in range(operations):
+            store.record("p0", "m0")
+        store.flush()
+        if sum(store.snapshot().values()) != operations:
+            raise RuntimeError("quota write-contract accounting mismatch")
+        return writes
+
+    def stats_writes(label: str, flush_every: int) -> int:
+        store = StatsStore(
+            root / f"stats-{label}.json",
+            flush_every=flush_every,
+            flush_interval=3600,
+        )
+        writes = 0
+        original = store._save
+
+        def counted_save() -> None:
+            nonlocal writes
+            writes += 1
+            original()
+
+        store._save = counted_save
+        for _ in range(operations):
+            store.add(requests=1)
+        store.flush()
+        if store.snapshot()["requests"] != operations:
+            raise RuntimeError("stats write-contract accounting mismatch")
+        return writes
+
+    def health_writes(label: str, flush_every: int) -> int:
+        store = RouteHealthStore(
+            path=root / f"health-{label}.json",
+            success_flush_every=flush_every,
+            success_flush_interval=3600,
+        )
+        writes = 0
+        original = store._write
+
+        def counted_write(routes) -> None:
+            nonlocal writes
+            writes += 1
+            original(routes)
+
+        store._write = counted_write
+        for _ in range(operations):
+            store.record_success("p0/m0", 10.0)
+        store.flush()
+        row = store.state("p0/m0")
+        if row is None or row.successes != operations:
+            raise RuntimeError("route-health write-contract accounting mismatch")
+        return writes
+
+    return {
+        "schema_version": 1,
+        "contract": "success-persistence-write-count-v1",
+        "operations": operations,
+        "batch_size": batch_size,
+        "default_max_age_seconds": 1.0,
+        "stores": {
+            "quota": {
+                "immediate_writes": quota_writes("immediate", 1),
+                "batched_writes": quota_writes("batched", batch_size),
+            },
+            "stats": {
+                "immediate_writes": stats_writes("immediate", 1),
+                "batched_writes": stats_writes("batched", batch_size),
+            },
+            "route_health_success": {
+                "immediate_writes": health_writes("immediate", 1),
+                "batched_writes": health_writes("batched", batch_size),
+            },
+        },
     }
 
 
@@ -190,6 +302,11 @@ def main() -> int:
             "cache_get_put": _time(
                 lambda: (cache.put("bench", {"text": "ok"}), cache.get("bench")),
                 1000,
+            ),
+            "persistence_write_contract": _persistence_write_contract(
+                root / "write-contract",
+                operations=320,
+                batch_size=32,
             ),
         }
         for benchmark_pool in (pool, uncached_pool):

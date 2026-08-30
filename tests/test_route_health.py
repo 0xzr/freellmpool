@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -1152,6 +1153,55 @@ def test_batched_stale_success_cannot_close_newer_cross_process_failure(tmp_path
     assert row.state == "open"
     assert row.successes == 1
     assert row.failures == 1
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires POSIX fork")
+@pytest.mark.filterwarnings("ignore:This process .* is multi-threaded.*:DeprecationWarning")
+def test_batched_route_health_rebases_pending_success_after_fork(tmp_path):
+    path = tmp_path / "health.json"
+    store = RouteHealthStore(
+        path=path,
+        success_flush_every=100,
+        success_flush_interval=3600,
+    )
+    store._schedule_success_flush_locked = lambda: None
+    store.record_success("alpha/model", 10.0)
+
+    child = os.fork()
+    if child == 0:
+        try:
+            store.record_success("alpha/model", 20.0)
+            store.flush()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+
+    _pid, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
+    store.flush()
+    row = RouteHealthStore(path=path).state("alpha/model")
+    assert row is not None and row.successes == 2
+
+
+@pytest.mark.skipif(not hasattr(os, "register_at_fork"), reason="requires POSIX at-fork hooks")
+def test_route_health_child_hook_replaces_inherited_path_locks():
+    from freellmpool import route_health as health_module
+
+    old_guard = health_module._PATH_LOCKS_GUARD
+    old_path_lock = threading.RLock()
+    health_module._PATH_LOCKS["held"] = old_path_lock
+    old_guard.acquire()
+    old_path_lock.acquire()
+    try:
+        health_module._reset_path_locks_after_fork()
+    finally:
+        old_path_lock.release()
+        old_guard.release()
+
+    assert health_module._PATH_LOCKS == {}
+    assert health_module._PATH_LOCKS_GUARD is not old_guard
+    assert health_module._PATH_LOCKS_GUARD.acquire(blocking=False)
+    health_module._PATH_LOCKS_GUARD.release()
 
 
 def test_route_health_preserves_future_fields_and_quarantines_corruption(tmp_path):

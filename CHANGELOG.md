@@ -33,8 +33,11 @@ All notable changes to this project are documented here. The format is based on
   their existing retry behavior.
 - Quota, route-health, and success telemetry now use bounded count/age batches
   with explicit flush/close lifecycle hooks and immediate in-memory snapshots.
-  The measured hot persistence paths are roughly 20–33× faster than the
-  previous implementation.
+  Under sustained success traffic, the default 32-operation batches reduce
+  persistence commits by up to 32× versus immediate persistence; the one-second
+  maximum age and failure/circuit transitions still force earlier writes.
+  The [committed write-count contract](benchmarks/persistence-batching-v1.json)
+  is deterministic, while wall-clock improvement varies by filesystem and host.
 - Catalog parsing is cached against full file identity and local-provider opt-in
   state; returned collections remain isolated from caller mutation.
 - `capacity status` is cache-first and offline by default; catalog refresh is

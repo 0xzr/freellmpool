@@ -70,7 +70,9 @@ were shut down for Free and Developer plans on August 16, 2026. Groq's
 <li><code>qwen/qwen3.8-27b</code> is a Groq Preview model on the Free plan (1,000 RPD and 2M TPD
 in the official table checked 2026-08-29). It passed exactly three sanitized chat completions and a
 separate streaming canary through freellmpool. The forced tool canary returned unsupported, so the route
-is enabled pin-only for explicit text use and is not advertised for automatic agent/tool routing.</li>
+is enabled pin-only for explicit text use and is not advertised for automatic agent/tool routing.
+The <a href="evidence/groq-qwen3.8-27b-admission-2026-08-29.json">sanitized admission evidence</a>
+is retained in machine-readable form.</li>
 <li>Some models are reasoning/“thinking” models and burn extra output tokens — set a generous
 <code>max_tokens</code> or you'll get truncated answers.</li>
 </ul>

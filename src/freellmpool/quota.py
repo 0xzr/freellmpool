@@ -68,9 +68,26 @@ class QuotaStore:
         self._pending_counts: dict[str, dict[str, int]] = {}
         self._pending_ops = 0
         self._flush_timer: threading.Timer | None = None
+        self._reload_after_fork = False
         self._data: dict = self._load()
         if self.flush_every > 1:
             atexit.register(self.flush)
+            register_at_fork = getattr(os, "register_at_fork", None)
+            if callable(register_at_fork):
+                register_at_fork(after_in_child=self._after_fork_child)
+
+    def _after_fork_child(self) -> None:
+        """Drop parent-owned batches and locks in a freshly forked child."""
+        self._lock = threading.Lock()
+        self._pending_counts = {}
+        self._pending_ops = 0
+        self._flush_timer = None
+        self._reload_after_fork = True
+
+    def _prepare_after_fork_locked(self) -> None:
+        if self._reload_after_fork:
+            self._data = self._load()
+            self._reload_after_fork = False
 
     def _load(self) -> dict:
         try:
@@ -144,10 +161,12 @@ class QuotaStore:
 
     def used(self, provider_id: str, model: str) -> int:
         with self._lock:
+            self._prepare_after_fork_locked()
             return int(self._today().get(self._key(provider_id, model), 0))
 
     def record(self, provider_id: str, model: str, n: int = 1) -> int:
         with self._lock:
+            self._prepare_after_fork_locked()
             if self.flush_every <= 1:
                 return self._record_and_save_locked(provider_id, model, n)
 
@@ -185,6 +204,7 @@ class QuotaStore:
     def flush(self) -> None:
         """Persist any locally batched quota increments."""
         with self._lock:
+            self._prepare_after_fork_locked()
             self._cancel_flush_timer_locked()
             self._flush_locked()
             if self._pending_counts:
@@ -236,6 +256,7 @@ class QuotaStore:
         Reloads from disk so a long-running proxy reflects other processes, then
         overlays local pending increments in memory. Reading never forces a write."""
         with self._lock:
+            self._prepare_after_fork_locked()
             current_day = _utc_day(self._clock())
             loaded = self._load()
             bucket = dict(loaded.get(current_day, {}))

@@ -84,9 +84,27 @@ class StatsStore:
         self._pending_ops = 0
         self._pending_first_seen: str | None = None
         self._flush_timer: threading.Timer | None = None
+        self._reload_after_fork = False
         self._data: dict = self._load()
         if self.flush_every > 1:
             atexit.register(self.flush)
+            register_at_fork = getattr(os, "register_at_fork", None)
+            if callable(register_at_fork):
+                register_at_fork(after_in_child=self._after_fork_child)
+
+    def _after_fork_child(self) -> None:
+        """Drop parent-owned batches and locks in a freshly forked child."""
+        self._lock = threading.Lock()
+        self._pending = {}
+        self._pending_ops = 0
+        self._pending_first_seen = None
+        self._flush_timer = None
+        self._reload_after_fork = True
+
+    def _prepare_after_fork_locked(self) -> None:
+        if self._reload_after_fork:
+            self._data = self._load()
+            self._reload_after_fork = False
 
     def _load(self) -> dict:
         """Parsed file as a dict, or {} if missing/unreadable/garbled. Pure: a read
@@ -160,6 +178,7 @@ class StatsStore:
         if not clean:
             return
         with self._lock:
+            self._prepare_after_fork_locked()
             for key, value in clean.items():
                 self._data[key] = int(self._data.get(key, 0)) + value
                 self._pending[key] = int(self._pending.get(key, 0)) + value
@@ -178,6 +197,7 @@ class StatsStore:
     def flush(self) -> None:
         """Persist locally batched lifetime deltas, merging concurrent writers."""
         with self._lock:
+            self._prepare_after_fork_locked()
             self._cancel_flush_timer_locked()
             self._flush_locked()
             if self._pending:
@@ -223,6 +243,7 @@ class StatsStore:
         proxy reflects increments other processes made. Local pending deltas are
         overlaid in memory; a read never forces an fsync."""
         with self._lock:
+            self._prepare_after_fork_locked()
             loaded = self._load()
             for key, value in self._pending.items():
                 loaded[key] = int(loaded.get(key, 0)) + value

@@ -1411,8 +1411,10 @@ def cmd_proxy(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
     finally:
-        pool.quota.flush()
-        httpd.server_close()
+        try:
+            pool.flush()
+        finally:
+            httpd.server_close()
     return 0
 
 
@@ -1637,8 +1639,10 @@ def _run_tailnet_serve(
             file=sys.stderr,
         )
     finally:
-        pool.quota.flush()
-        httpd.server_close()
+        try:
+            pool.flush()
+        finally:
+            httpd.server_close()
     return 0
 
 
@@ -2219,7 +2223,7 @@ def cmd_mcp(args: argparse.Namespace) -> int:
     except (KeyboardInterrupt, BrokenPipeError):
         pass
     finally:
-        pool.quota.flush()
+        pool.flush()
     return 0
 
 

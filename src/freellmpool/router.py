@@ -1332,9 +1332,9 @@ class Pool:
                 non_ctx_failure = True
                 defer_retry = attempt.allow_defer and _client._retryable_transport_exception(exc)
                 local_saturation = _client._is_local_pool_timeout(exc)
-                if local_saturation and not defer_retry:
+                if local_saturation:
                     self._release_local_saturation(target, lease)
-                elif not local_saturation:
+                else:
                     self.metrics.record_failure(target.name, f"{type(exc).__name__}: {exc}")
                     self._record_route_failure(target, exc, lease)
                 if defer_retry:
@@ -1343,7 +1343,7 @@ class Pool:
                             target,
                             retry_error=exc,
                             lease=(
-                                lease
+                                None
                                 if local_saturation
                                 else self._refresh_route_lease(lease)
                             ),
