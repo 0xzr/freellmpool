@@ -6,7 +6,7 @@
 # route is available. Add applicable credentials for more capacity, e.g.
 # `-e GROQ_API_KEY=...`. When exposing the proxy beyond localhost, set
 # FREELLMPOOL_PROXY_KEY to require a Bearer token.
-FROM python:3.14-alpine@sha256:05b2b8b732ecd268fee8727a369f936f022d1321b59befd13c30ede22769dcdc
+FROM python:3.14-alpine@sha256:c6ead215bfd31f1e433d968853b7a769989117115b728874824e6c0a27cb96fc
 
 WORKDIR /app
 RUN apk upgrade --no-cache
