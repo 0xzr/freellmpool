@@ -23,6 +23,19 @@ Install `freellmpool` where metaswarm can run it:
 python -m pip install freellmpool
 ```
 
+The adapter's internal Python helpers must run on Python 3.11+ with freellmpool
+importable (the provider-detection helper imports `freellmpool.config`). By
+default it resolves an interpreter in this order:
+
+1. `FREELLMPOOL_PYTHON` (explicit override; recommended),
+2. a `python3` sitting next to the configured `freellmpool` executable (the interpreter belonging to the freellmpool that will run the review),
+3. `$VIRTUAL_ENV/bin/python3` when a virtualenv is active,
+4. `python3` on `PATH`.
+
+If no interpreter can import `freellmpool`, `review` fails closed with
+`error_type: "helper_unavailable"` instead of misreporting provider
+authentication, and `health` prints an explanatory warning.
+
 Configure the strong review providers used by your model list. The default panel
 spans Mistral, NVIDIA, and OpenRouter credentials:
 
@@ -106,6 +119,7 @@ required environment variable names or provider ids but not secret values.
 | Variable | Purpose |
 | --- | --- |
 | `FREELLMPOOL_CMD` | Path to the `freellmpool` executable. |
+| `FREELLMPOOL_PYTHON` | Python 3.11+ interpreter for the adapter's helper scripts (must have freellmpool importable). |
 | `FREELLMPOOL_REVIEW_MODE` | `strong` (default), `strong-long-context`, `tokenmax`, or `ask`. |
 | `FREELLMPOOL_STRONG_MODELS` | Comma-separated exact provider/model ids for strong mode. |
 | `FREELLMPOOL_STRONG_PROVIDERS` | Provider ids that must be configured for ready health. |
