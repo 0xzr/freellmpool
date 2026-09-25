@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Requesty (`REQUESTY_API_KEY`) as a keyed provider limited to its zero-priced
+  models. Five routes with repeat non-empty keyed completions are enabled; two
+  zero-priced candidates stay disabled and pin-only until their canaries pass.
+  `scripts/vet_catalog.py` discovers Requesty routes by zero input and output
+  price.
+
 ## [0.13.0] — 2026-08-29
 
 ### Added

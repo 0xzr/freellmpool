@@ -216,6 +216,20 @@ def test_packaged_catalog_omits_retired_github_models():
     assert "github" not in {embedder.id for embedder in load_embedders()}
 
 
+def test_packaged_catalog_lists_requesty_zero_priced_routes():
+    requesty = {provider.id: provider for provider in load_catalog()}["requesty"]
+
+    assert requesty.base_url == "https://router.requesty.ai/v1"
+    assert requesty.key_env == "REQUESTY_API_KEY"
+    enabled = {model.name for model in requesty.models if model.enabled}
+    assert {"google/gemma-4-31b-it", "nvidia/nemotron-3-super-120b-a12b"} <= enabled
+    for name in ("mistral/leanstral-1-5", "nvidia/nemotron-3.5-lightning-30b-a3b"):
+        model = requesty.model(name)
+        assert model is not None
+        assert not model.enabled
+        assert not model.auto
+
+
 def test_packaged_catalog_retires_gemini_2_and_uses_live_verified_llm7_selectors():
     providers = {provider.id: provider for provider in load_catalog()}
 

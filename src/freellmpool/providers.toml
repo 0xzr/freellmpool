@@ -470,6 +470,28 @@ models = [
     { name = "z-ai/glm-5.2:free", rpd = 0, enabled = false, auto = false },
 ]
 
+# Requesty: OpenAI-compatible router. The no-card free tier allows 200 requests
+# per day in total across its free models; paid models need account credit.
+# Only routes with zero input and output price in the public /models listing are
+# cataloged. RPD stays 0 because the cap is per account, not per model. Prices
+# and repeat non-empty keyed completions checked 2026-09-25.
+[[provider]]
+id = "requesty"
+label = "Requesty (free models)"
+adapter = "openai"
+base_url = "https://router.requesty.ai/v1"
+key_env = "REQUESTY_API_KEY"
+models = [
+    { name = "google/gemma-4-31b-it", rpd = 0 },
+    { name = "nvidia/muse-glimmer-30b", rpd = 0 },
+    { name = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", rpd = 0 },
+    { name = "nvidia/nemotron-3-super-120b-a12b", rpd = 0 },
+    { name = "nvidia/nemotron-3-ultra-550b-a55b", rpd = 0 },
+    # Listed at zero price, but not enabled until healthy canaries succeed.
+    { name = "mistral/leanstral-1-5", rpd = 0, enabled = false, auto = false },
+    { name = "nvidia/nemotron-3.5-lightning-30b-a3b", rpd = 0, enabled = false, auto = false },
+]
+
 [[provider]]
 id = "gemini"
 label = "Google Gemini"
