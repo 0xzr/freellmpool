@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import re
 import socketserver
 import sys
 import threading
@@ -822,25 +821,6 @@ def test_probe_report_contains_no_secret_or_response_content():
     }
 
 
-def test_secret_map_is_strict_and_bounded(monkeypatch):
-    monkeypatch.setenv(
-        "FREELLMPOOL_SENTINEL_KEYS_JSON",
-        json.dumps({"EXAMPLE_KEY": "secret", "CLOUDFLARE_ACCOUNT_ID": "account"}),
-    )
-    assert SENTINEL.load_secret_map() == {
-        "EXAMPLE_KEY": "secret",
-        "CLOUDFLARE_ACCOUNT_ID": "account",
-    }
-
-    monkeypatch.setenv("FREELLMPOOL_SENTINEL_KEYS_JSON", '["not", "an", "object"]')
-    with pytest.raises(ValueError, match="object"):
-        SENTINEL.load_secret_map()
-
-    monkeypatch.setenv("FREELLMPOOL_SENTINEL_KEYS_JSON", "{}")
-    with pytest.raises(ValueError, match="non-empty"):
-        SENTINEL.load_secret_map()
-
-
 def test_workflow_is_advisory_least_privilege_and_fork_safe():
     workflow = (ROOT / ".github" / "workflows" / "catalog-sentinel.yml").read_text(
         encoding="utf-8"
@@ -849,7 +829,9 @@ def test_workflow_is_advisory_least_privilege_and_fork_safe():
     assert "schedule:" in workflow
     assert "workflow_dispatch:" in workflow
     assert "pull_request:" not in workflow
-    assert "environment: catalog-sentinel" in workflow
+    # Keyed probes run on a maintainer machine; the workflow holds no provider keys.
+    assert "environment:" not in workflow
+    assert "secrets." not in workflow
     assert "issues: write" in workflow
     assert "actions: write" not in workflow
     assert "contents: write" not in workflow
@@ -862,66 +844,55 @@ def test_workflow_is_advisory_least_privilege_and_fork_safe():
     assert "uses: actions/setup-python@" in workflow
     assert "gh issue create" in workflow
     assert "gh issue comment" in workflow
-    assert "Catalog sentinel probe findings" in workflow
     assert "github-actions[bot]" in workflow
     assert "<!-- freellmpool-catalog-sentinel:public:v1 -->" in workflow
-    assert "<!-- freellmpool-catalog-sentinel:probe:v1 -->" in workflow
     assert ".author.login" in workflow
     assert ".body | contains(" in workflow
     assert ".title ==" in workflow
     assert "--body-file" in workflow
     assert "scripts/catalog_sentinel.py discover" in workflow
-    assert "scripts/catalog_sentinel.py probe" in workflow
-    assert "freellmpool conformance run" in workflow
-    assert "FREELLMPOOL_CONFORMANCE_KEYS_JSON" in workflow
-    assert ".sentinel-state/conformance.json" in workflow
-    assert ".sentinel-artifacts/conformance.json" in workflow
     assert "--previous" in workflow
-    assert "FREELLMPOOL_SENTINEL_KEYS_JSON" in workflow
     assert "Never mutates providers.toml" in workflow
+    assert "scripts/catalog_sentinel.py probe" not in workflow
+    assert "freellmpool conformance run" not in workflow
+    assert "FREELLMPOOL_SENTINEL_KEYS_JSON" not in workflow
 
 
-def test_authenticated_workflow_fails_visibly_when_protected_credentials_are_missing():
-    workflow = (ROOT / ".github" / "workflows" / "catalog-sentinel.yml").read_text(
-        encoding="utf-8"
+def test_local_secret_map_reads_only_catalog_key_names_from_local_config(tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_text(
+        '[keys]\nMISTRAL_API_KEY = "from-config"\nGROQ_API_KEY = "shadowed"\n',
+        encoding="utf-8",
     )
-    protected = workflow.split("  authenticated-probes:", 1)[1]
+    providers = {provider.id: provider for provider in SENTINEL.load_catalog()}
+    env = {
+        "FREELLMPOOL_CONFIG_FILE": str(config),
+        "GROQ_API_KEY": "from-env",
+        "CLOUDFLARE_ACCOUNT_ID": "account",
+        "UNRELATED_SECRET": "ignored",
+    }
 
-    assert "FREELLMPOOL_SENTINEL_KEYS_JSON" in protected
-    assert "::error" in protected
-    assert "exit 1" in protected
-    assert "configured=false" not in protected
-    assert "steps.probe-config.outputs.configured" not in protected
-
-
-def test_authenticated_workflow_timeout_covers_declared_probe_budget():
-    workflow = (ROOT / ".github" / "workflows" / "catalog-sentinel.yml").read_text(
-        encoding="utf-8"
-    )
-    protected = workflow.split("  authenticated-probes:", 1)[1]
-    timeout_minutes = int(re.search(r"timeout-minutes:\s*(\d+)", protected).group(1))
-
-    probe = protected.split("python scripts/catalog_sentinel.py probe", 1)[1].split(
-        "cp .sentinel-artifacts/probe.json", 1
-    )[0]
-    probe_timeout = int(re.search(r"--timeout\s+(\d+)", probe).group(1))
-    max_providers = int(re.search(r"--max-providers\s+(\d+)", probe).group(1))
-    max_models = int(
-        re.search(r"--max-models-per-provider\s+(\d+)", probe).group(1)
+    secrets = SENTINEL.local_secret_map(
+        [providers["groq"], providers["mistral"], providers["cloudflare"]], env
     )
 
-    canaries = protected.split("freellmpool conformance run", 1)[1].split(
-        "cp .sentinel-state/conformance.json", 1
-    )[0]
-    conformance_timeout = int(re.search(r"--timeout\s+(\d+)", canaries).group(1))
-    max_targets = int(re.search(r"--max-targets\s+(\d+)", canaries).group(1))
-    features = re.search(r"--features\s+([a-z_,]+)", canaries).group(1).split(",")
+    assert secrets == {
+        "CLOUDFLARE_ACCOUNT_ID": "account",
+        "GROQ_API_KEY": "from-env",
+        "MISTRAL_API_KEY": "from-config",
+    }
 
-    network_budget_seconds = (
-        probe_timeout * max_providers * max_models
-        + conformance_timeout * max_targets * len(features)
+
+def test_local_key_summary_counts_only_keyed_providers_with_local_keys():
+    providers = {provider.id: provider for provider in SENTINEL.load_catalog()}
+    selected = [providers["groq"], providers["mistral"], providers["pollinations"]]
+
+    assert SENTINEL.local_key_summary(selected, {"GROQ_API_KEY": "key"}) == (
+        "probe: local keys found for 1 of 2 keyed providers"
     )
-    assert timeout_minutes * 60 >= network_budget_seconds + 600
+    assert SENTINEL.local_key_summary(selected, {}) == (
+        "probe: local keys found for 0 of 2 keyed providers"
+    )
 
 
 def test_catalog_sentinel_operator_contract_is_documented():
@@ -930,8 +901,10 @@ def test_catalog_sentinel_operator_contract_is_documented():
 
     for phrase in (
         "catalog-sentinel",
-        "FREELLMPOOL_SENTINEL_KEYS_JSON",
-        "environment protection",
+        "never stored in GitHub",
+        "scripts/vet_catalog.py",
+        "reviewed checkout of `main`",
+        "--previous",
         "advisory",
         "never enables or disables",
         "429",
