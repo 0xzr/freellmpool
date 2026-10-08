@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -22,12 +21,12 @@ if str(SRC) not in sys.path:
 
 from freellmpool import client as flp_client  # noqa: E402
 from freellmpool.catalog_validation import normalize_model_listing  # noqa: E402
-from freellmpool.config import load_catalog  # noqa: E402
+from freellmpool.config import effective_env, load_catalog  # noqa: E402
 from freellmpool.errors import ProviderHTTPError  # noqa: E402
 from freellmpool.models import Provider  # noqa: E402
 
-_MAX_BODY_BYTES = 1_000_000
-_MAX_SECRET_JSON_BYTES = 32_000
+# Requesty's public listing is just over 1 MB; leave headroom for growth.
+_MAX_BODY_BYTES = 4_000_000
 _MAX_PREVIOUS_BYTES = 2_000_000
 _MAX_ISSUE_BODY_BYTES = 60_000
 _PING = [{"role": "user", "content": "Reply with the single word: pong"}]
@@ -358,38 +357,25 @@ def load_previous(path: Path | None) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def load_secret_map(
+def local_secret_map(
+    providers: list[Provider],
     env: dict[str, str] | None = None,
-    *,
-    variable: str = "FREELLMPOOL_SENTINEL_KEYS_JSON",
 ) -> dict[str, str]:
-    source = env if env is not None else os.environ
-    raw = source.get(variable, "")
-    if not raw:
-        raise ValueError(f"{variable} is required for authenticated probes")
-    if len(raw.encode("utf-8")) > _MAX_SECRET_JSON_BYTES:
-        raise ValueError("secret map exceeds size limit")
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError("secret map must be valid JSON") from exc
-    if not isinstance(payload, dict):
-        raise ValueError("secret map must be an object")
-    if not payload:
-        raise ValueError("secret map must be a non-empty object")
-    result: dict[str, str] = {}
-    for key, value in payload.items():
-        if (
-            not isinstance(key, str)
-            or not isinstance(value, str)
-            or not key
-            or not value
-            or len(key) > 128
-            or len(value) > 8_192
-        ):
-            raise ValueError("secret map must contain bounded non-empty strings")
-        result[key] = value
-    return result
+    """Provider key variables from this machine's freellmpool configuration.
+
+    Keyed probes run only on a maintainer machine, never in a workflow, so no
+    provider key is stored in GitHub. Real environment variables win over the
+    config file's ``[keys]`` table, and only the ``key_env``/``extra_env``
+    names the packaged catalog declares are returned.
+    """
+    source = effective_env(env)
+    wanted = {
+        name
+        for provider in providers
+        for name in (provider.key_env, *provider.extra_env)
+        if name
+    }
+    return {name: source[name] for name in sorted(wanted) if source.get(name)}
 
 
 def discover(
@@ -832,10 +818,7 @@ def main(argv: list[str] | None = None) -> int:
             or not 1 <= args.max_models_per_provider <= 2
         ):
             parser.error("probe bounds are out of range")
-        try:
-            secrets = load_secret_map()
-        except ValueError as exc:
-            parser.error(str(exc))
+        secrets = local_secret_map(providers)
         report = probe(
             providers,
             secrets,

@@ -13,6 +13,15 @@ All notable changes to this project are documented here. The format is based on
   `scripts/vet_catalog.py` discovers Requesty routes by zero input and output
   price.
 
+### Changed
+- The catalog-sentinel workflow runs keyless public discovery only. Keyed
+  completion probes and catalog refreshes run on a maintainer machine with its
+  local key configuration, so no provider key is stored in GitHub;
+  `scripts/catalog_sentinel.py probe` now reads those local keys instead of a
+  JSON secret.
+- Public discovery accepts listings up to 4 MB; Requesty's listing is just
+  over the previous 1 MB cap and was reported as invalid.
+
 ## [0.13.0] — 2026-08-29
 
 ### Added

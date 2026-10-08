@@ -76,16 +76,12 @@ replays the request on another provider. If the committed stream fails, the
 proxy emits the protocol's error framing when the connection is still writable
 and closes without a successful terminal event.
 
-## Protected automation
+## Keyed canaries run locally
 
-The scheduled and manually dispatchable catalog-sentinel workflow runs a
-bounded matrix inside the protected `catalog-sentinel` environment. It caches
-the sanitized state and uploads sanitized run/state artifacts.
-
-The workflow maps its existing protected JSON secret into
-`FREELLMPOOL_CONFORMANCE_KEYS_JSON`. This input is capped at 64 KiB; only
-catalog-declared `key_env` and `extra_env` names are imported, values are
-bounded strings, unknown names are ignored, and values are never printed or
-persisted in evidence. This variable is intended for protected automation;
-normal local use should continue to use ordinary provider environment
-variables or the freellmpool key configuration.
+No workflow holds provider keys, so keyed conformance canaries run on a
+maintainer machine with the ordinary provider environment variables or the
+freellmpool key configuration. `freellmpool conformance run` still accepts a
+`FREELLMPOOL_CONFORMANCE_KEYS_JSON` map for scripted runs. This input is capped
+at 64 KiB; only catalog-declared `key_env` and `extra_env` names are imported,
+values are bounded strings, unknown names are ignored, and values are never
+printed or persisted in evidence.

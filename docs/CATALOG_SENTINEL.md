@@ -24,34 +24,39 @@ An empty response, malformed JSON, 429 rate limit, 402 billing/credit response,
 provider-wide authentication failure, timeout, and transient 5xx response
 never cause a retirement recommendation.
 
-## Protected completion probes
+## Keyed probes run locally
 
-Authenticated canaries run in the GitHub `catalog-sentinel` environment. Turn
-on environment protection and require a maintainer reviewer before configuring
-the environment secret:
+Provider keys are never stored in GitHub. The workflow runs only the keyless
+public discovery above. Completion probes and catalog refreshes run on a
+maintainer machine with that machine's freellmpool key configuration (real
+environment variables, then the `[keys]` table in
+`~/.config/freellmpool/config.toml`), and the result reaches GitHub only as a
+reviewed change to the packaged catalog.
 
-```text
-FREELLMPOOL_SENTINEL_KEYS_JSON
-```
+The local refresh procedure:
 
-Its value is a bounded JSON object that maps the catalog's environment-variable
-names to their values. For example, configure it through GitHub's encrypted
-environment-secret UI; never commit the value:
+1. Run public discovery (below) for listing drift.
+2. Run `python3 scripts/vet_catalog.py --report <path>`. It lists each
+   configured provider's live models and pings every catalog route, enabled
+   and disabled, through the real client path. Leave priced or credit-funded
+   providers such as Vercel out with `-p` unless you intend to spend credit.
+3. Re-ping candidate changes so each one rests on repeated results. A 401,
+   402, 429, timeout, or isolated 5xx is not retirement evidence.
+4. Edit `src/freellmpool/providers.toml`, then run
+   `python3 scripts/validate_catalog.py`, `scripts/check-counts` (update every
+   count claim it reports), `python3 scripts/render_assets.py` on the pinned
+   toolchain, and the test suite.
+5. Record the dispositions in a dated `docs/MODEL_ACTIVITY_AUDIT_*.md` and open
+   a normal pull request.
 
-```json
-{"GROQ_API_KEY":"...","CLOUDFLARE_API_TOKEN":"...","CLOUDFLARE_ACCOUNT_ID":"..."}
-```
-
-The probe report contains provider IDs, catalog model IDs, HTTP status
-classifications, timestamps, and lifecycle counters. It excludes keys,
-account identifiers, provider response bodies, exception text, prompts, and
-completion text. If the secret is absent, the protected job records that probes
-were skipped without weakening public discovery.
-
-Each canary requests at most eight output tokens and explicitly disables the
-normal client convenience that raises reasoning-model budgets. Provider count,
-models per provider, request timeout, and the overall protected job are all
-bounded independently.
+`scripts/catalog_sentinel.py probe` is a smaller bounded canary over enabled
+automatic routes. It reads the same local key configuration and returns only
+the catalog-declared key names. Each canary requests at most eight output
+tokens and disables the normal client convenience that raises
+reasoning-model budgets. The probe report contains provider IDs, catalog model
+IDs, HTTP status classifications, timestamps, and lifecycle counters. It
+excludes keys, account identifiers, provider response bodies, exception text,
+prompts, and completion text.
 
 ## Lifecycle and artifacts
 
@@ -73,8 +78,7 @@ python3 scripts/catalog_sentinel.py discover \
   --summary /tmp/catalog-sentinel.md
 ```
 
-For a local protected probe, export the JSON secret map and choose explicit
-bounds:
+For a local bounded probe with your configured keys, choose explicit bounds:
 
 ```bash
 python3 scripts/catalog_sentinel.py probe \

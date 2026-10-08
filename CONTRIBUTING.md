@@ -45,9 +45,10 @@ maintainer commands for filing them.
 ## Adding a provider
 
 The whole catalog is [`src/freellmpool/providers.toml`](src/freellmpool/providers.toml).
-The scheduled discovery and protected-probe contract is documented in
-[`docs/CATALOG_SENTINEL.md`](docs/CATALOG_SENTINEL.md); sentinel output is
-advisory and never authorizes an automatic catalog mutation.
+Scheduled keyless discovery and the local keyed refresh procedure are
+documented in [`docs/CATALOG_SENTINEL.md`](docs/CATALOG_SENTINEL.md); provider
+keys never go into GitHub, and sentinel output is advisory and never authorizes
+an automatic catalog mutation.
 Protocol-feature verification, bounded canary rules, and the exact-pin routing
 override are documented in
 [`docs/PROTOCOL_CONFORMANCE.md`](docs/PROTOCOL_CONFORMANCE.md).
