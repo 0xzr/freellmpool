@@ -40,6 +40,54 @@ XT_SPEC_FILE=""
 XT_ATTEMPT="1"
 XT_TIMEOUT="0"
 
+# Interpreter for the provider-count helper, the only embedded helper that
+# imports freellmpool (Python 3.11+ with the package importable). The other
+# helpers use only the standard library and run on PATH python3. Resolution
+# order: FREELLMPOOL_PYTHON -> the interpreter named in the freellmpool
+# script's shebang (pip, pipx and uv console scripts name their own Python)
+# -> the python3 beside the symlink-resolved freellmpool executable ->
+# $VIRTUAL_ENV/bin/python3 -> PATH python3. The interpreter belonging to the
+# freellmpool that will run the review comes before an active virtualenv,
+# which may not have the package.
+PYTHON_BIN=""
+resolve_helper_python() {
+  local tool_path real_path shebang candidate
+  if [[ -n "${FREELLMPOOL_PYTHON:-}" ]]; then
+    PYTHON_BIN="$FREELLMPOOL_PYTHON"
+    return 0
+  fi
+  tool_path="$(command -v "$TOOL_CMD" 2>/dev/null || true)"
+  if [[ -n "$tool_path" && -f "$tool_path" ]]; then
+    shebang=""
+    IFS= read -r -n 512 shebang 2>/dev/null <"$tool_path" || true
+    if [[ "$shebang" == '#!/'* ]]; then
+      candidate="${shebang#\#!}"
+      candidate="${candidate%%[[:space:]]*}"
+      if [[ "${candidate##*/}" == python* && -x "$candidate" ]]; then
+        PYTHON_BIN="$candidate"
+        return 0
+      fi
+    fi
+    real_path="$(readlink -f "$tool_path" 2>/dev/null || printf '%s' "$tool_path")"
+    candidate="$(dirname "$real_path")/python3"
+    if [[ -x "$candidate" ]]; then
+      PYTHON_BIN="$candidate"
+      return 0
+    fi
+  fi
+  if [[ -n "${VIRTUAL_ENV:-}" && -x "$VIRTUAL_ENV/bin/python3" ]]; then
+    PYTHON_BIN="$VIRTUAL_ENV/bin/python3"
+    return 0
+  fi
+  PYTHON_BIN="python3"
+  return 0
+}
+resolve_helper_python
+
+# Shared fix-it guidance for every "helper interpreter unusable" diagnostic
+# (helper stderr, health warning, review raw_log).
+HELPER_FIX_HINT="Set FREELLMPOOL_PYTHON to a Python 3.11+ interpreter with freellmpool installed (for example the virtualenv used to install freellmpool), or activate that virtualenv before dispatch."
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -329,21 +377,58 @@ PY
 }
 
 count_configured_strong_providers() {
-  python3 - "$STRONG_PROVIDERS" <<'PY'
+  # Output contract: line 1 = count, line 2 = comma-joined provider ids.
+  # The special count -1 means the helper interpreter could not import
+  # freellmpool (too old, or package not installed). Read it through
+  # load_strong_provider_info, which also rejects failed or malformed runs.
+  "$PYTHON_BIN" - "$STRONG_PROVIDERS" "$HELPER_FIX_HINT" <<'PY'
 import sys
 
 try:
     from freellmpool.config import configured_providers
-except Exception:
-    print(0)
+except Exception as exc:
+    print(f"freellmpool review adapter helper could not import freellmpool via {sys.executable}: {type(exc).__name__}: {exc}", file=sys.stderr)
+    print(f"Fix: {sys.argv[2]}", file=sys.stderr)
+    print(-1)
     print("")
-    raise SystemExit
+    raise SystemExit(0)
 
 wanted = {item.strip() for item in sys.argv[1].split(",") if item.strip()}
 configured = sorted({provider.id for provider in configured_providers() if provider.id in wanted})
 print(len(configured))
 print(",".join(configured))
 PY
+}
+
+# Run the provider check and set STRONG_PROVIDER_COUNT and
+# CONFIGURED_STRONG_PROVIDERS. The count is -1 unless the helper exited 0 and
+# printed a non-negative count matching its comma-joined provider ids, so a
+# crashed, silent, or partial helper run is never read as provider state.
+# Optional $1: file that receives the helper's stderr.
+load_strong_provider_info() {
+  local stderr_target="${1:-/dev/null}"
+  local info="" status=0 count ids commas listed
+  STRONG_PROVIDER_COUNT="-1"
+  CONFIGURED_STRONG_PROVIDERS=""
+  info="$(count_configured_strong_providers 2>"$stderr_target")" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    return 0
+  fi
+  count="$(printf '%s\n' "$info" | sed -n '1p')"
+  ids="$(printf '%s\n' "$info" | sed -n '2p')"
+  case "$count" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  listed=0
+  if [[ -n "$ids" ]]; then
+    commas="${ids//[^,]/}"
+    listed=$(( ${#commas} + 1 ))
+  fi
+  if [[ "$(( 10#$count ))" -ne "$listed" ]]; then
+    return 0
+  fi
+  STRONG_PROVIDER_COUNT="$listed"
+  CONFIGURED_STRONG_PROVIDERS="$ids"
 }
 
 cmd_health() {
@@ -355,14 +440,13 @@ cmd_health() {
 
   if command -v "$TOOL_CMD" >/dev/null 2>&1; then
     version="$("$TOOL_CMD" --version 2>/dev/null | head -n 1 | tr -d '\r\n' || printf 'unknown')"
-    local strong_provider_info
-    strong_provider_info="$(count_configured_strong_providers 2>/dev/null || printf '0\n')"
-    strong_provider_count="$(printf '%s\n' "$strong_provider_info" | sed -n '1p')"
-    strong_provider_count="${strong_provider_count:-0}"
-    case "$strong_provider_count" in
-      ''|*[!0-9]*) strong_provider_count="0" ;;
-    esac
-    configured_strong_providers="$(printf '%s\n' "$strong_provider_info" | sed -n '2p')"
+    load_strong_provider_info
+    strong_provider_count="$STRONG_PROVIDER_COUNT"
+    configured_strong_providers="$CONFIGURED_STRONG_PROVIDERS"
+    if [[ "$strong_provider_count" == "-1" ]]; then
+      printf 'freellmpool review adapter helper interpreter %q could not run the provider check. %s\n' "$PYTHON_BIN" "$HELPER_FIX_HINT" >&2
+      strong_provider_count="0"
+    fi
     if [[ -z "$(provider_key_env_errors)" && "$strong_provider_count" -gt 0 ]]; then
       status="ready"
       auth_valid=true
@@ -468,15 +552,29 @@ cmd_review() {
     return 1
   fi
 
-  local strong_provider_info strong_provider_count
-  local configured_strong_providers=""
-  strong_provider_info="$(count_configured_strong_providers 2>/dev/null || printf '0\n')"
-  strong_provider_count="$(printf '%s\n' "$strong_provider_info" | sed -n '1p')"
-  strong_provider_count="${strong_provider_count:-0}"
-  case "$strong_provider_count" in
-    ''|*[!0-9]*) strong_provider_count="0" ;;
-  esac
-  configured_strong_providers="$(printf '%s\n' "$strong_provider_info" | sed -n '2p')"
+  local strong_provider_count configured_strong_providers helper_stderr_file
+  helper_stderr_file="${tmp_dir}/provider-helper-stderr.txt"
+  load_strong_provider_info "$helper_stderr_file"
+  strong_provider_count="$STRONG_PROVIDER_COUNT"
+  configured_strong_providers="$CONFIGURED_STRONG_PROVIDERS"
+  if [[ "$strong_provider_count" == "-1" ]]; then
+    # Fail closed loudly: the helper interpreter cannot run this project, so no
+    # provider-auth conclusion is possible. Never mislabel this auth_missing.
+    raw_log_file="${tmp_dir}/helper-interpreter-unavailable.txt"
+    {
+      printf 'freellmpool review adapter helper interpreter %q could not run the provider check; the configured strong providers cannot be determined. %s\n' "$PYTHON_BIN" "$HELPER_FIX_HINT"
+      if [[ -s "$helper_stderr_file" ]]; then
+        printf 'Helper stderr:\n'
+        tail -c 4000 "$helper_stderr_file"
+      fi
+    } >"$raw_log_file"
+    local helper_json
+    helper_json="$(emit_error "review" "$DEFAULT_MODEL" "$XT_ATTEMPT" 2 "" 0 "$raw_log_file" "helper_unavailable")"
+    log_session "$helper_json"
+    printf '%s\n' "$helper_json"
+    rm -rf "$tmp_dir"
+    return 1
+  fi
   if [[ "$strong_provider_count" -eq 0 ]]; then
     raw_log_file="${tmp_dir}/missing-strong-provider-keys.txt"
     printf 'No configured strong freellmpool providers. Configure at least one of: %s. For the default metaswarm review panel, set one or more of MISTRAL_API_KEY, NVIDIA_API_KEY, OPENROUTER_API_KEY, or use freellmpool keys add.\n' "$STRONG_PROVIDERS" >"$raw_log_file"

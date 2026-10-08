@@ -54,7 +54,7 @@ def test_runtime_dependencies_guard_stdlib_first_contract() -> None:
 def test_build_backend_is_reproducibly_pinned() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 
-    assert pyproject["build-system"]["requires"] == ["hatchling==1.32.0"]
+    assert pyproject["build-system"]["requires"] == ["hatchling==1.32.4"]
 
 
 def test_readme_has_copy_pastable_tailnet_and_metaswarm_paths() -> None:

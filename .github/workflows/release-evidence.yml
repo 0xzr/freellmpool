@@ -134,7 +134,7 @@ jobs:
           echo "sdist=${sdists[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Generate wheel SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           file: ${{ steps.artifacts.outputs.wheel }}
           format: spdx-json
@@ -143,7 +143,7 @@ jobs:
           upload-artifact: false
           upload-release-assets: false
       - name: Generate source archive SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           file: ${{ steps.artifacts.outputs.sdist }}
           format: spdx-json
