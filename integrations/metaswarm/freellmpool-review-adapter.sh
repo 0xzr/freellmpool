@@ -379,9 +379,8 @@ PY
 count_configured_strong_providers() {
   # Output contract: line 1 = count, line 2 = comma-joined provider ids.
   # The special count -1 means the helper interpreter could not import
-  # freellmpool (too old, or package not installed). Callers treat -1, a
-  # failed helper, or empty output as helper_unavailable rather than guess at
-  # auth state.
+  # freellmpool (too old, or package not installed). Read it through
+  # load_strong_provider_info, which also rejects failed or malformed runs.
   "$PYTHON_BIN" - "$STRONG_PROVIDERS" "$HELPER_FIX_HINT" <<'PY'
 import sys
 
@@ -401,6 +400,37 @@ print(",".join(configured))
 PY
 }
 
+# Run the provider check and set STRONG_PROVIDER_COUNT and
+# CONFIGURED_STRONG_PROVIDERS. The count is -1 unless the helper exited 0 and
+# printed a non-negative count matching its comma-joined provider ids, so a
+# crashed, silent, or partial helper run is never read as provider state.
+# Optional $1: file that receives the helper's stderr.
+load_strong_provider_info() {
+  local stderr_target="${1:-/dev/null}"
+  local info="" status=0 count ids commas listed
+  STRONG_PROVIDER_COUNT="-1"
+  CONFIGURED_STRONG_PROVIDERS=""
+  info="$(count_configured_strong_providers 2>"$stderr_target")" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    return 0
+  fi
+  count="$(printf '%s\n' "$info" | sed -n '1p')"
+  ids="$(printf '%s\n' "$info" | sed -n '2p')"
+  case "$count" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  listed=0
+  if [[ -n "$ids" ]]; then
+    commas="${ids//[^,]/}"
+    listed=$(( ${#commas} + 1 ))
+  fi
+  if [[ "$(( 10#$count ))" -ne "$listed" ]]; then
+    return 0
+  fi
+  STRONG_PROVIDER_COUNT="$listed"
+  CONFIGURED_STRONG_PROVIDERS="$ids"
+}
+
 cmd_health() {
   local status="unavailable"
   local auth_valid=false
@@ -410,17 +440,13 @@ cmd_health() {
 
   if command -v "$TOOL_CMD" >/dev/null 2>&1; then
     version="$("$TOOL_CMD" --version 2>/dev/null | head -n 1 | tr -d '\r\n' || printf 'unknown')"
-    local strong_provider_info
-    strong_provider_info="$(count_configured_strong_providers 2>/dev/null || printf '%s\n' '-1')"
-    strong_provider_count="$(printf '%s\n' "$strong_provider_info" | sed -n '1p')"
-    strong_provider_count="${strong_provider_count:--1}"
+    load_strong_provider_info
+    strong_provider_count="$STRONG_PROVIDER_COUNT"
+    configured_strong_providers="$CONFIGURED_STRONG_PROVIDERS"
     if [[ "$strong_provider_count" == "-1" ]]; then
       printf 'freellmpool review adapter helper interpreter %q could not run the provider check. %s\n' "$PYTHON_BIN" "$HELPER_FIX_HINT" >&2
+      strong_provider_count="0"
     fi
-    case "$strong_provider_count" in
-      ''|*[!0-9]*) strong_provider_count="0" ;;
-    esac
-    configured_strong_providers="$(printf '%s\n' "$strong_provider_info" | sed -n '2p')"
     if [[ -z "$(provider_key_env_errors)" && "$strong_provider_count" -gt 0 ]]; then
       status="ready"
       auth_valid=true
@@ -526,13 +552,11 @@ cmd_review() {
     return 1
   fi
 
-  local strong_provider_info strong_provider_count helper_stderr_file
-  local configured_strong_providers=""
+  local strong_provider_count configured_strong_providers helper_stderr_file
   helper_stderr_file="${tmp_dir}/provider-helper-stderr.txt"
-  strong_provider_info="$(count_configured_strong_providers 2>"$helper_stderr_file" || printf '%s\n' '-1')"
-  strong_provider_count="$(printf '%s\n' "$strong_provider_info" | sed -n '1p')"
-  strong_provider_count="${strong_provider_count:--1}"
-  configured_strong_providers="$(printf '%s\n' "$strong_provider_info" | sed -n '2p')"
+  load_strong_provider_info "$helper_stderr_file"
+  strong_provider_count="$STRONG_PROVIDER_COUNT"
+  configured_strong_providers="$CONFIGURED_STRONG_PROVIDERS"
   if [[ "$strong_provider_count" == "-1" ]]; then
     # Fail closed loudly: the helper interpreter cannot run this project, so no
     # provider-auth conclusion is possible. Never mislabel this auth_missing.
@@ -551,9 +575,6 @@ cmd_review() {
     rm -rf "$tmp_dir"
     return 1
   fi
-  case "$strong_provider_count" in
-    ''|*[!0-9]*) strong_provider_count="0" ;;
-  esac
   if [[ "$strong_provider_count" -eq 0 ]]; then
     raw_log_file="${tmp_dir}/missing-strong-provider-keys.txt"
     printf 'No configured strong freellmpool providers. Configure at least one of: %s. For the default metaswarm review panel, set one or more of MISTRAL_API_KEY, NVIDIA_API_KEY, OPENROUTER_API_KEY, or use freellmpool keys add.\n' "$STRONG_PROVIDERS" >"$raw_log_file"

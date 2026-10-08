@@ -575,6 +575,15 @@ def test_metaswarm_sibling_python_wins_over_unrelated_virtualenv(tmp_path: Path)
         pytest.param('echo "broken interpreter" >&2\nexit 1', "broken interpreter", id="crashes"),
         pytest.param("exit 0", "could not run the provider check", id="prints-nothing"),
         pytest.param(None, "could not import freellmpool", id="lacks-freellmpool"),
+        pytest.param(
+            "printf '1\\nmistral\\n'\nexit 3",
+            "could not run the provider check",
+            id="fails-after-output",
+        ),
+        pytest.param("printf '1\\n'", "could not run the provider check", id="partial-output"),
+        pytest.param(
+            "printf '2\\nmistral\\n'", "could not run the provider check", id="count-mismatch"
+        ),
     ],
 )
 def test_metaswarm_adapter_reports_unusable_helper_interpreter(
@@ -605,3 +614,39 @@ def test_metaswarm_adapter_reports_unusable_helper_interpreter(
     assert "helper interpreter" in payload["raw_log"]
     assert expected in payload["raw_log"]
     assert not fake_log.exists()
+
+
+@pytest.mark.parametrize(
+    ("body", "ready"),
+    [
+        pytest.param("printf '1\\nmistral\\n'", True, id="valid"),
+        pytest.param("printf '1\\nmistral\\n'\nexit 3", False, id="fails-after-output"),
+        pytest.param("printf '1\\n'", False, id="partial-output"),
+        pytest.param("printf '2\\nmistral\\n'", False, id="count-mismatch"),
+        pytest.param("printf -- '-1\\n\\n'", False, id="import-failed"),
+    ],
+)
+def test_metaswarm_health_only_trusts_complete_provider_check(
+    tmp_path: Path, body: str, ready: bool
+) -> None:
+    env = _base_env(tmp_path)
+    env["MISTRAL_API_KEY"] = "mistral-test-key"
+    env["FREELLMPOOL_STRONG_PROVIDERS"] = "mistral"
+    env["FREELLMPOOL_CMD"] = str(_fake_freellmpool(tmp_path, "echo 'freellmpool 0.0.0-test'"))
+    env["FREELLMPOOL_PYTHON"] = str(_shell_script(tmp_path / "helper" / "python3", body))
+
+    result = subprocess.run(
+        [str(ADAPTER), "health"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["auth_valid"] is ready
+    assert payload["status"] == ("ready" if ready else "unavailable")
+    assert payload["strong_provider_count"] == (1 if ready else 0)
+    assert payload["configured_strong_providers"] == ("mistral" if ready else "")
+    assert ("could not run the provider check" in result.stderr) is not ready
