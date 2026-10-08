@@ -61,7 +61,6 @@ def test_cloudflare_catalog_matches_current_free_billing_and_lifecycle():
 def test_packaged_catalog_reflects_july_live_model_audit():
     providers = {provider.id: provider for provider in load_catalog()}
     expected_enabled = {
-        "cerebras": {"gemma-4-31b"},
         "cloudflare": {"@cf/qwen/qwen3.8-27b"},
         "cohere": {"command-a-translate-08-2025"},
         "huggingface": {
@@ -152,8 +151,6 @@ def test_packaged_catalog_reflects_july_16_provider_refresh():
         assert names <= {model.name for model in providers[provider_id].models if model.enabled}
 
     llm7 = providers["llm7"]
-    assert llm7.model("gpt-oss:20b") is not None
-    assert not llm7.model("gpt-oss:20b").enabled
     assert llm7.model("gemma3:27b") is not None
     assert not llm7.model("gemma3:27b").enabled
 
@@ -266,7 +263,6 @@ def test_packaged_catalog_reflects_august_29_upstream_reconciliation():
             assert not model.enabled, f"unexpectedly enabled {provider_id}/{name}"
             assert not model.auto, f"unexpectedly automatic {provider_id}/{name}"
 
-    assert_disabled_pins("llm7", {"gpt-oss:20b"})
     assert_disabled_pins("aion", {"aion-labs/aion-2.5"})
     assert_disabled_pins(
         "modelscope",
@@ -306,8 +302,6 @@ def test_packaged_catalog_reflects_august_29_upstream_reconciliation():
         "deepseek-ai/deepseek-v4-flash-0731",
         "deepseek-ai/deepseek-v4-pro-0813",
         "meta/muse-glimmer-30b",
-        "moonshotai/kimi-k3",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
     }
     assert_disabled_pins("nvidia", nvidia_retired | nvidia_candidates)
 
@@ -318,12 +312,10 @@ def test_packaged_catalog_reflects_august_29_upstream_reconciliation():
         "openai/gpt-oss-20b:free",
     }
     openrouter_candidates = {
-        "dots-studio/dots-3-note-preview:free",
         "inclusionai/ling-3.0-flash-fin:free",
         "liquid/lfm-2.5-2.6b:free",
         "minimax/minimax-m2.7:free",
         "minimax/minimax-m3:free",
-        "nvidia/nemotron-3.5-lightning:free",
         "poolside/laguna-s-2.1:free",
         "thinkingmachines/inkling-small:free",
         "thinkingmachines/inkling:free",
@@ -344,13 +336,9 @@ def test_packaged_catalog_reflects_august_29_upstream_reconciliation():
     kilo = providers["kilo"]
     kilo_verified = {
         "dots-studio/dots-3-note-preview:free",
-        "inclusionai/ling-3.0-flash-fin:free",
         "liquid/lfm-2.5-2.6b:free",
-        "meituan/longcat-2.0-free",
-        "minimax/minimax-m2.7:free",
         "nvidia/nemotron-3.5-lightning:free",
         "poolside/laguna-s-2.1:free",
-        "tencent/hy3:free",
     }
     assert all(
         kilo.model(name) and kilo.model(name).enabled and kilo.model(name).auto
@@ -366,7 +354,7 @@ def test_packaged_catalog_reflects_august_29_upstream_reconciliation():
     )
 
     cerebras = providers["cerebras"]
-    for name in {"gpt-oss-120b", "gemma-4-31b"}:
+    for name in {"gpt-oss-120b"}:
         model = cerebras.model(name)
         assert model is not None and model.enabled and not model.auto and model.rpd == 0
     assert_disabled_pins(
@@ -395,9 +383,7 @@ def test_packaged_catalog_reflects_august_29_upstream_reconciliation():
         "mistral-medium-2508",
         "devstral-2512",
         "devstral-latest",
-        "magistral-medium-2509",
         "magistral-medium-latest",
-        "magistral-small-2509",
         "magistral-small-latest",
         "mistral-small-2506",
         "mistral-vibe-cli-with-tools",
@@ -587,6 +573,73 @@ def test_keyless_providers_always_configured():
     assert "groq" not in ids  # needs a key
 
 
+def test_packaged_catalog_reflects_october_7_local_refresh():
+    """Dispositions from docs/MODEL_ACTIVITY_AUDIT_2026-10-07.md."""
+    providers = {provider.id: provider for provider in load_catalog()}
+
+    def model(provider_id: str, name: str):
+        found = providers[provider_id].model(name)
+        assert found is not None, f"missing {provider_id}/{name}"
+        return found
+
+    # Same definitive failure in two passes: 404/410, invalid model, or a paywall
+    # or sign-in gate on a route the catalog advertised as free.
+    retired = {
+        "cerebras": {"gemma-4-31b"},
+        "groq": {"groq/compound", "groq/compound-mini", "qwen/qwen3.6-27b"},
+        "kilo": {
+            "inclusionai/ling-3.0-flash-fin:free",
+            "meituan/longcat-2.0-free",
+            "minimax/minimax-m2.7:free",
+            "tencent/hy3:free",
+        },
+        "mistral": {
+            "magistral-medium-2509",
+            "magistral-small-2509",
+            "mistral-large-2512",
+            "mistral-large-latest",
+        },
+        "nvidia": {
+            "minimaxai/minimax-m3",
+            "mistralai/mistral-nemotron",
+            "nvidia/nemotron-3-nano-30b-a3b",
+        },
+        "ollama": {"minimax-m3"},
+        "ovh": {"Qwen3-32B"},
+    }
+    for provider_id, names in retired.items():
+        for name in names:
+            assert not model(provider_id, name).enabled, f"{provider_id}/{name}"
+
+    # Three repeat non-empty completions; all canaries within 15 s.
+    automatic = {
+        "kilo": {"inclusionai/ling-3.0-flash-sante:free"},
+        "nvidia": {"nvidia/nemotron-3.5-lightning-30b-a3b", "z-ai/glm-5.3"},
+        "openrouter": {
+            "apodex/apodex-1.1-mini:free",
+            "dots-studio/dots-3-note-preview:free",
+            "inclusionai/ling-3.0-flash-sante:free",
+            "nvidia/nemotron-3.5-lightning:free",
+        },
+    }
+    # Three repeat non-empty completions, kept out of automatic fan-out because
+    # canaries were slow or the provider keeps one automatic selector.
+    pin_only = {
+        "llm7": {"gpt-oss:20b"},
+        "nvidia": {"google/gemma-4-31b-it", "moonshotai/kimi-k3"},
+        "ovh": {"Qwen3.8-27B"},
+        "pollinations": {"ovh-reasoning"},
+    }
+    for provider_id, names in automatic.items():
+        for name in names:
+            route = model(provider_id, name)
+            assert route.enabled and route.auto, f"{provider_id}/{name}"
+    for provider_id, names in pin_only.items():
+        for name in names:
+            route = model(provider_id, name)
+            assert route.enabled and not route.auto, f"{provider_id}/{name}"
+
+
 def test_pollinations_catalog_matches_live_chat_selectors():
     pollinations = next(provider for provider in load_catalog() if provider.id == "pollinations")
     models = {model.name: model for model in pollinations.models}
@@ -600,7 +653,7 @@ def test_pollinations_catalog_matches_live_chat_selectors():
     }
     assert models["gpt-oss"].enabled is True
     assert models["gpt-oss-20b"].enabled is False
-    assert models["ovh-reasoning"].enabled is False
+    assert models["ovh-reasoning"].enabled is True
     assert models["openai-fast"].auto is True
     assert models["openai"].auto is False
     assert models["gpt-oss"].auto is False

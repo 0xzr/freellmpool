@@ -29,8 +29,7 @@
 
 <p class="lead"><strong>Groq's free API is the one developers reach for when latency matters. It runs
 models on custom LPU hardware that streams tokens noticeably faster than typical GPU inference. The current
-freellmpool routes include OpenAI's GPT-OSS 20B/120B, Qwen 3.6 27B, Groq Compound, and a pin-only
-Qwen 3.8 27B Preview route. You get a key
+freellmpool routes include OpenAI's GPT-OSS 20B/120B and a pin-only Qwen 3.8 27B Preview route. You get a key
 free at <a href="https://console.groq.com/keys">console.groq.com/keys</a> and call an OpenAI-compatible
 endpoint at <code>https://api.groq.com/openai/v1</code>. The main constraint is the free daily/minute rate
 limit, which is where pooling Groq with other tiers via
@@ -47,9 +46,7 @@ as your low-latency workhorse and keep a higher-context provider in reserve.</p>
 <tr><th>Model</th><th>Use it for</th></tr>
 <tr><td><code>openai/gpt-oss-120b</code></td><td>Strong reasoning when you can spare the budget</td></tr>
 <tr><td><code>openai/gpt-oss-20b</code></td><td>Fast drafts, classification, and routing</td></tr>
-<tr><td><code>qwen/qwen3.6-27b</code></td><td>General chat and multilingual work</td></tr>
 <tr><td><code>qwen/qwen3.8-27b</code></td><td>Explicit pin for newer text/streaming work; Preview, not automatic</td></tr>
-<tr><td><code>groq/compound</code></td><td>Groq's compound system; lower free-plan daily limit</td></tr>
 </table>
 
 <h2>Get a key and call it</h2>
@@ -100,8 +97,7 @@ console.</p>
 higher tokens-per-second than typical GPU serving — useful for interactive and streaming workloads.</p>
 <h3>What's the best free Groq model?</h3>
 <p>Use <code>openai/gpt-oss-120b</code> for harder reasoning,
-<code>openai/gpt-oss-20b</code> for speed, <code>qwen/qwen3.6-27b</code>
-for a general automatic Qwen route, or explicitly pin the Preview
+<code>openai/gpt-oss-20b</code> for speed, or explicitly pin the Preview
 <code>qwen/qwen3.8-27b</code> for its newer text/streaming capability. Its observed tool canary is
 unsupported, so keep tool loops on a verified route. Verify Groq's current model and rate-limit pages
 because availability changes.</p>

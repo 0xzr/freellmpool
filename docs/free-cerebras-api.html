@@ -43,10 +43,11 @@ recurring-free pool capacity.</p>
 lists:</p>
 <ul>
 <li><code>gpt-oss-120b</code> — strong open reasoning model, served fast.</li>
-<li><code>gemma-4-31b</code> — Google's current Gemma route.</li>
 </ul>
 <p><code>zai-glm-4.7</code> is no longer on Cerebras' official shared model list
-and is disabled in freellmpool.</p>
+and is disabled in freellmpool. <code>gemma-4-31b</code> returned 404 (archived) in
+both passes of the <a href="MODEL_ACTIVITY_AUDIT_2026-10-07.md">October 7 refresh</a>
+and is disabled too.</p>
 
 <h2>Get a key and call it</h2>
 <pre><code>curl https://api.cerebras.ai/v1/chat/completions \

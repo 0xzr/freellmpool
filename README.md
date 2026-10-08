@@ -4,11 +4,11 @@
 
 ![freellmpool tokenmax terminal demo](assets/demo.svg)
 
-![183 enabled chat routes, 23 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
+![178 enabled chat routes, 23 LLM providers cataloged, keyless start when available](assets/tokenmax-results.svg)
 
 freellmpool catalogs 23 LLM providers as distinct groups spanning recurring
 free tiers, keyless endpoints, finite trials, pin-only routes, and disabled
-candidates. It exposes 183 enabled chat routes and 438 cataloged chat models,
+candidates. It exposes 178 enabled chat routes and 443 cataloged chat models,
 and automatically pools only
 enabled routes you can access behind one OpenAI-compatible endpoint — as a CLI,
 a Python library, or a local proxy. It can start without credentials when an

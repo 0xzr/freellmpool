@@ -21,7 +21,7 @@ models = [
     # 2026-08-23. The provider currently resolves this selector to gpt-oss-20b.
     { name = "gpt-oss", rpd = 0, auto = false },
     { name = "gpt-oss-20b", rpd = 0, enabled = false, auto = false },
-    { name = "ovh-reasoning", rpd = 0, enabled = false, auto = false },
+    { name = "ovh-reasoning", rpd = 0, auto = false },
 ]
 
 [[provider]]
@@ -47,7 +47,7 @@ models = [
     { name = "deepseek-v4-flash", rpd = 0, enabled = false },
     { name = "deepseek-v3.1:671b-terminus", rpd = 0, enabled = false },
     { name = "gemma3:27b", rpd = 0, enabled = false },
-    { name = "gpt-oss:20b", rpd = 0, enabled = false, auto = false },
+    { name = "gpt-oss:20b", rpd = 0, auto = false },
 ]
 
 [[provider]]
@@ -64,12 +64,14 @@ models = [
     { name = "Mistral-Small-3.2-24B-Instruct-2506", rpd = 0 },
     { name = "Mistral-Nemo-Instruct-2407", rpd = 0 },
     { name = "Qwen3.6-27B", rpd = 0 },
-    { name = "Qwen3-32B", rpd = 0 },
+    { name = "Qwen3-32B", rpd = 0, enabled = false },
     { name = "Qwen3.5-9B", rpd = 0 },
     { name = "Qwen2.5-VL-72B-Instruct", rpd = 0 },
     { name = "Mistral-7B-Instruct-v0.3", rpd = 0 },
     { name = "gpt-oss-20b", rpd = 0 },
     { name = "Qwen3-Coder-30B-A3B-Instruct", rpd = 0 },
+    # Three repeat non-empty completions on 2026-10-07; slow canaries keep it pin-only.
+    { name = "Qwen3.8-27B", rpd = 0, auto = false },
 ]
 
 # Kilo Gateway: keyless OpenAI-compatible aggregator of FREE models (200 req/hr per IP,
@@ -96,18 +98,20 @@ models = [
     { name = "cohere/north-mini-code:free", rpd = 0 },
     # Three repeat non-empty keyless completions on 2026-08-29.
     { name = "dots-studio/dots-3-note-preview:free", rpd = 0 },
-    { name = "inclusionai/ling-3.0-flash-fin:free", rpd = 0 },
+    { name = "inclusionai/ling-3.0-flash-fin:free", rpd = 0, enabled = false },
     { name = "liquid/lfm-2.5-2.6b:free", rpd = 0 },
-    { name = "meituan/longcat-2.0-free", rpd = 0 },
-    { name = "minimax/minimax-m2.7:free", rpd = 0 },
+    { name = "meituan/longcat-2.0-free", rpd = 0, enabled = false },
+    { name = "minimax/minimax-m2.7:free", rpd = 0, enabled = false },
     { name = "nvidia/nemotron-3.5-lightning:free", rpd = 0 },
     { name = "poolside/laguna-s-2.1:free", rpd = 0 },
-    { name = "tencent/hy3:free", rpd = 0 },
+    { name = "tencent/hy3:free", rpd = 0, enabled = false },
     # Listed free, but not enabled until healthy keyless canaries succeed.
     { name = "minimax/minimax-m3:free", rpd = 0, enabled = false, auto = false },
     { name = "thinkingmachines/inkling-small:free", rpd = 0, enabled = false, auto = false },
     { name = "thinkingmachines/inkling:free", rpd = 0, enabled = false, auto = false },
     { name = "kwaipilot/kat-coder-pro-v2.5:free", rpd = 0, enabled = false },
+    # Three repeat non-empty completions on 2026-10-07.
+    { name = "inclusionai/ling-3.0-flash-sante:free", rpd = 0 },
 ]
 
 # OpenCode Zen: keyless OpenAI-compatible gateway. Free promotional routes expire
@@ -180,15 +184,15 @@ models = [
     { name = "openai/gpt-oss-120b", rpd = 1000 },
     { name = "openai/gpt-oss-20b", rpd = 1000 },
     { name = "meta-llama/llama-4-scout-17b-16e-instruct", rpd = 1000, enabled = false },
-    { name = "groq/compound", rpd = 250 },
+    { name = "groq/compound", rpd = 250, enabled = false },
     { name = "qwen/qwen3-32b", rpd = 1000, enabled = false },
-    { name = "qwen/qwen3.6-27b", rpd = 1000 },
+    { name = "qwen/qwen3.6-27b", rpd = 1000, enabled = false },
     # 2026-08-29: exactly three chat canaries plus streaming passed; the tool
     # canary was unsupported, so this Preview route remains explicit-pin-only.
     { name = "qwen/qwen3.8-27b", rpd = 1000, context = 131042, auto = false },
     # Absent from both the supported-model and current free-plan listings.
     { name = "allam-2-7b", rpd = 1000, enabled = false, auto = false },
-    { name = "groq/compound-mini", rpd = 250 },
+    { name = "groq/compound-mini", rpd = 250, enabled = false },
 ]
 
 # Aion Labs: OpenAI-compatible API with a recurring no-card free tier (15 RPM,
@@ -308,7 +312,7 @@ models = [
     { name = "qwen-3-235b-a22b-instruct-2507", rpd = 0, enabled = false, auto = false },
     { name = "llama3.1-8b", rpd = 0, enabled = false, auto = false },
     { name = "zai-glm-4.7", rpd = 0, enabled = false, auto = false },
-    { name = "gemma-4-31b", rpd = 0, auto = false },
+    { name = "gemma-4-31b", rpd = 0, enabled = false, auto = false },
 ]
 
 [[provider]]
@@ -344,7 +348,7 @@ models = [
     { name = "google/gemma-3-4b-it", rpd = 0, enabled = false },
     { name = "google/gemma-3n-e2b-it", rpd = 0, enabled = false },
     { name = "google/gemma-3n-e4b-it", rpd = 0, enabled = false },
-    { name = "google/gemma-4-31b-it", rpd = 0, enabled = false },
+    { name = "google/gemma-4-31b-it", rpd = 0, auto = false },
     { name = "google/recurrentgemma-2b", rpd = 0, enabled = false },
     { name = "ibm/granite-3.0-3b-a800m-instruct", rpd = 0, enabled = false },
     { name = "ibm/granite-3.0-8b-instruct", rpd = 0, enabled = false },
@@ -364,7 +368,7 @@ models = [
     { name = "microsoft/phi-4-mini-instruct", rpd = 0, enabled = false },
     { name = "microsoft/phi-4-multimodal-instruct", rpd = 0, enabled = false },
     { name = "minimaxai/minimax-m2.7", rpd = 0, enabled = false },
-    { name = "minimaxai/minimax-m3", rpd = 0 },
+    { name = "minimaxai/minimax-m3", rpd = 0, enabled = false },
     { name = "mistralai/codestral-22b-instruct-v0.1", rpd = 0, enabled = false },
     { name = "mistralai/ministral-14b-instruct-2512", rpd = 0, enabled = false },
     { name = "mistralai/mistral-7b-instruct-v0.3", rpd = 0, enabled = false },
@@ -372,7 +376,7 @@ models = [
     { name = "mistralai/mistral-large-2-instruct", rpd = 0, enabled = false },
     { name = "mistralai/mistral-large-3-675b-instruct-2512", rpd = 0, enabled = false },
     { name = "mistralai/mistral-medium-3.5-128b", rpd = 0, enabled = false, auto = false },
-    { name = "mistralai/mistral-nemotron", rpd = 0 },
+    { name = "mistralai/mistral-nemotron", rpd = 0, enabled = false },
     { name = "mistralai/mixtral-8x22b-v0.1", rpd = 0, enabled = false },
     { name = "mistralai/mixtral-8x7b-instruct-v0.1", rpd = 0, enabled = false },
     { name = "nv-mistralai/mistral-nemo-12b-instruct", rpd = 0, enabled = false },
@@ -386,7 +390,7 @@ models = [
     { name = "nvidia/llama-3.3-nemotron-super-49b-v1.5", rpd = 0, enabled = false, auto = false },
     { name = "nvidia/llama3-chatqa-1.5-70b", rpd = 0, enabled = false },
     { name = "nvidia/mistral-nemo-minitron-8b-8k-instruct", rpd = 0, enabled = false },
-    { name = "nvidia/nemotron-3-nano-30b-a3b", rpd = 0 },
+    { name = "nvidia/nemotron-3-nano-30b-a3b", rpd = 0, enabled = false },
     { name = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", rpd = 0 },
     { name = "nvidia/nemotron-4-340b-instruct", rpd = 0, enabled = false },
     { name = "nvidia/nemotron-mini-4b-instruct", rpd = 0, enabled = false },
@@ -417,8 +421,10 @@ models = [
     { name = "poolside/laguna-xs-2.1", rpd = 0 },
     { name = "thinkingmachines/inkling", rpd = 0, enabled = false, auto = false },
     { name = "meta/muse-glimmer-30b", rpd = 0, enabled = false, auto = false },
-    { name = "moonshotai/kimi-k3", rpd = 0, enabled = false, auto = false },
-    { name = "nvidia/nemotron-3.5-lightning-30b-a3b", rpd = 0, enabled = false, auto = false },
+    { name = "moonshotai/kimi-k3", rpd = 0, auto = false },
+    { name = "nvidia/nemotron-3.5-lightning-30b-a3b", rpd = 0 },
+    # Three repeat non-empty completions on 2026-10-07.
+    { name = "z-ai/glm-5.3", rpd = 0 },
 ]
 
 [[provider]]
@@ -458,16 +464,20 @@ models = [
     { name = "nvidia/nemotron-3-ultra-550b-a55b:free", rpd = 1000 },
     { name = "cohere/north-mini-code:free", rpd = 1000 },
     { name = "tencent/hy3:free", rpd = 1000, enabled = false },
-    { name = "dots-studio/dots-3-note-preview:free", rpd = 0, enabled = false, auto = false },
+    { name = "dots-studio/dots-3-note-preview:free", rpd = 0 },
     { name = "inclusionai/ling-3.0-flash-fin:free", rpd = 0, enabled = false, auto = false },
     { name = "liquid/lfm-2.5-2.6b:free", rpd = 0, enabled = false, auto = false },
     { name = "minimax/minimax-m2.7:free", rpd = 0, enabled = false, auto = false },
     { name = "minimax/minimax-m3:free", rpd = 0, enabled = false, auto = false },
-    { name = "nvidia/nemotron-3.5-lightning:free", rpd = 0, enabled = false, auto = false },
+    { name = "nvidia/nemotron-3.5-lightning:free", rpd = 0 },
     { name = "poolside/laguna-s-2.1:free", rpd = 0, enabled = false, auto = false },
     { name = "thinkingmachines/inkling-small:free", rpd = 0, enabled = false, auto = false },
     { name = "thinkingmachines/inkling:free", rpd = 0, enabled = false, auto = false },
     { name = "z-ai/glm-5.2:free", rpd = 0, enabled = false, auto = false },
+    # Three repeat non-empty completions on 2026-10-07.
+    { name = "apodex/apodex-1.1-mini:free", rpd = 0 },
+    # Three repeat non-empty completions on 2026-10-07.
+    { name = "inclusionai/ling-3.0-flash-sante:free", rpd = 0 },
 ]
 
 # Requesty: OpenAI-compatible router. The no-card free tier allows 200 requests
@@ -585,11 +595,11 @@ models = [
     { name = "mistral-small-2603", rpd = 0 },
     { name = "mistral-vibe-cli-fast", rpd = 0, auto = false },
     { name = "magistral-small-latest", rpd = 0, auto = false },
-    { name = "magistral-medium-2509", rpd = 0, auto = false },
+    { name = "magistral-medium-2509", rpd = 0, enabled = false, auto = false },
     { name = "magistral-medium-latest", rpd = 0, auto = false },
     { name = "labs-leanstral-2603", rpd = 0, enabled = false, auto = false },
-    { name = "mistral-large-2512", rpd = 0 },
-    { name = "mistral-large-latest", rpd = 0 },
+    { name = "mistral-large-2512", rpd = 0, enabled = false },
+    { name = "mistral-large-latest", rpd = 0, enabled = false },
     { name = "ministral-3b-2512", rpd = 0 },
     { name = "ministral-3b-latest", rpd = 0 },
     { name = "ministral-8b-2512", rpd = 0 },
@@ -602,7 +612,7 @@ models = [
     { name = "mistral-medium-2604", rpd = 0, enabled = false, auto = false },
     { name = "mistral-medium-c21211-r0-75", rpd = 0, enabled = false, auto = false },
     { name = "mistral-vibe-cli-latest", rpd = 0, auto = false },
-    { name = "magistral-small-2509", rpd = 0, auto = false },
+    { name = "magistral-small-2509", rpd = 0, enabled = false, auto = false },
     { name = "mistral-small-2506", rpd = 0, auto = false },
     { name = "zai-glm-5-2", rpd = 0, enabled = false, auto = false },
     { name = "labs-leanstral-1-5", rpd = 0, enabled = false, auto = false },
@@ -690,7 +700,7 @@ models = [
     { name = "deepseek-v4-flash", rpd = 0, enabled = false },
     { name = "gpt-oss:20b", rpd = 0 },
     { name = "minimax-m2.1", rpd = 0, enabled = false },
-    { name = "minimax-m3", rpd = 0 },
+    { name = "minimax-m3", rpd = 0, enabled = false },
     { name = "devstral-2:123b", rpd = 0, enabled = false },
     { name = "glm-5", rpd = 0, enabled = false },
     { name = "minimax-m2", rpd = 0, enabled = false },

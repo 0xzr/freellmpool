@@ -380,7 +380,7 @@ def test_pypi_metadata_has_launch_surfaces() -> None:
     assert len(project["description"]) <= 120
     assert f"> {project['description']}" in discovery
     assert (
-        "Catalog on `main`: 23 cataloged providers, 183 enabled chat routes, 438"
+        "Catalog on `main`: 23 cataloged providers, 178 enabled chat routes, 443"
         in promotion
     )
 

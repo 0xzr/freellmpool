@@ -61,8 +61,8 @@ What it does:
 Current catalog:
 
 - 23 cataloged providers
-- 183 enabled chat routes
-- 438 cataloged chat models
+- 178 enabled chat routes
+- 443 cataloged chat models
 - keyless start when default keyless routes are available, more capacity when
   you add your own free keys
 

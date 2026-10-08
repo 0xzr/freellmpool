@@ -17,7 +17,7 @@ counts, which track `main`.
 - Interfaces: CLI, Python library, OpenAI-compatible proxy, experimental
   Anthropic-compatible proxy path, and MCP server.
 - Audio: OpenAI-compatible speech-to-text through the transcription endpoint.
-- Catalog on `main`: 23 cataloged providers, 183 enabled chat routes, 438
+- Catalog on `main`: 23 cataloged providers, 178 enabled chat routes, 443
   cataloged chat models. The 0.13.0 release predates the Requesty provider,
   which ships in the next release.
 - Strongest visual assets:

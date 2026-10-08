@@ -21,6 +21,16 @@ All notable changes to this project are documented here. The format is based on
   JSON secret.
 - Public discovery accepts listings up to 4 MB; Requesty's listing is just
   over the previous 1 MB cap and was reported as invalid.
+- Catalog refresh from local keyed probes
+  ([audit](docs/MODEL_ACTIVITY_AUDIT_2026-10-07.md)): 17 routes that returned
+  404/410, an invalid-model error, or a paywall or sign-in gate in two passes
+  are disabled; 7 recovered routes are re-enabled and 5 new free routes added
+  after three fresh non-empty completions. The catalog now has 23 providers,
+  178 enabled chat routes, and 443 cataloged chat models.
+- The metaswarm adapter's default strong-review panel drops five retired or
+  unavailable routes. The five remaining routes all exist in the 0.13.0
+  catalog; four answered in the refresh, and `mistral-medium-latest` was rate
+  limited (429).
 
 ## [0.13.0] — 2026-08-29
 
