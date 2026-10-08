@@ -27,8 +27,8 @@ def test_spanish_readme_tracks_current_launch_surface():
     assert "Puede quedar por detrás" in spanish
     assert "![demostración de freellmpool tokenmax en terminal](assets/demo.svg)" in spanish
     assert "23 proveedores" in spanish
-    assert "183 rutas de chat" in spanish
-    assert "438 modelos de chat" in spanish
+    assert "178 rutas de chat" in spanish
+    assert "443 modelos de chat" in spanish
     assert "Última versión: 0.13.0" in spanish
     assert "main contiene cambios aún no publicados" not in spanish
     assert "0.11.4" not in spanish

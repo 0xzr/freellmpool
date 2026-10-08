@@ -5,7 +5,7 @@
 I built freellmpool: a local, open-source pool for free LLM API tiers.
 
 - 23 cataloged providers
-- 183 enabled chat routes
+- 178 enabled chat routes
 - OpenAI-compatible local proxy
 - MCP server
 - keyless start when default keyless routes are available
@@ -35,8 +35,8 @@ coding agents, docs, triage, and side tasks.
 4/ Current catalog:
 
 - 23 cataloged providers
-- 183 enabled chat routes
-- 438 cataloged chat models
+- 178 enabled chat routes
+- 443 cataloged chat models
 - keyless start when default keyless routes are available
 
 5/ It handles practical routing problems: 429s, timeouts, empty replies, stale
@@ -105,7 +105,7 @@ It supports:
 - keyless start when default keyless routes are available, with optional
   free-tier provider keys for more capacity
 
-Current catalog: 23 cataloged providers, 183 enabled chat routes, and 438 cataloged chat
+Current catalog: 23 cataloged providers, 178 enabled chat routes, and 443 cataloged chat
 models.
 
 It is not a privacy layer. Prompts go to the selected upstream provider; the FAQ
@@ -126,6 +126,6 @@ tiers.
 CLI, Python library, local OpenAI-compatible proxy, experimental
 Anthropic-compatible path, and MCP server.
 
-23 cataloged providers, 183 enabled chat routes, keyless start when routes are available.
+23 cataloged providers, 178 enabled chat routes, keyless start when routes are available.
 
 https://github.com/0xzr/freellmpool

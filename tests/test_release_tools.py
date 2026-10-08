@@ -31,8 +31,8 @@ def test_release_ready_metadata_is_clean():
     # The exact provider count is a release-copy tripwire: adding/removing a provider
     # should force a deliberate README/docs/server metadata update.
     assert counts.providers == 23
-    assert counts.enabled_chat_models == 183
-    assert counts.cataloged_chat_models == 438
+    assert counts.enabled_chat_models == 178
+    assert counts.cataloged_chat_models == 443
     assert release_ready.metadata_errors(ROOT) == []
 
 

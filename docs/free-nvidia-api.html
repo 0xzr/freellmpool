@@ -43,13 +43,14 @@ find free elsewhere.</p>
 <ul>
 <li><code>nvidia/nemotron-3-super-120b-a12b</code> — NVIDIA's own reasoning-tuned model.</li>
 <li><code>nvidia/nemotron-3-ultra-550b-a55b</code> — a larger Nemotron route.</li>
-<li><code>minimaxai/minimax-m3</code> — MiniMax's current hosted route.</li>
+<li><code>z-ai/glm-5.3</code> — a current GLM route.</li>
 <li><code>openai/gpt-oss-20b</code> — a smaller GPT-OSS route.</li>
 </ul>
 <p>Use the live <a href="https://integrate.api.nvidia.com/v1/models">hosted model listing</a>
 and <code>freellmpool models -p nvidia</code> together. Listed candidates are not
-automatically trusted: newly observed V4, Muse, Kimi K3, and Nemotron 3.5 routes
-remain disabled pending credentialed completion canaries.</p>
+automatically trusted: a route is enabled only after repeat credentialed completion
+canaries. Kimi K3 and Nemotron 3.5 Lightning passed them on 2026-10-07 (Kimi K3 stays
+pin-only because its canaries were slow); the V4 and Muse candidates remain disabled.</p>
 
 <h2>Get a key and call it</h2>
 <pre><code>curl https://integrate.api.nvidia.com/v1/chat/completions \
@@ -61,8 +62,10 @@ remain disabled pending credentialed completion canaries.</p>
 <li>Free access is credit-metered rather than a flat daily request count, so heavy use depletes faster than
 on a recurring request-capped tier such as Groq.</li>
 <li>The catalog churns — models are added and retired; pin IDs you depend on and expect occasional changes.</li>
-<li>Thirteen formerly enabled IDs were absent from the August 29 live listing and are now disabled.
-See the <a href="MODEL_ACTIVITY_AUDIT_2026-08-29.md">dated activity audit</a> for the exact sanitized evidence.</li>
+<li>Thirteen formerly enabled IDs were absent from the August 29 live listing and are now disabled,
+and three more returned 410 Gone on October 7. See the
+<a href="MODEL_ACTIVITY_AUDIT_2026-08-29.md">August 29</a> and
+<a href="MODEL_ACTIVITY_AUDIT_2026-10-07.md">October 7</a> activity audits for the sanitized evidence.</li>
 <li>Model IDs are namespaced by vendor (e.g. <code>meta/</code>, <code>nvidia/</code>,
 <code>mistralai/</code>) — copy them exactly.</li>
 </ul>
