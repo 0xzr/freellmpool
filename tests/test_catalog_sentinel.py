@@ -845,6 +845,9 @@ def test_workflow_is_advisory_least_privilege_and_fork_safe():
     assert "gh issue create" in workflow
     assert "gh issue comment" in workflow
     assert "github-actions[bot]" in workflow
+    # gh issue list reports the Actions bot as app/github-actions; without it the
+    # dedupe never matches and every drift run opens a new issue.
+    assert '.author.login == "app/github-actions"' in workflow
     assert "<!-- freellmpool-catalog-sentinel:public:v1 -->" in workflow
     assert ".author.login" in workflow
     assert ".body | contains(" in workflow

@@ -86,7 +86,9 @@ jobs:
             --json number,title,author,body \
             --jq 'map(select(
               .title == "Catalog sentinel drift"
-              and (.author.login == "github-actions[bot]" or .author.login == "github-actions")
+              and (.author.login == "app/github-actions"
+                or .author.login == "github-actions[bot]"
+                or .author.login == "github-actions")
               and (.body | contains("<!-- freellmpool-catalog-sentinel:public:v1 -->"))
             )) | first | .number // empty')
           if [[ "$existing" =~ ^[0-9]+$ ]]; then
