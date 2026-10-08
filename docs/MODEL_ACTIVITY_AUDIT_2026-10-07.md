@@ -120,9 +120,10 @@ Five of the seven default `FREELLMPOOL_STRONG_MODELS` routes were unusable
 (`nvidia/moonshotai/kimi-k2.6` 404, `nvidia/mistralai/mistral-large-3-675b-instruct-2512`
 410, `mistral/mistral-large-latest` 403, `openrouter/openai/gpt-oss-120b:free`
 404, and `nvidia/z-ai/glm-5.1`, which is not in the catalog). The default panel
-is now `nvidia/moonshotai/kimi-k3`, `nvidia/z-ai/glm-5.3`,
-`nvidia/nvidia/nemotron-3-ultra-550b-a55b`, `mistral/mistral-medium-latest`,
-`openrouter/nvidia/nemotron-3-ultra-550b-a55b:free`, and
-`openrouter/nvidia/nemotron-3-super-120b-a12b:free`. All but the Mistral route
+is now `nvidia/moonshotai/kimi-k3`, `nvidia/nvidia/nemotron-3-ultra-550b-a55b`,
+`mistral/mistral-medium-latest`, `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free`,
+and `openrouter/nvidia/nemotron-3-super-120b-a12b:free`. Every member also exists
+in the 0.13.0 catalog, so the adapter works with the current PyPI release;
+`z-ai/glm-5.3` is left out until a release ships it. All but the Mistral route
 returned non-empty completions in this refresh; `mistral-medium-latest` is an
 enabled route whose 429s were rate limiting.

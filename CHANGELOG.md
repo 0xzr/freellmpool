@@ -27,6 +27,10 @@ All notable changes to this project are documented here. The format is based on
   are disabled; 7 recovered routes are re-enabled and 5 new free routes added
   after three fresh non-empty completions. The catalog now has 23 providers,
   178 enabled chat routes, and 443 cataloged chat models.
+- The metaswarm adapter's default strong-review panel drops five retired or
+  unavailable routes. The five remaining routes all exist in the 0.13.0
+  catalog; four answered in the refresh, and `mistral-medium-latest` was rate
+  limited (429).
 
 ## [0.13.0] — 2026-08-29
 

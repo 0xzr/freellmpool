@@ -69,13 +69,11 @@ adapters:
     review_mode: "strong"
     strong_providers: ["mistral", "nvidia", "openrouter"]
     strong_models:
-      - "nvidia/moonshotai/kimi-k2.6"
-      - "nvidia/z-ai/glm-5.1"
-      - "nvidia/mistralai/mistral-large-3-675b-instruct-2512"
-      - "mistral/mistral-large-latest"
+      - "nvidia/moonshotai/kimi-k3"
       - "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+      - "mistral/mistral-medium-latest"
       - "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
-      - "openrouter/openai/gpt-oss-120b:free"
+      - "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
     max_models: 7
     max_tokens: 65536
     provider_timeout_seconds: 600
