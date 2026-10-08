@@ -255,7 +255,7 @@ def test_llm_plugin_publish_workflow_recovers_only_matching_pypi_artifacts() -> 
     assert upload_guard in auth["if"]
     assert upload_guard in publish["if"]
     assert publish["uses"] == (
-        "pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e"
+        "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33"
     )
     assert "106e0b0b7c337fa67ed433972f777c6357f78598" not in workflow
     assert publish["with"]["skip-existing"] is True
@@ -310,7 +310,7 @@ def test_pages_deployment_is_gated_by_current_docs_metadata() -> None:
     deploy_uses = [step["uses"] for step in jobs["deploy"]["steps"]]
     assert deploy_uses == [
         "actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d",
-        "actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128"
+        "actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346"
     ]
 
 
