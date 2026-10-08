@@ -2,8 +2,8 @@
 
 freellmpool is a local gateway built around a packaged catalog,
 credential-aware configuration, an eligibility-aware router, bounded provider
-clients, and thin CLI/proxy/MCP interfaces. The current catalog contains 22
-provider groups, 431 chat models, and 178 enabled chat routes. Catalog presence
+clients, and thin CLI/proxy/MCP interfaces. The current catalog contains 23
+provider groups, 438 chat models, and 183 enabled chat routes. Catalog presence
 is not routing eligibility: recurring free tiers, keyless endpoints, finite
 trials, pin-only routes, and disabled candidates remain distinct.
 

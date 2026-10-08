@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/llm-freellmpool.svg)](https://pypi.org/project/llm-freellmpool/)
 
 A plugin for [llm](https://llm.datasette.io) that runs LLM requests through
-[freellmpool](https://github.com/0xzr/freellmpool). freellmpool has 22 cataloged providers
+[freellmpool](https://github.com/0xzr/freellmpool). freellmpool has 23 cataloged providers
 spanning recurring free tiers, keyless routes, finite trials,
 pin-only routes, and disabled candidates; it automatically fails over only
 across enabled routes you can access. It can start with zero API keys while an

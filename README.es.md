@@ -6,12 +6,12 @@
 
 ![demostración de freellmpool tokenmax en terminal](assets/demo.svg)
 
-![178 rutas de chat habilitadas, 22 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
+![183 rutas de chat habilitadas, 23 proveedores catalogados, inicio sin clave cuando está disponible](assets/tokenmax-results.svg)
 
-freellmpool cataloga 22 proveedores de LLM como grupos distintos que abarcan
+freellmpool cataloga 23 proveedores de LLM como grupos distintos que abarcan
 niveles gratuitos recurrentes, endpoints sin clave, pruebas finitas, rutas solo
-por pin y candidatos deshabilitados. Expone 178 rutas de chat habilitadas y
-431 modelos de chat catalogados detrás de un endpoint compatible con OpenAI, y
+por pin y candidatos deshabilitados. Expone 183 rutas de chat habilitadas y
+438 modelos de chat catalogados detrás de un endpoint compatible con OpenAI, y
 agrupa automáticamente solo las rutas habilitadas a las que tienes acceso. Puede
 empezar sin credenciales cuando hay una ruta sin clave habilitada y disponible.
 
@@ -326,6 +326,7 @@ tarjeta, prueba finita o precio están en [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
 | Cerebras | `CEREBRAS_API_KEY` | prueba finita de $5; rutas explícitas, no capacidad recurrente automática |
 | NVIDIA NIM | `NVIDIA_API_KEY` | |
 | OpenRouter | `OPENROUTER_API_KEY` | modelos gratuitos |
+| Requesty | `REQUESTY_API_KEY` | solo modelos con precio cero; 200 solicitudes/día por cuenta, sin tarjeta |
 | Google Gemini | `GEMINI_API_KEY` | |
 | Cloudflare | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | |
 | Hugging Face router | `HF_TOKEN` | nivel gratuito del router |
@@ -427,7 +428,7 @@ Notas de arquitectura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Herramienta | Inicio sin clave | # proveedores | Failover | Servidor MCP | CLI | Transcripción | Local/self-hosted | Licencia |
 |---|---|---:|---|---|---|---|---|---|
-| **freellmpool** | Sí, cuando hay disponible un proveedor sin clave configurado | 22 proveedores de chat catalogados localmente | Sí: fallos reintentables, respuestas vacías y errores de transporte | Sí: `freellmpool mcp` | CLI one-shot más perfiles, biblioteca y proxy | Sí: `/v1/audio/transcriptions` con failover | Sí: paquete Python y proxy local | MIT |
+| **freellmpool** | Sí, cuando hay disponible un proveedor sin clave configurado | 23 proveedores de chat catalogados localmente | Sí: fallos reintentables, respuestas vacías y errores de transporte | Sí: `freellmpool mcp` | CLI one-shot más perfiles, biblioteca y proxy | Sí: `/v1/audio/transcriptions` con failover | Sí: paquete Python y proxy local | MIT |
 | [OpenRouter free models](https://openrouter.ai/openrouter/free/providers) | No: el servicio hospedado requiere cuenta/clave | Router hospedado; su lista gratuita cambia | Sí: fallbacks de proveedor/modelo | Sí: servidor MCP remoto hospedado | API/SDK hospedados, no gateway CLI local | Audio/transcripción vía chat multimodal | No: servicio hospedado | Servicio propietario |
 | [LiteLLM](https://github.com/BerriAI/litellm/blob/5d4c4d0fce45c73c4b56b48e46dfc4e56e8b0aa5/README.md) | No: aporta credenciales de proveedor o gateway | El README afirma 100+ LLM/proveedores | Sí: router, reintentos y fallbacks | Sí: AI Gateway incluye MCP Gateway | SDK y proxy/gateway CLI | Sí: `/audio/transcriptions` | Sí: proxy self-hosted u oferta hospedada | Core MIT; funciones enterprise comerciales |
 | [OmniRoute](https://github.com/diegosouzapw/OmniRoute/blob/d8ff51874c8add566d43225988b9bc67e0542d65/README.md) | Sí: documenta una opción OpenCode sin autenticación | El README afirma 268 integraciones/proveedores y 90+ opciones gratuitas | Sí: routing y circuit breaker por capas | Sí: planos MCP y A2A | CLI amplio y configuración de agentes | Documenta traducción de audio; otras capacidades varían | Sí: Node, dashboard, Docker y desktop/PWA | MIT |
@@ -450,7 +451,7 @@ de OmniRoute y FreeLLMAPI.
 
 **¿Hay un gateway LLM API gratis y compatible con OpenAI?** Sí. freellmpool es
 un gateway gratuito con licencia MIT que expone un endpoint compatible con
-OpenAI sobre las rutas habilitadas a las que tienes acceso. Sus 22 grupos
+OpenAI sobre las rutas habilitadas a las que tienes acceso. Sus 23 grupos
 catalogados abarcan niveles gratuitos recurrentes, endpoints sin clave, pruebas
 finitas, rutas solo por pin y candidatos deshabilitados.
 
@@ -477,7 +478,7 @@ para ampliar rutas y capacidad; las condiciones cambian por proveedor.
 
 ## Destacado en
 
-- Videos de la comunidad (por lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) y ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (usan un catálogo anterior; ahora freellmpool cataloga 22 proveedores).
+- Videos de la comunidad (por lytohlg AI): ["Accede a 18 modelos de IA GRATIS con 1 solo comando"](https://www.youtube.com/watch?v=1UfIlWoedho) y ["Prueba 18 IAs GRATIS sin API key en 30 segundos"](https://www.youtube.com/watch?v=oaM_E92WVGQ) (usan un catálogo anterior; ahora freellmpool cataloga 23 proveedores).
 - Directorio: [FreeLLM Pool en MCP Market](https://mcpmarket.com/server/freellm-pool).
 
 ## Contribuir

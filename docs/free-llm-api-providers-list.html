@@ -29,7 +29,7 @@
 <p class="tag"><a href="https://0xzr.github.io/freellmpool/">freellmpool</a> › reference</p>
 <h1>Free LLM API providers (2026)</h1>
 
-<p class="lead"><strong>These 22 providers span recurring free tiers, finite trials, keyless
+<p class="lead"><strong>These 23 providers span recurring free tiers, finite trials, keyless
 endpoints, and explicit pin-only routes. Three need no API key at all, and LLM7 is key-optional. The table
 shows whether a key is required, roughly how many routes are enabled, and an access signal where known.
 Disabled or pending-canary routes are not automatic capacity. The catch with using several is that each has its own SDK and limits — the
@@ -48,6 +48,7 @@ routes remain visible for explicit decisions but are not all automatic free capa
 <tr data-provider="cerebras"><td>Cerebras</td><td>Yes (trial)</td><td class=num>2</td><td>Finite $5 trial; documented routes are explicit pins, not automatic capacity</td></tr>
 <tr data-provider="gemini"><td>Google Gemini</td><td>Yes (free)</td><td class=num>1</td><td>Current free-tier limits vary by project/model</td></tr>
 <tr data-provider="openrouter"><td>OpenRouter</td><td>Yes (free)</td><td class=num>8</td><td>Free-route limits depend on account credits and current policy</td></tr>
+<tr data-provider="requesty"><td>Requesty</td><td>Yes (free)</td><td class=num>5</td><td>200 requests/day per account on zero-priced models; no card</td></tr>
 <tr data-provider="nvidia"><td>NVIDIA NIM</td><td>Yes (free)</td><td class=num>11</td><td>Account credits and model-specific rate limits</td></tr>
 <tr data-provider="cloudflare"><td>Cloudflare Workers AI</td><td>Yes (free)</td><td class=num>22</td><td>Daily Neuron allowance</td></tr>
 <tr data-provider="mistral"><td>Mistral</td><td>Yes (free)</td><td class=num>36</td><td>Account- and model-specific experimentation limits</td></tr>
@@ -63,7 +64,7 @@ routes remain visible for explicit decisions but are not all automatic free capa
 <tr data-provider="siliconflow"><td>SiliconFlow</td><td>Yes (free)</td><td class=num>1</td><td>Fixed free-model limits; identity verification required</td></tr>
 </table>
 <p class="tag">* Enabled routes across chat, embeddings, and transcription in freellmpool's catalog
-(196 capability routes in total; 177 are chat routes); varies as tiers change.
+(202 capability routes in total; 183 are chat routes); varies as tiers change.
 ** Access signals are approximate and change without notice — always check the provider's current
 docs. freellmpool tracks your real per-day usage as you go.</p>
 
@@ -84,7 +85,7 @@ freellmpool providers                                         # see which tiers 
 <p>The catalog distinguishes recurring free tiers, finite trials, keyless endpoints, priced pins, and
 disabled candidates. Pollinations, OVHcloud, and Kilo Gateway have enabled keyless routes; LLM7 accepts
 an optional key. Cerebras is finite-trial pin-only, while OpenCode Zen, SambaNova, and Morph currently
-have no enabled routes. Check each row and the dated activity audit instead of treating all 22 provider
+have no enabled routes. Check each row and the dated activity audit instead of treating all 23 provider
 groups as interchangeable free capacity.</p>
 <h3>What's the free LLM API with the highest limit?</h3>
 <p>There is no durable single winner: recurring allowances are model-, account-, and project-specific,

@@ -170,6 +170,16 @@ def list_live_models(provider: Provider, env: dict) -> list[str]:
         ids = [i for i in ids if i.endswith(":free") or i in free_aliases]
     elif provider.id == "opencode":
         ids = [i for i in ids if i.endswith("-free")]
+    elif provider.id == "requesty":
+        ids = [
+            m["id"]
+            for m in rows
+            if isinstance(m, dict)
+            and m.get("id")
+            and m.get("api", "chat") == "chat"
+            and m.get("input_price") == 0
+            and m.get("output_price") == 0
+        ]
     return ids
 
 

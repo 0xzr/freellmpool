@@ -54,6 +54,24 @@ def test_discovery_filters_paid_aggregator_routes(monkeypatch) -> None:
     assert vetter.list_live_models(_provider("opencode"), {}) == ["hy3-free"]
 
 
+def test_requesty_discovery_keeps_zero_priced_chat_routes(monkeypatch) -> None:
+    vetter = _load_vetter()
+    monkeypatch.setattr(
+        vetter,
+        "_http_get",
+        lambda url, headers: {
+            "data": [
+                {"id": "vendor/paid", "api": "chat", "input_price": 1e-06, "output_price": 2e-06},
+                {"id": "vendor/free", "api": "chat", "input_price": 0, "output_price": 0},
+                {"id": "vendor/embed", "api": "embedding", "input_price": 0, "output_price": 0},
+                {"id": "vendor/unpriced", "api": "chat"},
+            ]
+        },
+    )
+
+    assert vetter.list_live_models(_provider("requesty"), {}) == ["vendor/free"]
+
+
 def test_pollinations_discovery_includes_canonical_name_and_aliases(monkeypatch) -> None:
     vetter = _load_vetter()
     monkeypatch.setattr(

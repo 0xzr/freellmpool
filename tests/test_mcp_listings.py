@@ -44,7 +44,7 @@ def test_server_json_is_registry_ready_for_stdio_package():
         "source": "github",
     }
     assert len(server["description"]) <= 100
-    assert "22 LLM providers" in server["description"]
+    assert "23 LLM providers" in server["description"]
     assert "OpenAI-compatible" in server["description"]
     assert "MCP" in server["description"]
     assert package["registryType"] == "pypi"
