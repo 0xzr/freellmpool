@@ -60,6 +60,12 @@ That's enough to start. Run `freellmpool ask "hello"`.
    The 200/day cap is per account and covers the zero-priced models listed at
    <https://www.requesty.ai/free-models>; paid models need account credit.
 
+   Requesty model ids have no `:free` suffix, and its free catalog changes over
+   time, so a route freellmpool lists as free can become priced under the same
+   id. Keep no paid credit on the account you use here, or set a monthly spend
+   limit on the key from the Requesty API Keys page, so a repriced route cannot
+   bill you more than you allow.
+
 ### Google Gemini (AI Studio) — *generous free tier*
 1. <https://aistudio.google.com/apikey> → **Create API key**.
 2. `export GEMINI_API_KEY=...`

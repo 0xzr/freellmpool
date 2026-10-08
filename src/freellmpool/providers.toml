@@ -474,7 +474,9 @@ models = [
 # per day in total across its free models; paid models need account credit.
 # Only routes with zero input and output price in the public /models listing are
 # cataloged. RPD stays 0 because the cap is per account, not per model. Prices
-# and repeat non-empty keyed completions checked 2026-09-25.
+# and repeat non-empty keyed completions checked 2026-09-25. Ids have no :free
+# suffix, so a route can be repriced under the same id; docs/ACCOUNTS.md tells
+# users to keep no paid credit or set a key spend limit.
 [[provider]]
 id = "requesty"
 label = "Requesty (free models)"
