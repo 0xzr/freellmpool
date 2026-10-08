@@ -40,22 +40,36 @@ XT_SPEC_FILE=""
 XT_ATTEMPT="1"
 XT_TIMEOUT="0"
 
-# Interpreter for the embedded Python helpers below. The provider-count helper
-# imports freellmpool.config, which needs Python >= 3.11 (tomllib) and the
-# package importable. Resolution order: FREELLMPOOL_PYTHON -> the python3
-# beside the configured freellmpool executable -> $VIRTUAL_ENV -> PATH python3.
-# The freellmpool sibling comes before an active virtualenv because the
-# interpreter belonging to the freellmpool that will run the review is the
-# capable one, while an unrelated active venv may not have the package.
+# Interpreter for the provider-count helper, the only embedded helper that
+# imports freellmpool (Python 3.11+ with the package importable). The other
+# helpers use only the standard library and run on PATH python3. Resolution
+# order: FREELLMPOOL_PYTHON -> the interpreter named in the freellmpool
+# script's shebang (pip, pipx and uv console scripts name their own Python)
+# -> the python3 beside the symlink-resolved freellmpool executable ->
+# $VIRTUAL_ENV/bin/python3 -> PATH python3. The interpreter belonging to the
+# freellmpool that will run the review comes before an active virtualenv,
+# which may not have the package.
 PYTHON_BIN=""
 resolve_helper_python() {
-  local candidate
+  local tool_path real_path shebang candidate
   if [[ -n "${FREELLMPOOL_PYTHON:-}" ]]; then
     PYTHON_BIN="$FREELLMPOOL_PYTHON"
     return 0
   fi
-  if [[ -n "${FREELLMPOOL_CMD:-}" ]]; then
-    candidate="$(dirname "$(command -v "$FREELLMPOOL_CMD" 2>/dev/null || printf '%s' "$FREELLMPOOL_CMD")")/python3"
+  tool_path="$(command -v "$TOOL_CMD" 2>/dev/null || true)"
+  if [[ -n "$tool_path" && -f "$tool_path" ]]; then
+    shebang=""
+    IFS= read -r -n 512 shebang 2>/dev/null <"$tool_path" || true
+    if [[ "$shebang" == '#!/'* ]]; then
+      candidate="${shebang#\#!}"
+      candidate="${candidate%%[[:space:]]*}"
+      if [[ "${candidate##*/}" == python* && -x "$candidate" ]]; then
+        PYTHON_BIN="$candidate"
+        return 0
+      fi
+    fi
+    real_path="$(readlink -f "$tool_path" 2>/dev/null || printf '%s' "$tool_path")"
+    candidate="$(dirname "$real_path")/python3"
     if [[ -x "$candidate" ]]; then
       PYTHON_BIN="$candidate"
       return 0
@@ -73,18 +87,6 @@ resolve_helper_python
 # Shared fix-it guidance for every "helper interpreter unusable" diagnostic
 # (helper stderr, health warning, review raw_log).
 HELPER_FIX_HINT="Set FREELLMPOOL_PYTHON to a Python 3.11+ interpreter with freellmpool installed (for example the virtualenv used to install freellmpool), or activate that virtualenv before dispatch."
-
-# Run a stdlib-only embedded helper. Prefer the resolved helper interpreter;
-# if it cannot run at all, fall back to PATH python3 so JSON envelopes and
-# redaction keep working (these scripts use only the standard library).
-run_py() {
-  if command -v "$PYTHON_BIN" >/dev/null 2>&1 || [[ -x "$PYTHON_BIN" ]]; then
-    if "$PYTHON_BIN" "$@" 2>/dev/null; then
-      return 0
-    fi
-  fi
-  python3 "$@"
-}
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -202,7 +204,7 @@ redact_log_file() {
   local log_file="${1:-}"
   [[ -n "$log_file" && -f "$log_file" ]] || return 0
 
-  run_py - "$log_file" <<'PY'
+  python3 - "$log_file" <<'PY'
 import pathlib
 import re
 import sys
@@ -222,7 +224,7 @@ PY
 }
 
 strong_models_json() {
-  run_py - "$STRONG_MODELS" <<'PY'
+  python3 - "$STRONG_MODELS" <<'PY'
 import json
 import sys
 
@@ -242,7 +244,7 @@ emit_json() {
   local raw_log_file="${8:-}"
   local error_type="${9:-}"
 
-  run_py - "$SCHEMA_VERSION" "$TOOL_NAME" "$command" "$model" "$attempt" "$exit_code" \
+  python3 - "$SCHEMA_VERSION" "$TOOL_NAME" "$command" "$model" "$attempt" "$exit_code" \
     "$branch" "$git_sha" "$duration_seconds" "$raw_log_file" "$error_type" <<'PY'
 import json
 import pathlib
@@ -360,7 +362,7 @@ add_provider_key_env() {
 
 missing_strong_model_providers() {
   local configured_providers="${1:-}"
-  run_py - "$STRONG_MODELS" "$configured_providers" <<'PY'
+  python3 - "$STRONG_MODELS" "$configured_providers" <<'PY'
 import sys
 
 models = [item.strip() for item in sys.argv[1].split(",") if item.strip()]
@@ -377,13 +379,13 @@ PY
 count_configured_strong_providers() {
   # Output contract: line 1 = count, line 2 = comma-joined provider ids.
   # The special count -1 means the helper interpreter could not import
-  # freellmpool (too old, missing tomllib, or package not installed); callers
-  # must fail closed with helper_unavailable rather than guess at auth state.
+  # freellmpool (too old, or package not installed). Callers treat -1, a
+  # failed helper, or empty output as helper_unavailable rather than guess at
+  # auth state.
   "$PYTHON_BIN" - "$STRONG_PROVIDERS" "$HELPER_FIX_HINT" <<'PY'
 import sys
 
 try:
-    import tomllib  # noqa: F401
     from freellmpool.config import configured_providers
 except Exception as exc:
     print(f"freellmpool review adapter helper could not import freellmpool via {sys.executable}: {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -411,9 +413,9 @@ cmd_health() {
     local strong_provider_info
     strong_provider_info="$(count_configured_strong_providers 2>/dev/null || printf '%s\n' '-1')"
     strong_provider_count="$(printf '%s\n' "$strong_provider_info" | sed -n '1p')"
-    strong_provider_count="${strong_provider_count:-0}"
+    strong_provider_count="${strong_provider_count:--1}"
     if [[ "$strong_provider_count" == "-1" ]]; then
-      printf 'freellmpool review adapter helper interpreter %q could not import freellmpool.config. %s\n' "$PYTHON_BIN" "$HELPER_FIX_HINT" >&2
+      printf 'freellmpool review adapter helper interpreter %q could not run the provider check. %s\n' "$PYTHON_BIN" "$HELPER_FIX_HINT" >&2
     fi
     case "$strong_provider_count" in
       ''|*[!0-9]*) strong_provider_count="0" ;;
@@ -425,7 +427,7 @@ cmd_health() {
     fi
   fi
 
-  run_py - "$TOOL_NAME" "$status" "$version" "$auth_valid" "$DEFAULT_MODEL" "$DEFAULT_ROUTING" \
+  python3 - "$TOOL_NAME" "$status" "$version" "$auth_valid" "$DEFAULT_MODEL" "$DEFAULT_ROUTING" \
     "$REVIEW_MODE" "$MAX_MODELS" "$STRONG_PROVIDERS" "$configured_strong_providers" \
     "$strong_provider_count" "$(strong_models_json)" <<'PY'
 import json
@@ -524,17 +526,24 @@ cmd_review() {
     return 1
   fi
 
-  local strong_provider_info strong_provider_count
+  local strong_provider_info strong_provider_count helper_stderr_file
   local configured_strong_providers=""
-  strong_provider_info="$(count_configured_strong_providers 2>/dev/null || printf '%s\n' '-1')"
+  helper_stderr_file="${tmp_dir}/provider-helper-stderr.txt"
+  strong_provider_info="$(count_configured_strong_providers 2>"$helper_stderr_file" || printf '%s\n' '-1')"
   strong_provider_count="$(printf '%s\n' "$strong_provider_info" | sed -n '1p')"
-  strong_provider_count="${strong_provider_count:-0}"
+  strong_provider_count="${strong_provider_count:--1}"
   configured_strong_providers="$(printf '%s\n' "$strong_provider_info" | sed -n '2p')"
-  if [[ -z "$strong_provider_count" || "$strong_provider_count" == "-1" ]]; then
+  if [[ "$strong_provider_count" == "-1" ]]; then
     # Fail closed loudly: the helper interpreter cannot run this project, so no
     # provider-auth conclusion is possible. Never mislabel this auth_missing.
     raw_log_file="${tmp_dir}/helper-interpreter-unavailable.txt"
-    printf 'freellmpool review adapter helper interpreter %q could not import freellmpool.config; the configured strong providers cannot be determined. %s\n' "$PYTHON_BIN" "$HELPER_FIX_HINT" >"$raw_log_file"
+    {
+      printf 'freellmpool review adapter helper interpreter %q could not run the provider check; the configured strong providers cannot be determined. %s\n' "$PYTHON_BIN" "$HELPER_FIX_HINT"
+      if [[ -s "$helper_stderr_file" ]]; then
+        printf 'Helper stderr:\n'
+        tail -c 4000 "$helper_stderr_file"
+      fi
+    } >"$raw_log_file"
     local helper_json
     helper_json="$(emit_error "review" "$DEFAULT_MODEL" "$XT_ATTEMPT" 2 "" 0 "$raw_log_file" "helper_unavailable")"
     log_session "$helper_json"

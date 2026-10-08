@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER = ROOT / "integrations" / "metaswarm" / "freellmpool-review-adapter.sh"
 README = ROOT / "integrations" / "metaswarm" / "README.md"
@@ -64,6 +66,48 @@ def _fake_freellmpool(tmp_path: Path, body: str) -> Path:
     fake.write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{body}\n", encoding="utf-8")
     fake.chmod(0o755)
     return fake
+
+
+def _shell_script(path: Path, body: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def _logging_python(path: Path, marker: Path) -> Path:
+    """A python3 stand-in that records its first argument, then runs the real one."""
+    return _shell_script(path, f'printf "%s\\n" "$1" >> "{marker}"\nexec "{sys.executable}" "$@"')
+
+
+def _python_without_freellmpool(path: Path) -> Path:
+    """A python3 stand-in with the stdlib but without freellmpool importable.
+
+    -I -S drops site-packages and ignores PYTHONPATH, so this works the same on
+    hosts where the real interpreter has freellmpool installed.
+    """
+    return _shell_script(path, f'exec "{sys.executable}" -I -S "$@"')
+
+
+def _run_review(env: dict[str, str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    repo = _dirty_repo(tmp_path)
+    spec, rubric = _review_files(tmp_path)
+    return subprocess.run(
+        [
+            str(ADAPTER),
+            "review",
+            "--worktree",
+            str(repo),
+            "--rubric-file",
+            str(rubric),
+            "--spec-file",
+            str(spec),
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
 
 
 def test_metaswarm_adapter_shell_syntax() -> None:
@@ -417,22 +461,11 @@ def test_metaswarm_docs_are_linked() -> None:
     assert ".metaswarm/external-tools.yaml" in integration_readme
 
 
-def test_metaswarm_adapter_uses_freellmpool_python_for_helpers(tmp_path: Path) -> None:
-    """Helpers must run under FREELLMPOOL_PYTHON, not the host's PATH python3."""
+def test_metaswarm_adapter_uses_freellmpool_python_for_provider_check(tmp_path: Path) -> None:
     env = _base_env(tmp_path)
     marker = tmp_path / "interpreter-marker.txt"
-    env["FREELLMPOOL_CMD"] = str(
-        _fake_freellmpool(
-            tmp_path,
-            "exit 99",
-        )
-    )
-    env["FREELLMPOOL_PYTHON"] = str(
-        _fake_freellmpool(
-            tmp_path,
-            f'printf "called\\n" >> "{marker}"\nexec "{sys.executable}" "$@"',
-        )
-    )
+    env["FREELLMPOOL_CMD"] = str(_fake_freellmpool(tmp_path, "exit 99"))
+    env["FREELLMPOOL_PYTHON"] = str(_logging_python(tmp_path / "override" / "python3", marker))
 
     result = subprocess.run(
         [str(ADAPTER), "health"],
@@ -442,14 +475,68 @@ def test_metaswarm_adapter_uses_freellmpool_python_for_helpers(tmp_path: Path) -
         check=False,
     )
 
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    # The wrapper execs a real interpreter, so helpers still work — but the
-    # marker proves the adapter honored FREELLMPOOL_PYTHON instead of silently
-    # using the host's PATH python3.
     assert payload["status"] == "unavailable"
     assert payload["auth_valid"] is False
-    assert marker.exists()
+    # Only the provider check runs under the resolved interpreter, once, reading
+    # its script from stdin.
+    assert marker.read_text().splitlines() == ["-"]
+
+
+def test_metaswarm_shebang_python_wins_over_unrelated_virtualenv(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    env.pop("FREELLMPOOL_PYTHON", None)
+    env.pop("FREELLMPOOL_CMD", None)
+    marker = tmp_path / "interpreter-marker.txt"
+    tool_python = _logging_python(tmp_path / "tool-venv" / "bin" / "python", marker)
+    bin_dir = tmp_path / "on-path"
+    bin_dir.mkdir()
+    tool = bin_dir / "freellmpool"
+    tool.write_text(f"#!{tool_python}\nprint('freellmpool 0.0.0-test')\n", encoding="utf-8")
+    tool.chmod(0o755)
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    env["VIRTUAL_ENV"] = str(tmp_path / "unrelated-venv")
+    _python_without_freellmpool(tmp_path / "unrelated-venv" / "bin" / "python3")
+
+    result = subprocess.run(
+        [str(ADAPTER), "health"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "could not run the provider check" not in result.stderr
+    # Running the tool itself goes through the same interpreter with the script
+    # path as $1; the provider check passes "-".
+    assert "-" in marker.read_text().splitlines()
+
+
+def test_metaswarm_symlinked_freellmpool_uses_python_beside_target(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    env.pop("FREELLMPOOL_PYTHON", None)
+    env.pop("VIRTUAL_ENV", None)
+    marker = tmp_path / "interpreter-marker.txt"
+    venv_bin = tmp_path / "pipx-venv" / "bin"
+    _logging_python(venv_bin / "python3", marker)
+    target = _shell_script(venv_bin / "freellmpool", "exit 99")
+    link_dir = tmp_path / "local-bin"
+    link_dir.mkdir()
+    (link_dir / "freellmpool").symlink_to(target)
+    env["FREELLMPOOL_CMD"] = str(link_dir / "freellmpool")
+
+    result = subprocess.run(
+        [str(ADAPTER), "health"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert marker.read_text().splitlines() == ["-"]
 
 
 def test_metaswarm_sibling_python_wins_over_unrelated_virtualenv(tmp_path: Path) -> None:
@@ -457,68 +544,42 @@ def test_metaswarm_sibling_python_wins_over_unrelated_virtualenv(tmp_path: Path)
     env = _base_env(tmp_path)
     env["MISTRAL_API_KEY"] = "mistral-test-key"
     env["FREELLMPOOL_STRONG_PROVIDERS"] = "mistral"
-    fake_log = tmp_path / "fake-called.log"
     env["FREELLMPOOL_STRONG_MODELS"] = "mistral/mistral-large-latest"
-    # An "unrelated" active virtualenv: real venv bin layout, but freellmpool
-    # is NOT importable there. Running the host interpreter with -I -S drops
-    # site-packages and ignores PYTHONPATH/PYTHON* vars while keeping the
-    # stdlib (tomllib, sys) working — a deterministic stand-in for a real venv
-    # without the package, on any host, even where the host python has the
-    # package installed.
-    unrelated_venv = tmp_path / "unrelated-venv"
-    venv_bin = unrelated_venv / "bin"
-    venv_bin.mkdir(parents=True)
-    venv_python = venv_bin / "python3"
-    venv_python.write_text(f"#!/bin/sh\nexec '{sys.executable}' -I -S \"$@\"\n")
-    venv_python.chmod(0o755)
-    env["VIRTUAL_ENV"] = str(unrelated_venv)
-    # Tier 1 (FREELLMPOOL_PYTHON) is pinned by _base_env; this test exercises
-    # the auto-resolution tiers, so the explicit override must be absent.
     env.pop("FREELLMPOOL_PYTHON", None)
+    env["VIRTUAL_ENV"] = str(tmp_path / "unrelated-venv")
+    _python_without_freellmpool(tmp_path / "unrelated-venv" / "bin" / "python3")
+    fake_log = tmp_path / "fake-called.log"
     env["FREELLMPOOL_CMD"] = str(
         _fake_freellmpool(
             tmp_path,
             f'printf "%s\\n" "$*" >> "{fake_log}"\nexit 99',
         )
     )
-    # Capable python3 sitting next to the configured freellmpool executable.
-    sibling_python = tmp_path / "python3"
-    sibling_python.write_text(f"#!/bin/sh\nexec '{sys.executable}' \"$@\"\n")
-    sibling_python.chmod(0o755)
+    # Capable python3 next to the configured freellmpool executable.
+    _shell_script(tmp_path / "python3", f'exec "{sys.executable}" "$@"')
 
-    repo = _dirty_repo(tmp_path)
-    spec, rubric = _review_files(tmp_path)
+    result = _run_review(env, tmp_path)
 
-    result = subprocess.run(
-        [
-            str(ADAPTER),
-            "review",
-            "--worktree",
-            str(repo),
-            "--rubric-file",
-            str(rubric),
-            "--spec-file",
-            str(spec),
-        ],
-        text=True,
-        capture_output=True,
-        env=env,
-        check=False,
-    )
-
-    # Under the buggy VIRTUAL_ENV-first order the incapable venv python is
-    # picked, the helper reports -1, and review fails helper_unavailable
-    # before any freellmpool call. Under the sibling-first order the capable
-    # sibling resolves the helper, so the fake CLI is actually invoked and the
-    # remaining failure is the tool-level one this harness induces (exit 99).
+    # Picking the virtualenv would fail helper_unavailable before any
+    # freellmpool call. With the sibling, the provider check passes and the
+    # fake CLI runs, so the remaining failure is the induced exit 99.
     assert result.returncode == 1
     payload = json.loads(result.stdout)
     assert payload["error_type"] == "tool_crash"
     assert fake_log.exists()
 
 
-def test_metaswarm_adapter_reports_incompatible_interpreter(tmp_path: Path) -> None:
-    """A helper interpreter that cannot import the project must fail clearly."""
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        pytest.param('echo "broken interpreter" >&2\nexit 1', "broken interpreter", id="crashes"),
+        pytest.param("exit 0", "could not run the provider check", id="prints-nothing"),
+        pytest.param(None, "could not import freellmpool", id="lacks-freellmpool"),
+    ],
+)
+def test_metaswarm_adapter_reports_unusable_helper_interpreter(
+    tmp_path: Path, body: str | None, expected: str
+) -> None:
     env = _base_env(tmp_path)
     env["MISTRAL_API_KEY"] = "mistral-test-key"
     env["FREELLMPOOL_STRONG_PROVIDERS"] = "mistral"
@@ -529,34 +590,18 @@ def test_metaswarm_adapter_reports_incompatible_interpreter(tmp_path: Path) -> N
             f'printf "%s\\n" "$*" >> "{fake_log}"\nexit 99',
         )
     )
-    env["FREELLMPOOL_PYTHON"] = str(
-        _fake_freellmpool(
-            tmp_path,
-            "exit 1",
-        )
-    )
-    repo = _dirty_repo(tmp_path)
-    spec, rubric = _review_files(tmp_path)
+    interpreter = tmp_path / "helper" / "python3"
+    if body is None:
+        _python_without_freellmpool(interpreter)
+    else:
+        _shell_script(interpreter, body)
+    env["FREELLMPOOL_PYTHON"] = str(interpreter)
 
-    result = subprocess.run(
-        [
-            str(ADAPTER),
-            "review",
-            "--worktree",
-            str(repo),
-            "--rubric-file",
-            str(rubric),
-            "--spec-file",
-            str(spec),
-        ],
-        text=True,
-        capture_output=True,
-        env=env,
-        check=False,
-    )
+    result = _run_review(env, tmp_path)
 
-    assert result.returncode == 1
+    assert result.returncode == 1, result.stderr
     payload = json.loads(result.stdout)
     assert payload["error_type"] == "helper_unavailable"
     assert "helper interpreter" in payload["raw_log"]
+    assert expected in payload["raw_log"]
     assert not fake_log.exists()
