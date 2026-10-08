@@ -68,14 +68,14 @@ jobs:
           python3 scripts/security_exceptions.py ids trivy > .trivyignore.generated
 
       - name: Set up pinned Buildx and BuildKit
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        uses: docker/setup-buildx-action@594f3bf4285d9ea8dc53c9a0c9c4092420091003 # v4
         with:
           version: v0.36.1
           driver-opts: >-
             image=moby/buildkit@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
 
       - name: Build exact release image archive
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           tags: freellmpool:release-scan-${{ github.sha }}
@@ -153,7 +153,7 @@ jobs:
           path: /tmp/scanned-release-image
 
       - name: Set up pinned Buildx and BuildKit
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        uses: docker/setup-buildx-action@594f3bf4285d9ea8dc53c9a0c9c4092420091003 # v4
         with:
           version: v0.36.1
           driver-opts: >-
@@ -226,7 +226,7 @@ jobs:
           done
 
       - name: Generate downloadable image SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ghcr.io/${{ github.repository }}@${{ steps.push.outputs.digest }}
           format: spdx-json
