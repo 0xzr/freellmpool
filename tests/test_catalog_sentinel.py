@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
+import shutil
 import socketserver
+import subprocess
 import sys
 import threading
 import time
@@ -845,9 +848,6 @@ def test_workflow_is_advisory_least_privilege_and_fork_safe():
     assert "gh issue create" in workflow
     assert "gh issue comment" in workflow
     assert "github-actions[bot]" in workflow
-    # gh issue list reports the Actions bot as app/github-actions; without it the
-    # dedupe never matches and every drift run opens a new issue.
-    assert '.author.login == "app/github-actions"' in workflow
     assert "<!-- freellmpool-catalog-sentinel:public:v1 -->" in workflow
     assert ".author.login" in workflow
     assert ".body | contains(" in workflow
@@ -859,6 +859,43 @@ def test_workflow_is_advisory_least_privilege_and_fork_safe():
     assert "scripts/catalog_sentinel.py probe" not in workflow
     assert "freellmpool conformance run" not in workflow
     assert "FREELLMPOOL_SENTINEL_KEYS_JSON" not in workflow
+
+
+def test_drift_issue_dedupe_filter_reuses_only_the_workflow_issue():
+    jq = shutil.which("jq")
+    if jq is None:
+        pytest.skip("jq is not installed")
+    workflow = (ROOT / ".github" / "workflows" / "catalog-sentinel.yml").read_text(
+        encoding="utf-8"
+    )
+    program = re.search(
+        r"--jq '(map\(select\(.*?\| first \| \.number // empty)'", workflow, re.S
+    ).group(1)
+    marker = "<!-- freellmpool-catalog-sentinel:public:v1 -->"
+    issue = {
+        "number": 7,
+        "title": "Catalog sentinel drift",
+        "author": {"login": "app/github-actions"},
+        "body": f"report\n{marker}",
+    }
+
+    def existing(issues: list[dict]) -> str:
+        result = subprocess.run(
+            [jq, "-r", program],
+            input=json.dumps(issues),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    # gh issue list reports the Actions bot as app/github-actions; if the filter
+    # rejects it, every drift run opens a new issue.
+    assert existing([issue]) == "7"
+    assert existing([{**issue, "author": {"login": "github-actions[bot]"}}]) == "7"
+    assert existing([{**issue, "author": {"login": "someone"}}]) == ""
+    assert existing([{**issue, "body": "no marker"}]) == ""
+    assert existing([{**issue, "title": "Catalog sentinel drift (copy)"}]) == ""
 
 
 def test_local_secret_map_reads_only_catalog_key_names_from_local_config(tmp_path):
