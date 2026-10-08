@@ -883,6 +883,18 @@ def test_local_secret_map_reads_only_catalog_key_names_from_local_config(tmp_pat
     }
 
 
+def test_local_key_summary_counts_only_keyed_providers_with_local_keys():
+    providers = {provider.id: provider for provider in SENTINEL.load_catalog()}
+    selected = [providers["groq"], providers["mistral"], providers["pollinations"]]
+
+    assert SENTINEL.local_key_summary(selected, {"GROQ_API_KEY": "key"}) == (
+        "probe: local keys found for 1 of 2 keyed providers"
+    )
+    assert SENTINEL.local_key_summary(selected, {}) == (
+        "probe: local keys found for 0 of 2 keyed providers"
+    )
+
+
 def test_catalog_sentinel_operator_contract_is_documented():
     doc = (ROOT / "docs" / "CATALOG_SENTINEL.md").read_text(encoding="utf-8")
     contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
@@ -891,6 +903,8 @@ def test_catalog_sentinel_operator_contract_is_documented():
         "catalog-sentinel",
         "never stored in GitHub",
         "scripts/vet_catalog.py",
+        "reviewed checkout of `main`",
+        "--previous",
         "advisory",
         "never enables or disables",
         "429",

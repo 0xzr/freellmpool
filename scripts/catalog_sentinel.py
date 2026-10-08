@@ -378,6 +378,12 @@ def local_secret_map(
     return {name: source[name] for name in sorted(wanted) if source.get(name)}
 
 
+def local_key_summary(providers: list[Provider], secrets: dict[str, str]) -> str:
+    keyed = [provider for provider in providers if not provider.keyless]
+    found = [provider for provider in keyed if provider.is_configured(secrets)]
+    return f"probe: local keys found for {len(found)} of {len(keyed)} keyed providers"
+
+
 def discover(
     providers: list[Provider],
     *,
@@ -819,6 +825,7 @@ def main(argv: list[str] | None = None) -> int:
         ):
             parser.error("probe bounds are out of range")
         secrets = local_secret_map(providers)
+        print(local_key_summary(providers, secrets), file=sys.stderr)
         report = probe(
             providers,
             secrets,

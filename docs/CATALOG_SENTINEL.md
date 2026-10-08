@@ -15,7 +15,7 @@ normal reviewed pull request before catalog state changes.
 
 The public job sends unauthenticated `GET` requests only to model-list
 endpoints derived from the packaged catalog. Redirects are disabled, each
-request has a timeout, and decoded bodies are capped at 1 MB. User catalog
+request has a timeout, and decoded bodies are capped at 4 MB. User catalog
 overrides are deliberately ignored.
 
 Unknown and partial listing scopes can identify new candidates, but missing
@@ -32,6 +32,10 @@ maintainer machine with that machine's freellmpool key configuration (real
 environment variables, then the `[keys]` table in
 `~/.config/freellmpool/config.toml`), and the result reaches GitHub only as a
 reviewed change to the packaged catalog.
+
+Run keyed probes only on a reviewed checkout of `main`. Each provider's key is
+sent to the `base_url` that provider declares in the catalog being probed, so a
+checkout with an untrusted catalog edit could send a key to the wrong host.
 
 The local refresh procedure:
 
@@ -78,7 +82,10 @@ python3 scripts/catalog_sentinel.py discover \
   --summary /tmp/catalog-sentinel.md
 ```
 
-For a local bounded probe with your configured keys, choose explicit bounds:
+For a local bounded probe with your configured keys, choose explicit bounds.
+Pass the preceding report with `--previous` so failure counters and probe
+rotation carry across runs. The command prints how many keyed providers it
+found local keys for:
 
 ```bash
 python3 scripts/catalog_sentinel.py probe \
