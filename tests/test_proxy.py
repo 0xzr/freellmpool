@@ -2223,7 +2223,7 @@ def test_status_records_served_target(server):
     )
     _, body = _get_json(server + "/status")
     assert body["recent"], "expected a recent entry after a chat"
-    assert {"provider", "model", "attempts"} <= set(body["recent"][0])
+    assert {"provider", "model", "attempts", "ts"} <= set(body["recent"][0])
     assert body["pool"]["requests"] >= 1
 
 

@@ -120,7 +120,12 @@ below into its configuration. The plugin never rewrites that file.
 | `FREELLMPOOL_PROXY_URL` | `http://localhost:8080` | proxy base URL |
 | `FREELLMPOOL_PROXY_KEY` | _(none)_ | sent as `Authorization: Bearer <key>` if your proxy requires one |
 | `FREELLMPOOL_TOAST` | on | set to `0`/`false`/`off` to silence the served-model toast |
-| `FREELLMPOOL_MODELS_DISCOVERY` | off | set to `1`/`true`/`on` to add `modelsDiscovery: { enabled: true }` to the provider settings (for `opencode-models-discovery`) |
+| `FREELLMPOOL_MODELS_DISCOVERY` | off | set to `1`/`true`/`on` to merge `modelsDiscovery: { enabled: true }` into the provider settings, new or already configured; your own `modelsDiscovery` values win (for `opencode-models-discovery`) |
+
+If a `freellmpool` provider is already configured, the plugin only fills in what is missing
+(package, `baseURL`, `apiKey`, integration) and never overwrites your values. The served-model
+toast matches the proxy's `recent[].ts` timestamps against the message creation time, so it
+needs the proxy and OpenCode clocks to be roughly in sync.
 
 The plugin never throws on a down proxy — the tools return a short message and the
 toast hook stays quiet.

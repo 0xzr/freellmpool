@@ -413,10 +413,20 @@ function build(context: any) {
   }
 
   const unsubs: Array<() => void> = []
+  const unregisterAll = () => {
+    for (const u of unsubs.splice(0)) { try { u() } catch {} }
+  }
   const reg = (r: unknown) => { if (typeof r === "function") unsubs.push(r as () => void) }
-  reg(context.ui.slot({ append: "sidebar.content", render: () => <Panel /> }))
-  reg(context.ui.slot({ append: "home.footer.status", render: () => <>{home()}</> }))
-  return () => unsubs.forEach((u) => { try { u() } catch {} })
+  try {
+    reg(context.ui.slot({ append: "sidebar.content", render: () => <Panel /> }))
+    reg(context.ui.slot({ append: "home.footer.status", render: () => <>{home()}</> }))
+  } catch (err) {
+    // A later registration failed: don't leave earlier slots bound to signals that are
+    // about to be disposed (and would be duplicated on retry).
+    unregisterAll()
+    throw err
+  }
+  return unregisterAll
 }
 
 // ── /freellmpool: dialog-based status (needs no slot API) ───────────────────
@@ -477,6 +487,8 @@ export default Plugin.define({
         cleanupSlots = build(context)
       })
     } catch (err) {
+      dispose?.() // stop the polling timers/effects started before build() failed
+      dispose = undefined
       // Never let the live panel break plugin loading; the slash command above still works.
       console.warn("[freellmpool-tui] live panel unavailable:", err instanceof Error ? err.message : err)
     }

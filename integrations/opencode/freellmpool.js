@@ -28,6 +28,7 @@ const PROXY_KEY = process.env.FREELLMPOOL_PROXY_KEY || "";
 const TOAST = !/^(0|false|off|no)$/i.test(process.env.FREELLMPOOL_TOAST || "");
 const MODELS_DISCOVERY = /^(1|true|on|yes)$/i.test(process.env.FREELLMPOOL_MODELS_DISCOVERY || "");
 const TIMEOUT_MS = 5000;
+const PROVIDER_PACKAGE = "@opencode/ai/providers/openai-compatible";
 
 // Routing aliases exposed in the OpenCode model picker.
 // models is a plain object keyed by model id (mirrors opencode.json provider format).
@@ -174,6 +175,9 @@ export default Plugin.define({
     const PROVIDER_ID = Provider.ID.make("freellmpool");
     const INTEGRATION_ID = "freellmpool";
 
+    // Only link the provider to the integration if its registration actually succeeded;
+    // otherwise the provider would reference an API-key method that does not exist.
+    let integrationOk = false;
     try {
       await ctx.integration.transform((draft) => {
         if (!draft.get(INTEGRATION_ID)) {
@@ -187,6 +191,7 @@ export default Plugin.define({
           method: { type: "key", label: "API key" },
         });
       });
+      integrationOk = true;
     } catch (err) {
       console.error("[freellmpool] integration.transform failed:", err?.message || err);
     }
@@ -194,23 +199,42 @@ export default Plugin.define({
     await ctx.provider.transform((editor) => {
       const headers = PROXY_KEY ? { authorization: `Bearer ${PROXY_KEY}` } : undefined;
       const current = editor.get(PROVIDER_ID);
+      // Defaults the proxy needs; anything the user configured always wins.
+      const defaults = { baseURL: `${BASE_URL}/v1`, apiKey: PROXY_KEY || "dummy-key" };
 
       if (!current) {
         editor.add({
           info: {
             ...Provider.Info.empty(PROVIDER_ID),
             name: "freellmpool (free pool)",
-            package: "@opencode/ai/providers/openai-compatible",
-            settings: { baseURL: `${BASE_URL}/v1`, apiKey: PROXY_KEY || "dummy-key", ...(MODELS_DISCOVERY && { modelsDiscovery: { enabled: true } }) },
+            package: PROVIDER_PACKAGE,
+            settings: {
+              ...defaults,
+              ...(MODELS_DISCOVERY && { modelsDiscovery: { enabled: true } }),
+            },
             headers,
-            integrationID: INTEGRATION_ID,
+            ...(integrationOk && { integrationID: INTEGRATION_ID }),
             activation: "enabled",
           },
           models: [],
         });
-      } else if (!current.provider?.integrationID) {
-        // Provider already defined in opencode.json: only attach the integration.
-        editor.update(PROVIDER_ID, (draft) => { draft.integrationID = INTEGRATION_ID; });
+      } else {
+        // Provider already defined (opencode.json / jail config): fill in what is missing
+        // and keep every configured value.
+        editor.update(PROVIDER_ID, (draft) => {
+          if (!draft.name) draft.name = "freellmpool (free pool)";
+          if (!draft.package) draft.package = PROVIDER_PACKAGE;
+          const user = draft.settings && typeof draft.settings === "object" ? draft.settings : {};
+          const settings = { ...defaults, ...user };
+          if (MODELS_DISCOVERY) {
+            settings.modelsDiscovery = { enabled: true, ...(user.modelsDiscovery ?? {}) };
+          }
+          draft.settings = settings;
+          if (headers && !draft.headers?.authorization) {
+            draft.headers = { ...draft.headers, ...headers };
+          }
+          if (integrationOk && !draft.integrationID) draft.integrationID = INTEGRATION_ID;
+        });
       }
 
       const source = editor.get(PROVIDER_ID);
@@ -326,36 +350,79 @@ export default Plugin.define({
 
     // ── Event hook: served-model toast ─────────────────────────────────────────
     // ctx.event.subscribe() returns an async iterable (see models-discovery v2/index.ts),
-    // NOT a callback API. Fully guarded: a failure here must never abort plugin setup.
+    // NOT a callback API. It is consumed in a supervised loop: failures are logged and the
+    // subscription is retried with bounded backoff until the plugin is disposed, and nothing
+    // here may abort plugin setup.
     const abort = new AbortController();
+    const sleep = (ms) =>
+      new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        abort.signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+      });
+
+    // The proxy stamps every `recent` entry with `ts` (epoch seconds). Pick the entry served
+    // for THIS message: the newest one recorded at/after the message was created. Streaming
+    // requests are recorded when the stream ends, so retry briefly instead of reading the
+    // previous request's entry.
+    const toMs = (v) => (typeof v === "number" ? v : Date.parse(v));
+    async function servedFor(info) {
+      const created = toMs(info.time?.created);
+      for (let attempt = 0; attempt < 4 && !abort.signal.aborted; attempt++) {
+        const { ok, data } = await getJSON("/status");
+        if (ok) {
+          const recent = Array.isArray(data.recent) ? data.recent : [];
+          if (recent.some((r) => typeof r?.ts === "number") && Number.isFinite(created)) {
+            const hit = recent.find((r) => typeof r?.ts === "number" && r.ts * 1000 >= created - 2000);
+            if (hit) return hit;
+          } else if (recent.length) {
+            return recent[0]; // proxy without `ts`, or message without a creation time
+          }
+        }
+        await sleep(250 * (attempt + 1));
+      }
+      return undefined;
+    }
+
+    async function handleEvent(event, seen) {
+      if (event?.type !== "message.updated") return;
+      const info = event.properties?.info ?? event.data?.info;
+      if (!info || info.role !== "assistant" || !info.finish) return;
+      if (seen.has(info.id)) return;
+      seen.add(info.id);
+      if (seen.size > 200) seen.delete(seen.values().next().value);
+
+      const r = await servedFor(info);
+      if (!r) return;
+      const message =
+        `served by ${r.provider}/${r.model}` +
+        (num(r.attempts) > 1 ? ` (${r.attempts} attempts)` : "");
+      try {
+        if (!ctx.ui?.toast?.show) throw new Error("no toast api");
+        await ctx.ui.toast.show({ title: "freellmpool", message, variant: "info", duration: 2500 });
+      } catch {
+        console.log(`[freellmpool] ${message}`);
+      }
+    }
+
     if (TOAST && ctx.event && typeof ctx.event.subscribe === "function") {
       void (async () => {
-        let lastSeenMsg = null; // message.updated fires repeatedly per message
-        try {
-          for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
-            try {
-              if (event?.type !== "message.updated") continue;
-              const info = event.properties?.info ?? event.data?.info;
-              if (!info || info.role !== "assistant" || !info.finish) continue;
-              if (info.id === lastSeenMsg) continue;
-              lastSeenMsg = info.id;
-
-              const { ok, data } = await getJSON("/status");
-              if (!ok) continue;
-              const r = (data.recent || [])[0];
-              if (!r) continue;
-              const message =
-                `served by ${r.provider}/${r.model}` +
-                (num(r.attempts) > 1 ? ` (${r.attempts} attempts)` : "");
-              try {
-                if (!ctx.ui?.toast?.show) throw new Error("no toast api");
-                await ctx.ui.toast.show({ title: "freellmpool", message, variant: "info", duration: 2500 });
-              } catch {
-                console.log(`[freellmpool] ${message}`);
-              }
-            } catch { /* ignore per-event errors */ }
+        const seen = new Set(); // message.updated fires repeatedly per message
+        let delay = 500;
+        while (!abort.signal.aborted) {
+          try {
+            for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
+              delay = 500;
+              try { await handleEvent(event, seen); } catch { /* ignore per-event errors */ }
+            }
+            if (abort.signal.aborted) break;
+            console.warn("[freellmpool] event stream closed; resubscribing");
+          } catch (err) {
+            if (abort.signal.aborted) break;
+            console.warn("[freellmpool] event subscription failed:", err?.message || err);
           }
-        } catch { /* stream closed / aborted */ }
+          await sleep(delay);
+          delay = Math.min(delay * 2, 30000);
+        }
       })();
     }
 

@@ -93,44 +93,101 @@ function writeHostSdk(installDir) {
 
 function smokeServer(installDir) {
   writeHostSdk(installDir)
-  run(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      [
-        'process.env.FREELLMPOOL_TOAST = "0"',
-        'const mod = await import("opencode-freellmpool")',
-        'if (mod.default?.id !== "freellmpool" || typeof mod.default?.setup !== "function") throw new Error("server plugin did not load")',
-        "const tools = new Map()",
-        "const providers = new Map()",
-        "const models = new Map()",
-        "const editor = {",
-        "  get: (id) => providers.get(id),",
-        "  add: ({ info }) => { providers.set(info.id, { provider: info, models: new Map() }) },",
-        "  update: () => {},",
-        "  models: { set: (id, list) => models.set(id, list) },",
-        "}",
-        "const ctx = {",
-        "  integration: { transform: async (fn) => fn({ get: () => undefined, update: () => {}, method: { update: () => {} } }) },",
-        "  provider: { transform: async (fn) => fn(editor) },",
-        "  tool: { transform: async (fn) => fn({ add: (tool) => tools.set(tool.name, tool) }) },",
-        "  event: { subscribe: () => (async function* () {})() },",
-        "}",
-        "const cleanup = await mod.default.setup(ctx)",
-        'for (const name of ["freellmpool_status", "freellmpool_models", "freellmpool_tokenmax"]) {',
-        '  if (typeof tools.get(name)?.execute !== "function") throw new Error(`server plugin did not register ${name}`)',
-        "}",
-        'const registered = (models.get("freellmpool") || []).map((model) => model.id)',
-        'for (const alias of ["agent", "spread", "auto", "fast", "quality", "fair"]) {',
-        '  if (!registered.includes(alias)) throw new Error(`server plugin did not register provider model ${alias}`)',
-        "}",
-        'if (typeof cleanup !== "function") throw new Error("server plugin setup did not return a cleanup function")',
-        "cleanup()",
-      ].join("\n"),
-    ],
-    { cwd: installDir },
-  )
+  const script = `
+process.env.FREELLMPOOL_TOAST = "0"
+process.env.FREELLMPOOL_MODELS_DISCOVERY = "1"
+const mod = await import("opencode-freellmpool")
+if (mod.default?.id !== "freellmpool" || typeof mod.default?.setup !== "function") throw new Error("server plugin did not load")
+
+const ALIASES = ["agent", "spread", "auto", "fast", "quality", "fair"]
+const fail = (message) => { throw new Error(message) }
+
+// Fake host: a provider registry whose editor.update really mutates the stored provider.
+async function setup({ seed, integrationFails = false }) {
+  const providers = new Map()
+  const modelLists = new Map()
+  if (seed) {
+    providers.set("freellmpool", { provider: structuredClone(seed.provider), models: seed.models || [] })
+  }
+  const tools = new Map()
+  const editor = {
+    get: (id) => {
+      const entry = providers.get(id)
+      if (!entry) return undefined
+      const list = modelLists.get(id) ?? entry.models
+      return { provider: entry.provider, models: new Map(list.map((model) => [model.id, model])) }
+    },
+    add: ({ info, models }) => { providers.set(info.id, { provider: info, models }) },
+    update: (id, fn) => { fn(providers.get(id).provider) },
+    models: { set: (id, list) => { modelLists.set(id, list) } },
+  }
+  const ctx = {
+    integration: {
+      transform: async (fn) => {
+        if (integrationFails) throw new Error("integration registry unavailable")
+        fn({ get: () => undefined, update: () => {}, method: { update: () => {} } })
+      },
+    },
+    provider: { transform: async (fn) => fn(editor) },
+    tool: { transform: async (fn) => fn({ add: (tool) => tools.set(tool.name, tool) }) },
+    event: { subscribe: () => (async function* () {})() },
+  }
+  const cleanup = await mod.default.setup(ctx)
+  if (typeof cleanup !== "function") fail("server plugin setup did not return a cleanup function")
+  cleanup()
+  const entry = providers.get("freellmpool")
+  return {
+    tools,
+    provider: entry?.provider,
+    modelIDs: (modelLists.get("freellmpool") ?? entry?.models ?? []).map((model) => model.id),
+  }
+}
+
+// 1. fresh host: provider, aliases, tools and the discovery opt-in are registered
+const fresh = await setup({})
+for (const name of ["freellmpool_status", "freellmpool_models", "freellmpool_tokenmax"]) {
+  if (typeof fresh.tools.get(name)?.execute !== "function") fail("server plugin did not register " + name)
+}
+for (const alias of ALIASES) {
+  if (!fresh.modelIDs.includes(alias)) fail("server plugin did not register provider model " + alias)
+}
+if (fresh.provider?.integrationID !== "freellmpool") fail("fresh provider was not linked to its integration")
+if (!fresh.provider?.settings?.baseURL?.endsWith("/v1")) fail("fresh provider has no baseURL")
+if (fresh.provider?.settings?.modelsDiscovery?.enabled !== true) fail("fresh provider ignored FREELLMPOOL_MODELS_DISCOVERY")
+
+// 2. host already has a customised provider (no package, no integration): defaults are merged,
+//    configured values and models survive
+const existing = await setup({
+  seed: {
+    provider: {
+      id: "freellmpool",
+      name: "Custom pool",
+      settings: { apiKey: "custom-api-key", extra: 1, modelsDiscovery: { enabled: true, endpoint: "/models" } },
+    },
+    models: [{ id: "custom" }],
+  },
+})
+const p = existing.provider
+if (p.name !== "Custom pool" || p.settings.apiKey !== "custom-api-key" || p.settings.extra !== 1) {
+  fail("server plugin replaced existing provider configuration")
+}
+if (p.settings.modelsDiscovery?.endpoint !== "/models" || p.settings.modelsDiscovery?.enabled !== true) {
+  fail("server plugin did not merge modelsDiscovery into the existing provider")
+}
+if (!p.package) fail("server plugin did not fill the missing provider package")
+if (!p.settings.baseURL) fail("server plugin did not fill the missing baseURL")
+if (p.integrationID !== "freellmpool") fail("server plugin did not attach the integration to the existing provider")
+if (!existing.modelIDs.includes("custom")) fail("server plugin dropped an existing model")
+for (const alias of ALIASES) {
+  if (!existing.modelIDs.includes(alias)) fail("server plugin did not add alias " + alias + " to the existing provider")
+}
+
+// 3. integration registration fails: the provider must not reference a missing integration
+const broken = await setup({ integrationFails: true })
+if (broken.provider?.integrationID !== undefined) fail("provider was linked to an integration that failed to register")
+if (!broken.modelIDs.includes("agent")) fail("provider models were lost when the integration failed")
+`
+  run(process.execPath, ["--input-type=module", "-e", script], { cwd: installDir })
 }
 
 function smokeTui(installDir) {

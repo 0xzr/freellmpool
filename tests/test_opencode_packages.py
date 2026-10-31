@@ -135,6 +135,10 @@ def test_opencode_server_plugin_registers_provider_and_tools_via_v2_api() -> Non
         "freellmpool_tokenmax",
     ):
         assert f'name: "{name}"' in source
+    # existing providers get defaults merged in, never overwritten; the integration is only
+    # attached after it registered
+    assert "let integrationOk = false" in source
+    assert "...defaults, ...user" in source
     # events: async iterable, never a callback, and never blocking setup
     assert "for await (const event of ctx.event.subscribe(" in source
     assert "ctx.event.subscribe(async" not in source
@@ -206,3 +210,15 @@ def test_opencode_config_examples_forward_protected_proxy_auth() -> None:
         "Pick `freellmpool/", 1
     )[0]
     assert '"model": "freellmpool/' not in manual_fallback
+
+
+def test_opencode_jail_configures_the_v2_entrypoints() -> None:
+    script = (
+        ROOT / "integrations" / "opencode-jail" / "opencode-freellmpool-jailed.sh"
+    ).read_text(encoding="utf-8")
+    assert '"plugins": [ $PLUGIN_LIST ]' in script
+    assert '"plugins": [ %s ]' in script
+    assert '"$IMG_CFG/cli.json"' in script
+    assert '> "$IMG_CFG/tui.json"' not in script
+    assert '"plugin": [' not in script
+    assert 'cp -rf "$INTEG/opencode/." "$IMG_CFG/plugin/"' in script
