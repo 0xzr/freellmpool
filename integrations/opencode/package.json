@@ -6,11 +6,15 @@
   "type": "module",
   "main": "freellmpool.js",
   "exports": {
-    ".": "./freellmpool.js",
-    "./plugin/*": "./plugin/*",
-    "./tools/*": "./tools/*"
+    ".": "./freellmpool.js"
   },
-  "keywords": ["opencode", "opencode-plugin", "freellmpool", "llm", "proxy"],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "freellmpool",
+    "llm",
+    "proxy"
+  ],
   "license": "MIT",
   "homepage": "https://github.com/0xzr/freellmpool/tree/main/integrations/opencode#readme",
   "bugs": {
@@ -24,8 +28,12 @@
   "engines": {
     "node": ">=20"
   },
-  "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.14.0"
-  },
-  "files": ["LICENSE", "README.md", "freellmpool.js", "plugin", "tools"]
+  "files": [
+    "LICENSE",
+    "README.md",
+    "freellmpool.js"
+  ],
+  "dependencies": {
+    "@opencode/plugin": ">=2.0.0"
+  }
 }

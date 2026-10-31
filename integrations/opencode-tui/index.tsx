@@ -7,10 +7,11 @@
 // $ saved, tokens served free, a provider "race", current throughput (tok/s), a
 // latency sparkline, and the most-recently-served provider/model.
 //
-// Install:  opencode plugin -g file:/path/to/integrations/opencode-tui
+// Install:  add the package/dir to the "plugins" array of cli.json (OpenCode v2)
 // Config:   FREELLMPOOL_PROXY_URL (default http://localhost:8080)
 //
-import { createEffect, createSignal, onCleanup, For, Show } from "solid-js"
+import { Plugin } from "@opencode/plugin/tui"
+import { createEffect, createRoot, createSignal, onCleanup, For, Show } from "solid-js"
 
 const PROXY = (process.env.FREELLMPOOL_PROXY_URL || "http://localhost:8080").replace(/\/+$/, "")
 const PROXY_KEY = process.env.FREELLMPOOL_PROXY_KEY || ""
@@ -69,8 +70,52 @@ const STATE = {
 } as const
 type ProxyState = (typeof STATE)[keyof typeof STATE]
 
+// ── theme ────────────────────────────────────────────────────────────────────
+// Docs only guarantee `context.theme.text.base`; other semantic tokens are read defensively
+// and fall back to fixed colors so a missing token never breaks rendering.
+function makeTheme(context: any) {
+  const t = () => context.theme ?? {}
+  const pick = (get: () => unknown, fallback: string): string => {
+    try {
+      const v = get()
+      return typeof v === "string" && v ? v : fallback
+    } catch {
+      return fallback
+    }
+  }
+  return {
+    get text() { return pick(() => t().text?.base, "#e0e0e0") },
+    get textMuted() { return pick(() => t().text?.muted ?? t().text?.subtle, "#8a8a8a") },
+    get info() { return pick(() => t().status?.info ?? t().info, "#00ccff") },
+    get success() { return pick(() => t().status?.success ?? t().success, "#22cc44") },
+    get warning() { return pick(() => t().status?.warning ?? t().warning, "#ffdd00") },
+    get error() { return pick(() => t().status?.error ?? t().error, "#ff4444") },
+    get accent() { return pick(() => t().accent ?? t().text?.accent ?? t().status?.info, "#00ccff") },
+  }
+}
+
+// ── selected routing alias ───────────────────────────────────────────────────
+// The proxy's /status `routing` is its *default* mode (FREELLMPOOL_ROUTING) — it does not
+// change when you pick `freellmpool/agent` etc. in OpenCode; the alias is just the model name
+// of each request. So read the active model from the host (`context.ui.model.current()`,
+// reactive in Solid computations per the v2 docs) and only fall back to the proxy default.
+function selectedAlias(context: any): string | undefined {
+  try {
+    const c = context?.ui?.model?.current?.()
+    if (!c) return undefined
+    const provider = c.providerID ?? c.provider?.id ?? c.provider
+    const model = c.modelID ?? c.model?.id ?? c.id
+    if (String(provider) !== "freellmpool" || !model) return undefined
+    return String(model).replace(/^freellmpool\//, "")
+  } catch {
+    return undefined
+  }
+}
+
 // ── plugin ───────────────────────────────────────────────────────────────────
-const plugin = async (api) => {
+function build(context: any) {
+  const theme = makeTheme(context)
+  const routingLabel = () => selectedAlias(context) ?? status()?.routing ?? "?"
   const [status, setStatus] = createSignal<any>(null)
   const [proxyState, setProxyState] = createSignal<ProxyState>(STATE.OFFLINE)
   const [proxyError, setProxyError] = createSignal<string>("")
@@ -226,7 +271,6 @@ const plugin = async (api) => {
 
   // ── 🌈 the live TOKENMAXXING banner (color-cycles while a swarm runs) ────────
   const TokenmaxBanner = () => {
-    const theme = api.theme.current
     const tm = () => status()?.tokenmax || {}
     const done = () => Number(tm().done) || 0
     const total = () => Number(tm().total) || 0
@@ -256,7 +300,6 @@ const plugin = async (api) => {
 
   // ── the panel component (used by both the sidebar and the home screen) ──────
   const Panel = () => {
-    const theme = api.theme.current
     const st = () => proxyState()
     const isOnline = () => st() === STATE.ONLINE
     return (
@@ -297,7 +340,7 @@ const plugin = async (api) => {
               <TokenmaxBanner />
               <box flexDirection="row" gap={1}>
                 <text fg={theme.textMuted}>routing</text>
-                <text fg={theme.accent}>{status()?.routing ?? "?"}</text>
+                <text fg={theme.accent}>{routingLabel()}</text>
               </box>
 
               <box flexDirection="row" gap={1}>
@@ -353,81 +396,93 @@ const plugin = async (api) => {
     )
   }
 
-  // sidebar panel (live, while you code) + a compact home-screen teaser
-  api.slots.register({
-    order: 50,
-    slots: {
-      sidebar_content() {
-        return <Panel />
-      },
-      home_bottom() {
-        const theme = api.theme.current
-        const st = () => proxyState()
-        const isOnline = () => st() === STATE.ONLINE
-        return (
-          <Show
-            when={isOnline()}
-            fallback={
-              <Show
-                when={st() === STATE.AUTH_REQUIRED}
-                fallback={
-                  <Show
-                    when={st() === STATE.ERROR}
-                    fallback={<text fg={theme.error}>● freellmpool proxy offline</text>}
-                  >
-                    <text fg={theme.warning}>● freellmpool proxy error ({proxyError()})</text>
-                  </Show>
-                }
-              >
-                <text fg={theme.warning}>● freellmpool needs auth — {AUTH_GUIDANCE}</text>
-              </Show>
-            }
-          >
-            <box marginTop={1} flexDirection="column">
-              <TokenmaxBanner />
-              <box border borderColor={theme.success} paddingLeft={1} paddingRight={1} flexDirection="row" gap={1}>
-                <text fg={theme.success}>● freellmpool</text>
-                <text fg={theme.text}>
-                  {money(status()?.lifetime?.usd_saved ?? 0)} saved ·{" "}
-                  {compact((status()?.lifetime?.prompt_tokens ?? 0) + (status()?.lifetime?.completion_tokens ?? 0))}{" "}
-                  free tokens · {tps()} tok/s · {status()?.routing ?? "?"}
-                </text>
-              </box>
-            </box>
-          </Show>
-        )
-      },
-    },
-  })
+  // ── slots (documented v2 placements) ────────────────────────────────────────
+  const home = () => {
+    const st = proxyState()
+    if (st === STATE.ONLINE) {
+      const life = status()?.lifetime ?? {}
+      return (
+        <text fg={theme.success}>
+          ● freellmpool {money(life.usd_saved ?? 0)} saved · {tps()} tok/s · {routingLabel()}
+        </text>
+      )
+    }
+    if (st === STATE.AUTH_REQUIRED) return <text fg={theme.warning}>● freellmpool needs auth — {AUTH_GUIDANCE}</text>
+    if (st === STATE.ERROR) return <text fg={theme.warning}>● freellmpool proxy error ({proxyError()})</text>
+    return <text fg={theme.error}>● freellmpool offline</text>
+  }
 
-  // a command to surface a one-shot summary toast
-  api.command.register(() => [
-    {
-      title: "freellmpool: status",
-      value: "freellmpool.status",
-      category: "freellmpool",
-      onSelect() {
-        const st = proxyState()
-        const s = status()
-        let msg: string
-        let variant: string
-        if (st === STATE.AUTH_REQUIRED) {
-          msg = `proxy needs auth — ${AUTH_GUIDANCE}`
-          variant = "warning"
-        } else if (st === STATE.ERROR || (st === STATE.OFFLINE && proxyError())) {
-          msg = `proxy error (${proxyError() || st})`
-          variant = "warning"
-        } else if (st === STATE.OFFLINE || !s) {
-          msg = "proxy offline — start `freellmpool proxy`"
-          variant = "warning"
-        } else {
-          msg = `${money(s.pool?.usd_saved ?? 0)} saved · ${s.pool?.requests ?? 0} req · routing ${s.routing}`
-          variant = "success"
-        }
-        api.ui.toast({ title: "freellmpool", message: msg, variant })
-      },
-    },
-  ])
+  const unsubs: Array<() => void> = []
+  const reg = (r: unknown) => { if (typeof r === "function") unsubs.push(r as () => void) }
+  reg(context.ui.slot({ append: "sidebar.content", render: () => <Panel /> }))
+  reg(context.ui.slot({ append: "home.footer.status", render: () => <>{home()}</> }))
+  return () => unsubs.forEach((u) => { try { u() } catch {} })
 }
 
-export default { id: "freellmpool-tui", tui: plugin }
+// ── /freellmpool: dialog-based status (needs no slot API) ───────────────────
+// Slash command + dialog (pattern also used by opencode-antigravity-auth), independent of slots.
+async function statusReport(alias?: string): Promise<string> {
+  try {
+    const res = await fetch(`${PROXY}/status`, { headers: AUTH, signal: AbortSignal.timeout(5000) })
+    if (res.status === 401 || res.status === 403) return `proxy needs auth (HTTP ${res.status}) — ${AUTH_GUIDANCE}`
+    if (!res.ok) return `proxy error (HTTP ${res.status})`
+    const s: any = await res.json()
+    const pool = s.pool ?? {}
+    const life = s.lifetime ?? {}
+    const lines = [
+      `routing: ${alias ?? s.routing ?? "?"}${alias && s.routing && alias !== s.routing ? ` (proxy default: ${s.routing})` : ""}`,
+      `${money(life.usd_saved ?? pool.usd_saved ?? 0)} saved · ${compact((life.prompt_tokens ?? 0) + (life.completion_tokens ?? 0))} free tokens · ${pool.requests ?? 0} req this session`,
+    ]
+    const r = s.recent?.[0]
+    if (r) lines.push(`last served: ${r.provider}/${r.model}`)
+    lines.push("", "providers:")
+    for (const p of (s.providers ?? []).filter((x: any) => x.configured)) {
+      const models = p.models ?? []
+      const used = models.reduce((a: number, m: any) => a + (Number(m.used_today) || 0), 0)
+      const cap = models.reduce((a: number, m: any) => a + (m.rpd > 0 ? m.rpd : 0), 0)
+      const cool = Number(p.cooldown_remaining_s) > 0 ? ` · cooldown ${Math.ceil(p.cooldown_remaining_s)}s` : ""
+      lines.push(`  ${p.id}: ${used}${cap ? `/${cap}` : ""} req${cool}`)
+    }
+    return lines.join("\n")
+  } catch {
+    return `proxy offline at ${PROXY} — start \`freellmpool proxy\``
+  }
+}
+
+export default Plugin.define({
+  id: "freellmpool-tui",
+  setup(context: any) {
+    context.keymap.layer(() => ({
+      mode: "global",
+      commands: [
+        {
+          id: "freellmpool.dashboard",
+          title: "freellmpool status",
+          group: "freellmpool",
+          palette: true,
+          slash: { name: "freellmpool", aliases: ["flp"] },
+          run: async () => {
+            await context.ui.dialog.alert({ title: "freellmpool", message: await statusReport(selectedAlias(context)) })
+          },
+        },
+      ],
+    }))
+
+    let dispose: (() => void) | undefined
+    let cleanupSlots: (() => void) | undefined
+    try {
+      // createRoot owns the polling timers / effects (onCleanup) created in build().
+      createRoot((d) => {
+        dispose = d
+        cleanupSlots = build(context)
+      })
+    } catch (err) {
+      // Never let the live panel break plugin loading; the slash command above still works.
+      console.warn("[freellmpool-tui] live panel unavailable:", err instanceof Error ? err.message : err)
+    }
+    return () => {
+      cleanupSlots?.()
+      dispose?.()
+    }
+  },
+})

@@ -25,10 +25,6 @@ const packages = [
       "README.md",
       "freellmpool.js",
       "package.json",
-      "plugin/freellmpool.js",
-      "tools/freellmpool_models.js",
-      "tools/freellmpool_status.js",
-      "tools/freellmpool_tokenmax.js",
     ],
   },
   {
@@ -64,60 +60,87 @@ function writePackage(directory, name, source) {
   writeFileSync(join(packageDir, "index.js"), source)
 }
 
-function smokeServer(installDir) {
+// Minimal stand-ins for the OpenCode v2 plugin SDK. They only mirror the surface the
+// plugins use (Plugin.define, Provider/Model ids + defaults, and the tui entrypoint).
+function writeHostSdk(installDir) {
   writePackage(
     installDir,
-    "@opencode-ai/plugin",
+    "@opencode/plugin",
     [
-      "const schema = new Proxy(function () { return schema }, {",
-      "  get() { return schema },",
-      "  apply() { return schema },",
-      "})",
-      "export const tool = Object.assign((definition) => definition, { schema })",
+      "export const Plugin = { define: (definition) => definition }",
+      "export const Provider = {",
+      "  ID: { make: (id) => id },",
+      "  Info: { empty: (id) => ({ id, models: new Map() }) },",
+      "}",
+      "export const Model = {",
+      "  ID: { make: (id) => id },",
+      "  Info: { default: (providerID, id) => ({ providerID, id }) },",
+      "}",
     ].join("\n"),
   )
+  const tuiDir = join(installDir, "node_modules", "@opencode", "plugin")
+  writeFileSync(
+    join(tuiDir, "package.json"),
+    JSON.stringify({
+      name: "@opencode/plugin",
+      version: "2.0.0",
+      type: "module",
+      exports: { ".": "./index.js", "./tui": "./tui.js" },
+    }),
+  )
+  writeFileSync(join(tuiDir, "tui.js"), "export const Plugin = { define: (definition) => definition }\n")
+}
+
+function smokeServer(installDir) {
+  writeHostSdk(installDir)
   run(
     process.execPath,
     [
       "--input-type=module",
       "-e",
       [
-        'process.env.FREELLMPOOL_PROXY_KEY = "smoke-proxy-key"',
+        'process.env.FREELLMPOOL_TOAST = "0"',
         'const mod = await import("opencode-freellmpool")',
-        "const loaded = await mod.default({ client: { tui: { showToast: async () => {} } } })",
-        'if (loaded?.tool?.freellmpool_status?.description === undefined) throw new Error("server plugin did not register tools")',
-        'const config = { provider: { freellmpool: { name: "Custom pool", options: { apiKey: "custom-api-key" }, models: { custom: {} } } } }',
-        "await loaded.config(config)",
-        "await loaded.config(config)",
-        'if (!config.provider.freellmpool.models.agent || !config.provider.freellmpool.models.spread) throw new Error("server plugin did not register provider models")',
-        'if (config.provider.freellmpool.name !== "Custom pool" || config.provider.freellmpool.options.apiKey !== "custom-api-key" || !config.provider.freellmpool.models.custom) throw new Error("server plugin replaced existing provider configuration")',
-        "const freshConfig = {}",
-        "await loaded.config(freshConfig)",
-        'if (freshConfig.provider.freellmpool.options.apiKey !== "smoke-proxy-key") throw new Error("server plugin did not configure proxy authentication")',
-        'const selectedConfig = { model: "existing/default" }',
-        "await loaded.config(selectedConfig)",
-        'if (selectedConfig.model !== "existing/default") throw new Error("server plugin replaced the selected default model")',
-        'const disabledConfig = { disabled_providers: ["freellmpool"] }',
-        "await loaded.config(disabledConfig)",
-        'if (disabledConfig.provider?.freellmpool) throw new Error("server plugin ignored disabled_providers")',
-        'const localPlugin = await import("opencode-freellmpool/plugin/freellmpool.js")',
-        'if (typeof localPlugin.default !== "function") throw new Error("local plugin shim did not load")',
+        'if (mod.default?.id !== "freellmpool" || typeof mod.default?.setup !== "function") throw new Error("server plugin did not load")',
+        "const tools = new Map()",
+        "const providers = new Map()",
+        "const models = new Map()",
+        "const editor = {",
+        "  get: (id) => providers.get(id),",
+        "  add: ({ info }) => { providers.set(info.id, { provider: info, models: new Map() }) },",
+        "  update: () => {},",
+        "  models: { set: (id, list) => models.set(id, list) },",
+        "}",
+        "const ctx = {",
+        "  integration: { transform: async (fn) => fn({ get: () => undefined, update: () => {}, method: { update: () => {} } }) },",
+        "  provider: { transform: async (fn) => fn(editor) },",
+        "  tool: { transform: async (fn) => fn({ add: (tool) => tools.set(tool.name, tool) }) },",
+        "  event: { subscribe: () => (async function* () {})() },",
+        "}",
+        "const cleanup = await mod.default.setup(ctx)",
         'for (const name of ["freellmpool_status", "freellmpool_models", "freellmpool_tokenmax"]) {',
-        '  const custom = await import(`opencode-freellmpool/tools/${name}.js`)',
-        '  if (custom.default?.description === undefined) throw new Error(`${name} custom tool did not load`)',
-        '}',
-      ].join(";"),
+        '  if (typeof tools.get(name)?.execute !== "function") throw new Error(`server plugin did not register ${name}`)',
+        "}",
+        'const registered = (models.get("freellmpool") || []).map((model) => model.id)',
+        'for (const alias of ["agent", "spread", "auto", "fast", "quality", "fair"]) {',
+        '  if (!registered.includes(alias)) throw new Error(`server plugin did not register provider model ${alias}`)',
+        "}",
+        'if (typeof cleanup !== "function") throw new Error("server plugin setup did not return a cleanup function")',
+        "cleanup()",
+      ].join("\n"),
     ],
     { cwd: installDir },
   )
 }
 
 function smokeTui(installDir) {
+  writeHostSdk(installDir)
   writePackage(
     installDir,
     "solid-js",
     [
       "export const createEffect = () => {}",
+      "export const createRoot = (fn) => fn(() => {})",
       "export const createSignal = (value) => [() => value, () => {}]",
       "export const onCleanup = () => {}",
       "export const For = () => null",
@@ -155,12 +178,22 @@ function smokeTui(installDir) {
       "--eval",
       [
         'import plugin from "opencode-freellmpool-tui/tui"',
-        'if (plugin?.id !== "freellmpool-tui" || typeof plugin?.tui !== "function") throw new Error("TUI plugin did not load")',
+        'if (plugin?.id !== "freellmpool-tui" || typeof plugin?.setup !== "function") throw new Error("TUI plugin did not load")',
       ].join(";"),
     ],
     { cwd: installDir },
   )
 }
+
+// Stand-in for the registry's @opencode/plugin so the clean install stays offline and
+// the tarball's ">=2.0.0" dependency is already satisfied (replaced by writeHostSdk()).
+const hostStub = join(work, "host-stub")
+mkdirSync(hostStub, { recursive: true })
+writeFileSync(
+  join(hostStub, "package.json"),
+  JSON.stringify({ name: "@opencode/plugin", version: "2.0.0", type: "module", main: "index.js" }),
+)
+writeFileSync(join(hostStub, "index.js"), "export {}\n")
 
 try {
   for (const spec of packages) {
@@ -184,7 +217,12 @@ try {
     mkdirSync(installDir)
     writeFileSync(
       join(installDir, "package.json"),
-      JSON.stringify({ name: "freellmpool-package-smoke", private: true, type: "module" }),
+      JSON.stringify({
+        name: "freellmpool-package-smoke",
+        private: true,
+        type: "module",
+        dependencies: { "@opencode/plugin": `file:${hostStub}` },
+      }),
     )
     run(
       "npm",

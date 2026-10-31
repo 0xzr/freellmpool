@@ -6,6 +6,8 @@ and control routing quality — all from inside [OpenCode](https://opencode.ai).
 It talks to a running [freellmpool](https://github.com/0xzr/freellmpool) proxy
 (`freellmpool proxy`, default `http://localhost:8080`).
 
+> **Requires OpenCode v2.** For OpenCode v1 use freellmpool ≤ 0.12.x.
+
 ## What it adds
 
 - **`freellmpool_status` tool** — usage and estimated $ saved, per-provider quota /
@@ -59,17 +61,26 @@ aggregate quota matters more than keeping every turn in the strongest tier.
 cd /absolute/path/to/integrations/opencode
 npm pack
 npm install --prefix ~/.config/opencode ./opencode-freellmpool-0.1.0.tgz
-mkdir -p ~/.config/opencode/plugin ~/.config/opencode/tools
-cp plugin/freellmpool.js ~/.config/opencode/plugin/
-cp tools/*.js ~/.config/opencode/tools/
 ```
 
-OpenCode auto-discovers the shim in `~/.config/opencode/plugin`; do not add the
-unpublished package name to the `plugin` array, because that can trigger a
-registry lookup. The files copied into `~/.config/opencode/tools` are required for OpenCode
-versions that discover custom tools from that directory rather than from a
-plugin's `tool` hook. Keeping both paths configured preserves the served-model
-toast and exposes all three tools across supported OpenCode versions.
+Then reference the plugin in your `opencode.json` (v2 syntax):
+
+```jsonc
+{
+  "plugins": ["opencode-freellmpool"]
+}
+```
+
+Or copy the single plugin file for zero-install auto-discovery (needs
+`@opencode/plugin` resolvable from `~/.config/opencode`):
+
+```sh
+mkdir -p ~/.config/opencode/plugins
+cp freellmpool.js ~/.config/opencode/plugins/
+```
+
+> **Note:** In OpenCode v2 the auto-discovery directory is `plugins/` (plural).
+> Tools are registered by the plugin itself during setup; no separate tool files exist.
 
 Then make sure the proxy is running (`freellmpool proxy`) and restart OpenCode.
 The plugin's config hook adds the `freellmpool` provider and six routing aliases
@@ -81,24 +92,21 @@ below into its configuration. The plugin never rewrites that file.
 
 ```jsonc
 {
-  "provider": {
+  "providers": {
     "freellmpool": {
       "name": "freellmpool (free pool)",
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
         "baseURL": "http://localhost:8080/v1",
-        "apiKey": "{env:FREELLMPOOL_PROXY_KEY}",
-        "headerTimeout": 600000,
-        "timeout": 600000,
-        "chunkTimeout": 120000
+        "apiKey": "{env:FREELLMPOOL_PROXY_KEY}"
       },
       "models": {
-        "agent": {},
-        "spread": {},
-        "auto": {},
-        "fast": {},
-        "quality": {},
-        "fair": {}
+        "agent":   { "name": "Agent — strongest healthy tier" },
+        "spread":  { "name": "Spread — maximum pool breadth" },
+        "auto":    { "name": "Auto — proxy default routing" },
+        "fast":    { "name": "Fast — lowest latency" },
+        "quality": { "name": "Quality — capability matched" },
+        "fair":    { "name": "Fair — provider quota spread" }
       }
     }
   }
@@ -112,6 +120,7 @@ below into its configuration. The plugin never rewrites that file.
 | `FREELLMPOOL_PROXY_URL` | `http://localhost:8080` | proxy base URL |
 | `FREELLMPOOL_PROXY_KEY` | _(none)_ | sent as `Authorization: Bearer <key>` if your proxy requires one |
 | `FREELLMPOOL_TOAST` | on | set to `0`/`false`/`off` to silence the served-model toast |
+| `FREELLMPOOL_MODELS_DISCOVERY` | off | set to `1`/`true`/`on` to add `modelsDiscovery: { enabled: true }` to the provider settings (for `opencode-models-discovery`) |
 
 The plugin never throws on a down proxy — the tools return a short message and the
 toast hook stays quiet.
