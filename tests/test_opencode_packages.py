@@ -8,7 +8,7 @@ PACKAGES = {
     "opencode": {
         "name": "opencode-freellmpool",
         "entry": "freellmpool.js",
-        "files": {"freellmpool.js", "README.md", "LICENSE", "plugin", "tools"},
+        "files": {"freellmpool.js", "README.md", "LICENSE"},
     },
     "opencode-tui": {
         "name": "opencode-freellmpool-tui",
@@ -52,13 +52,13 @@ def test_opencode_package_manifests_are_publishable_and_explicit() -> None:
         assert (ROOT / "integrations" / directory / "LICENSE").is_file()
 
     assert names == {"opencode-freellmpool", "opencode-freellmpool-tui"}
-    assert _manifest("opencode")["peerDependencies"] == {
-        "@opencode-ai/plugin": ">=1.14.0"
-    }
+    assert _manifest("opencode")["dependencies"] == {"@opencode/plugin": ">=2.0.0"}
     assert _manifest("opencode-tui")["exports"]["./tui"] == "./index.tsx"
+    assert _manifest("opencode-tui")["dependencies"] == {"@opencode/plugin": ">=2.0.0"}
     assert _manifest("opencode-tui")["peerDependencies"] == {
-        "@opentui/solid": ">=0.4.5",
-        "solid-js": ">=1.9.12",
+        "@opentui/core": ">=0.6.6",
+        "@opentui/solid": ">=0.6.6",
+        "solid-js": ">=1.9.0",
     }
 
 
@@ -116,47 +116,51 @@ def test_package_smoke_script_checks_tarballs_clean_installs_and_loads() -> None
         assert required in script
 
 
-def test_opencode_server_plugin_registers_tools_with_sdk_helper() -> None:
+def test_opencode_server_plugin_registers_provider_and_tools_via_v2_api() -> None:
     source = (
         ROOT / "integrations" / "opencode" / "freellmpool.js"
     ).read_text(encoding="utf-8")
+    assert 'from "@opencode/plugin"' in source
+    assert "Plugin.define({" in source
+    # provider: editor.add({ info, models }) inside ctx.provider.transform
+    assert "ctx.provider.transform(" in source
+    assert "Provider.Info.empty(" in source
+    assert "editor.models.set(" in source
+    assert "Model.Info.default(" in source
+    # tools: ctx.tool.transform with editor.add({ name, ... })
+    assert "ctx.tool.transform(" in source
     for name in (
         "freellmpool_status",
         "freellmpool_models",
         "freellmpool_tokenmax",
     ):
-        assert f"{name}: tool({{" in source
-    assert "config: async (config) =>" in source
-    assert "installProvider(config)" in source
+        assert f'name: "{name}"' in source
+    # existing providers get defaults merged in, never overwritten; the integration is only
+    # attached after it registered
+    assert "let integrationOk = false" in source
+    assert "...defaults, ...user" in source
+    # events: async iterable, never a callback, and never blocking setup
+    assert "for await (const event of ctx.event.subscribe(" in source
+    assert "ctx.event.subscribe(async" not in source
 
-    smoke = (ROOT / "scripts" / "check_opencode_packages.mjs").read_text(
+    package = ROOT / "integrations" / "opencode"
+    assert not (package / "plugin").exists()
+    assert not (package / "tools").exists()
+
+
+def test_opencode_tui_uses_the_documented_v2_module_and_slots() -> None:
+    source = (ROOT / "integrations" / "opencode-tui" / "index.tsx").read_text(
         encoding="utf-8"
     )
-    assert "Object.assign((definition) => definition, { schema })" in smoke
-    assert "server plugin did not register tools" in smoke
-    assert "server plugin did not register provider models" in smoke
-    assert "server plugin replaced existing provider configuration" in smoke
-    assert "server plugin did not configure proxy authentication" in smoke
-    assert "server plugin replaced the selected default model" in smoke
-    assert "server plugin ignored disabled_providers" in smoke
-    assert "local plugin shim did not load" in smoke
-    assert "custom tool did not load" in smoke
-
-    for name in (
-        "freellmpool_status",
-        "freellmpool_models",
-        "freellmpool_tokenmax",
-    ):
-        shim = (
-            ROOT / "integrations" / "opencode" / "tools" / f"{name}.js"
-        ).read_text(encoding="utf-8")
-        assert 'import plugin from "opencode-freellmpool"' in shim
-        assert f"export default loaded.tool.{name}" in shim
-
-    plugin_shim = (
-        ROOT / "integrations" / "opencode" / "plugin" / "freellmpool.js"
-    ).read_text(encoding="utf-8")
-    assert plugin_shim.strip() == 'export { default } from "opencode-freellmpool"'
+    assert 'from "@opencode/plugin/tui"' in source
+    assert "export default Plugin.define({" in source
+    assert "tui: plugin" not in source  # v1 module shape is rejected by v2
+    assert 'append: "sidebar.content"' in source
+    assert 'append: "home.footer.status"' in source
+    assert "<div" not in source  # OpenTUI renders <box>/<text>, not DOM elements
+    assert "slash: { name: \"freellmpool\"" in source
+    # the proxy's /status routing is only its default; the alias is the selected model
+    assert "context.ui.model.current()" in source or "ui?.model?.current" in source
 
 
 def test_unpublished_registry_install_is_labelled_pending_everywhere() -> None:
@@ -206,3 +210,15 @@ def test_opencode_config_examples_forward_protected_proxy_auth() -> None:
         "Pick `freellmpool/", 1
     )[0]
     assert '"model": "freellmpool/' not in manual_fallback
+
+
+def test_opencode_jail_configures_the_v2_entrypoints() -> None:
+    script = (
+        ROOT / "integrations" / "opencode-jail" / "opencode-freellmpool-jailed.sh"
+    ).read_text(encoding="utf-8")
+    assert '"plugins": [ $PLUGIN_LIST ]' in script
+    assert '"plugins": [ %s ]' in script
+    assert '"$IMG_CFG/cli.json"' in script
+    assert '> "$IMG_CFG/tui.json"' not in script
+    assert '"plugin": [' not in script
+    assert 'cp -rf "$INTEG/opencode/." "$IMG_CFG/plugin/"' in script

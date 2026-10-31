@@ -45,31 +45,27 @@ get it standalone, run `freellmpool tokenmax "…"` in any terminal.
 It's a real OpenTUI/SolidJS plugin (not text in a tool result), so it's themed to match
 your editor and lives alongside OpenCode's own Context / MCP / LSP panels.
 
-## Install
+## Install (OpenCode v2)
 
 > **Registry publication status: pending.** `opencode-freellmpool-tui` and the
 > companion `opencode-freellmpool` server plugin are pack/install/load-tested
 > in CI, but neither package was published on npm as of 2026-08-29.
-> Repository-local plugin sources are included in 0.12.0 with registry-readiness hardening and corrected defaults. Use the local-file command
+> Repository-local plugin sources are included in 0.12.0 with registry-readiness hardening and corrected defaults. Use the local path
 > below until verified registry versions exist.
 
-OpenCode TUI plugins are installed with the built-in installer (which wires the OpenTUI
-runtime for you — there are no `node_modules` to manage):
+Per the [v2 plugin docs](https://opencode.ai/v2/docs/build/plugins/cli/), TUI plugins export
+`Plugin.define({ id, setup(context) })` from `@opencode/plugin/tui` and are listed in the
+`plugins` array of `cli.json`:
 
-```sh
-# from a clone of the freellmpool repo:
-opencode plugin -g file:/absolute/path/to/integrations/opencode-tui
+```jsonc
+{
+  "plugins": ["opencode-freellmpool-tui"]   // or a local directory path
+}
 ```
 
-That records the plugin in `~/.config/opencode/tui.json`. Start the proxy
-(`freellmpool proxy`) and launch `opencode` — the panel appears on the home screen and in
-the session sidebar.
-
-> TUI plugins are configured in `tui.json`, **not** the `plugin` array in `opencode.json`
-> (that array is for server/event-hook plugins, like the companion `opencode-freellmpool`
-> tools plugin in `../opencode`).
-
-To remove it, delete the entry from `~/.config/opencode/tui.json`.
+Start the proxy (`freellmpool proxy`) and launch `opencode`. The panel is appended to
+`sidebar.content`; a one-line status goes into `home.footer.status`. The slash command
+`/freellmpool` (alias `/flp`) opens a status dialog and works independently of the slots.
 
 ## Configuration (env)
 
@@ -86,6 +82,6 @@ mode does.
 
 ## Requirements
 
-OpenCode ≥ 1.14 (the embedded-TUI plugin API). The OpenTUI runtime (`@opentui/solid`,
-`solid-js`) is provided by OpenCode at load time via its runtime-plugin support — this
-package intentionally ships no runtime dependencies.
+OpenCode v2. JSX plugins need the peer dependencies `@opentui/core` / `@opentui/solid`
+(>=0.6.6) and `solid-js` (>=1.9.0). Only `context.theme.text.base` is documented as a theme
+token; the other colors are read defensively and fall back to fixed values.

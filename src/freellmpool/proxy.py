@@ -413,6 +413,9 @@ def make_handler(pool: Pool, api_key: str | None = None):
     recent_lock = threading.Lock()
 
     def record_recent(entry: dict) -> None:
+        # ``ts`` (epoch seconds) lets clients such as the OpenCode plugin match an entry to
+        # the request they just made instead of assuming ``recent[0]`` is theirs.
+        entry.setdefault("ts", time.time())
         with recent_lock:
             recent.appendleft(entry)
 

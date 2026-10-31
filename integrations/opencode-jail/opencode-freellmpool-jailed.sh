@@ -155,10 +155,12 @@ fi
 # ── refresh the freellmpool plugins INTO the config (so llmbuffet is never bind-mounted) ──
 # rm -rf (no trailing slash) clears a planted file, symlink, OR directory at each name — and
 # only AFTER this do we recreate plugin/tui-plugin, so no stale symlink is followed by mkdir.
-rm -rf "$IMG_CFG/opencode.jsonc" "$IMG_CFG/tui.json" "$IMG_CFG/plugin" "$IMG_CFG/tui-plugin"
+rm -rf "$IMG_CFG/opencode.jsonc" "$IMG_CFG/tui.json" "$IMG_CFG/cli.json" "$IMG_CFG/plugin" "$IMG_CFG/tui-plugin"
 mkdir -p "$IMG_CFG/plugin" "$IMG_CFG/tui-plugin"
+# OpenCode v2 loads a local plugin from a DIRECTORY (package.json -> freellmpool.js), not from
+# a bare .js file, so copy the whole package.
 if [ -f "$INTEG/opencode/freellmpool.js" ]; then
-  cp -f "$INTEG/opencode/freellmpool.js" "$IMG_CFG/plugin/freellmpool.js"
+  cp -rf "$INTEG/opencode/." "$IMG_CFG/plugin/"
 fi
 if [ -d "$INTEG/opencode-tui" ]; then
   cp -rf "$INTEG/opencode-tui/." "$IMG_CFG/tui-plugin/"
@@ -166,16 +168,16 @@ fi
 
 # ── /goal long-horizon plugin (auto-continues toward an objective on session.idle) ─────
 # Installed as an npm spec opencode fetches into the capped image state (persists). It must
-# be in BOTH the server (opencode.jsonc) and tui (tui.json) plugin lists. Set OPENCODE_FP_GOAL
+# be in BOTH the server (opencode.jsonc "plugins") and tui (cli.json "plugins") plugin lists. Set OPENCODE_FP_GOAL
 # to a different package, or empty, to change/disable.
 GOAL="${OPENCODE_FP_GOAL-@prevalentware/opencode-goal-plugin}"
 case "$GOAL" in *[!A-Za-z0-9@/._-]*) echo "ERROR: OPENCODE_FP_GOAL has invalid chars" >&2; exit 2 ;; esac
 if [ -n "$GOAL" ]; then
-  PLUGIN_LIST="\"$J_CFG/plugin/freellmpool.js\", [\"$GOAL\", { \"auto_continue\": true, \"min_continue_interval_seconds\": 3 }]"
-  TUI_PLUGIN_LIST="\"file:$J_CFG/tui-plugin\", \"$GOAL\""
+  PLUGIN_LIST="\"file://$J_CFG/plugin\", [\"$GOAL\", { \"auto_continue\": true, \"min_continue_interval_seconds\": 3 }]"
+  TUI_PLUGIN_LIST="\"file://$J_CFG/tui-plugin\", \"$GOAL\""
 else
-  PLUGIN_LIST="\"$J_CFG/plugin/freellmpool.js\""
-  TUI_PLUGIN_LIST="\"file:$J_CFG/tui-plugin\""
+  PLUGIN_LIST="\"file://$J_CFG/plugin\""
+  TUI_PLUGIN_LIST="\"file://$J_CFG/tui-plugin\""
 fi
 
 # ── jail-only OpenCode config (regenerated each run; lives in the capped image) ────────
@@ -195,12 +197,12 @@ cat > "$IMG_CFG/opencode.jsonc" <<JSON
     "external_directory": "allow",
     "webfetch": "allow", "websearch": "allow"
   },
-  "plugin": [ $PLUGIN_LIST ],
-  "provider": {
+  "plugins": [ $PLUGIN_LIST ],
+  "providers": {
     "freellmpool": {
-      "npm": "@ai-sdk/openai-compatible",
+      "package": "@opencode/ai/providers/openai-compatible",
       "name": "freellmpool (free pool)",
-      "options": {
+      "settings": {
         "baseURL": "$PROXY_URL/v1", "apiKey": "unused",
         "headerTimeout": 600000, "timeout": 600000, "chunkTimeout": 120000
       },
@@ -216,7 +218,7 @@ cat > "$IMG_CFG/opencode.jsonc" <<JSON
   }
 }
 JSON
-printf '{\n  "plugin": [ %s ]\n}\n' "$TUI_PLUGIN_LIST" > "$IMG_CFG/tui.json"
+printf '{\n  "plugins": [ %s ]\n}\n' "$TUI_PLUGIN_LIST" > "$IMG_CFG/cli.json"
 
 # ── preflight: host proxy reachable (shared net) ──────────────────────────────────────
 if [ "$MODE" != "selftest" ] && ! curl -fsS --max-time 3 "$PROXY_URL/healthz" >/dev/null 2>&1; then

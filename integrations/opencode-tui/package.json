@@ -5,7 +5,13 @@
   "private": false,
   "type": "module",
   "license": "MIT",
-  "keywords": ["opencode", "opencode-plugin", "freellmpool", "tui", "dashboard"],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "freellmpool",
+    "tui",
+    "dashboard"
+  ],
   "homepage": "https://github.com/0xzr/freellmpool/tree/main/integrations/opencode-tui#readme",
   "bugs": {
     "url": "https://github.com/0xzr/freellmpool/issues"
@@ -23,8 +29,16 @@
     "./tui": "./index.tsx"
   },
   "peerDependencies": {
-    "@opentui/solid": ">=0.4.5",
-    "solid-js": ">=1.9.12"
+    "@opentui/core": ">=0.6.6",
+    "@opentui/solid": ">=0.6.6",
+    "solid-js": ">=1.9.0"
   },
-  "files": ["LICENSE", "README.md", "index.tsx"]
+  "files": [
+    "LICENSE",
+    "README.md",
+    "index.tsx"
+  ],
+  "dependencies": {
+    "@opencode/plugin": ">=2.0.0"
+  }
 }
