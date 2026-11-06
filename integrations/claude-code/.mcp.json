@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "freellmpool": {
+      "command": "uvx",
+      "args": ["freellmpool", "mcp"]
+    }
+  }
+}
