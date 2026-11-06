@@ -1,0 +1,10 @@
+{
+  "name": "freellmpool",
+  "version": "0.1.0",
+  "description": "Use free and keyless LLM providers from Claude Code through the freellmpool MCP server: ask, second opinions, model panels, battles, routing, quota and stats. Prepared by Sara Salem.",
+  "author": { "name": "Sara Salem", "email": "saso424@gmail.com" },
+  "homepage": "https://github.com/SaraSalemAI/freellmpool",
+  "repository": "https://github.com/SaraSalemAI/freellmpool",
+  "license": "MIT",
+  "keywords": ["llm", "free", "mcp", "openai-compatible", "second-opinion", "routing"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "freellmpool",
+  "owner": { "name": "Sara Salem", "email": "saso424@gmail.com" },
+  "metadata": { "description": "freellmpool plugins for Claude Code. Prepared by Sara Salem, (c) 2026 Sara Salem." },
+  "plugins": [
+    {
+      "name": "freellmpool",
+      "source": "./integrations/claude-code",
+      "description": "Free and keyless LLMs in Claude Code via the freellmpool MCP server.",
+      "version": "0.1.0"
+    }
+  ]
+}
